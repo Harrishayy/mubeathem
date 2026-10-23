@@ -1,365 +1,332 @@
-# Cue: a live sales coach that learns from every call
+# Cue
 
-> Working name: **Cue**. A real-time assistant for sales reps. It listens to calls, reads the conversation as it happens, and prompts the rep with what has actually worked on their team's past calls. It learns from every call's outcome and checks every claim against company policy.
+## Know exactly what to say next on every cold call.
 
-Built on **Mubit's gateway** and **Banyan Sapling**.
+**Cue is a Chrome extension that sits beside Trellus and reads your call as it happens. Every time the prospect speaks, it shows you the one line most likely to get you to a booked meeting, learned from every call your team has ever made.**
+
+| | |
+| --- | --- |
+| **What it is** | A live suggestion panel for cold calls. It listens to the transcript, recognises the moment you're in (gatekeeper, cold "what's this regarding?", "we already have a broker"…) and surfaces the line that has booked the most meetings in that exact spot. |
+| **Who it's for** | **BDRs and SDRs** making high-volume cold calls, especially **new reps** who don't yet know the track, and the **sales managers** who have to teach it. |
+| **Why it exists** | A BDR has one job: **book the meeting**. The best reps already know what to say at every turn. Everyone else learns it slowly, call by call. Cue turns the whole team's calls into a live playbook, so a rep in their first week sounds like a rep in their first year. |
+
+Built with **Mubit** (model gateway + adapter training), **Banyan Sapling** (policy checks) and **Exa** (prospect research). Runs on top of **Trellus**.
 
 ---
 
 ## 1. The problem
 
-- **Sales knowledge lives in a few people's heads.** The best rep on the team knows exactly what to say when a CFO raises a price objection. Everyone else finds out the hard way, call by call.
-- **Coaching happens too late.** Managers review a handful of recorded calls days afterwards. The moment that lost the deal is long gone.
-- **Generic sales advice doesn't fit.** What works for one product, market or buyer type often fails for another. Teams need advice drawn from *their own* wins and losses.
-- **Reps say things they shouldn't.** Under pressure, reps overpromise features, quote unapproved discounts or make claims that create legal risk. In regulated industries (finance, insurance, healthcare), one wrong sentence can be costly.
+We're BDRs at [Corgi](https://www.corgi.insure), an AI-native insurance carrier for startups. Our day is dials, and our scoreboard is meetings booked.
 
+**Cold calling is a track.** One human follows a sequence of responses to another human. Opener → "what's this regarding?" → the brush-off → the objection → the ask. At each step there's a line that works better than the others. The best reps have learned those lines, and the rest of the team hasn't.
 
+**Teaching the track is slow.** New reps get a script, then shadow calls, then get thrown on the phones. The question they always ask is *"OK, but when am I meant to say this?"* A script can't answer that. Only live calls can, and every bad call while they learn is a meeting the team didn't book.
 
-## 2. The product
+**Nobody knows which lines actually book meetings.** A team making thousands of dials a week is running a huge experiment, but no one records which response, in which situation, got the meeting. The knowledge lives in a few people's heads and leaves when they do.
 
-**Cue sits alongside the rep during live calls.** It reads the conversation through four signals: what's said, conversation flow, voice tone and video. When a key moment comes up, it shows a short, specific prompt based on what worked in the team's past calls.
+**The same question needs different answers.** A friendly "oh, what's this regarding?" and an irritated "…what's this regarding?" are different moments. One wants a straight answer. The other might want a self-aware joke. Which one works is something the data should decide, not a script.
 
-After the call, Cue logs the outcome and learns from it, so every call makes the next one better for the whole team.
+## 2. What Cue is (and isn't)
 
-**One-line pitch:** *Cue gives every rep the instincts of your best rep, in real time, and makes sure they never say something they shouldn't.*
+**Cue is:**
 
-### What the rep sees
+- A **side panel** in Chrome that docks next to Trellus
+- **Transcript-driven:** it reads what's being said, live, and nothing else is needed
+- **One suggestion at a time:** the line to say now, with a short reason and how often it has worked
+- **Learning:** every booked (or lost) meeting improves the next suggestion for the whole team
 
-Small, glanceable prompt cards that never interrupt the conversation:
+**Cue isn't:**
 
-> 💡 **Price objection**
-> Ask: *"What does your current process cost you each month?"*
-> Worked in 7 of 9 similar calls.
+- A dialer. Trellus still places the calls, runs the parallel lines and logs to the CRM.
+- A script. Nothing is shown unless the moment calls for it.
+- An auto-pilot. The rep is always the one talking. Cue whispers; it never speaks.
 
-> 👥 **Decision maker signal**
-> They've mentioned "my team" three times. Ask who else is involved in the decision.
+## 3. Who it's for
 
-> 📉 **Engagement dropping**
-> Prospect has gone quiet since the pricing slide and is looking away from the camera. Pause and ask an open question.
+| | What they get |
+| --- | --- |
+| **New BDRs** | The track, live. They see *what* to say and *when* to say it on real calls, so ramp time drops from months to weeks. |
+| **Experienced BDRs** | Only the high-value moments: a better gatekeeper line, a sharper objection handle, a research hook they didn't have time to find. |
+| **Sales managers** | A playbook that writes itself: which lines book meetings, for which personas, and which new lines are starting to win. |
+| **RevOps / compliance** | Every suggestion checked against sales policy before a rep ever sees it. |
+
+---
+
+## 4. The experience
+
+Cue should feel like a calm, beautiful co-pilot, not another dashboard. One glance, one line, back to the conversation.
+
+### 4.1 The panel
+
+```
+╭──────────────────────────────────────────────╮
+│  ●  LIVE  02:14                    ⚙   ─     │
+│                                              │
+│  Maya Chen                                   │
+│  CEO · Lumen Labs · Series A (Mar)           │
+│  ┌────────┐ ┌──────────────┐                 │
+│  │  CEO   │ │ ▂▃▅ cooling  │                 │
+│  └────────┘ └──────────────┘                 │
+│──────────────────────────────────────────────│
+│                                              │
+│  🧊  COLD "WHAT'S THIS REGARDING?"           │
+│                                              │
+│  "Honestly? Insurance. Worst cold-call       │
+│   topic there is. Give me thirty seconds     │
+│   and I'll let you go."                      │
+│                                              │
+│  Books 2.1× more than the straight answer    │
+│  with cold CEOs · 41 calls                   │
+│                                              │
+│──────────────────────────────────────────────│
+│  UP NEXT, IF THEY SAY…                       │
+│  "We have a broker"   → ask about re-quote   │
+│  "Send me an email"   → ask for 15 min       │
+│──────────────────────────────────────────────│
+│  ▸ Brief   ▸ Transcript   ▸ Flags (0)        │
+╰──────────────────────────────────────────────╯
+```
+
+- **Header:** who you're talking to (from HubSpot, confirmed by the transcript), their persona chip, and a small **receptivity** indicator that drifts warm ↔ cold as the call goes.
+- **The card:** the hero of the panel. The moment's name, one line in large type, and one line of evidence. Nothing else.
+- **Up next:** the two most likely things the prospect says next, with the move for each, so the rep is never caught flat-footed.
+- **Drawers:** the pre-call brief, the live transcript and compliance flags, collapsed until you want them.
+
+### 4.2 Design principles
+
+- **One thing at a time.** Never more than one suggestion on screen. A new card replaces the old one with a soft cross-fade (~150 ms).
+- **Readable at a glance.** The line is set large (20–22 px), high contrast, short enough to read in one second. If a line can't be said in one breath, it's too long.
+- **Colour means the moment.** Each moment type has its own accent: gatekeeper (slate), opener (blue), cold/brush-off (ice), objection (violet), buying signal (green), close (gold), compliance (amber). After a week reps recognise the moment before they read it.
+- **Evidence, always.** Every line says why it's there: "booked 11 of 34 times here". Reps trust what they can see working.
+- **Quiet when it should be.** No card while the rep is mid-sentence, and nothing during small talk that's going well. Suggestions arrive within ~1.5 s of the prospect finishing a turn.
+- **Light and dark.** Follows the system theme, and looks good next to Trellus in both.
+- **Respectful motion.** No bouncing, no flashing, nothing that pulls the eye mid-sentence. Compliance flags are the only thing that pulses, once.
+
+### 4.3 Card types
+
+> 🚪 **Gatekeeper**
+> *"Totally fair. It's about the board's D&O cover after the raise. Is that usually Maya, or does your CFO handle it?"*
+> Transferred or got a name 14 of 38 times.
+
+> 👋 **Opener (CEO, recently raised)**
+> *"Maya, it's Alex at Corgi. Saw the Series A, congrats. Quick one: has anyone talked to you about D&O since the board changed?"*
+
+> 🧊 **Cold "what's this regarding?"**
+> *"Honestly? Insurance. Worst cold-call topic there is. Thirty seconds and I'll let you go."*
+
+> 🛡️ **Objection: "we already have a broker"**
+> *"Makes sense, most founders do. When did they last re-quote you after a raise?"*
+
+> 📩 **Brush-off: "just send me an email"**
+> *"Happy to. So it's actually useful, what's the one thing you'd want it to answer?"*
+
+> 🟢 **Buying signal**
+> They asked about price. Go for the meeting: *"Easiest is fifteen minutes with our team, they'll quote you live. Thursday or Friday?"*
 
 > ⚠️ **Compliance**
-> "Integrates with SAP" isn't in the product sheet. Correct it before the call ends.
-
-Prompts are **short** (one line of advice), **specific** (tied to what just happened), **evidenced** (show how often it worked) and **rare** (only at moments that matter).
+> "That would definitely be covered" can't be promised before underwriting. Try: *"That's exactly what the quote call will confirm."*
 
 ---
 
+## 5. How Cue reads the moment
 
+Everything starts from the **transcript**. Cue captures the call audio in the browser, transcribes it live with speaker labels, and works out three things after every prospect turn:
 
-## 3. The four signals
+### 5.1 Who you're talking to
 
-Cue combines four signals into a live picture of the call. No single signal drives a prompt on its own; combining them reduces false alarms.
+The **HubSpot title** is the starting assumption. The **transcript** confirms or overrides it:
 
-### 3.1 What's said (language)
+- HubSpot says CEO and nothing contradicts it → **CEO track**
+- "She's in a meeting, can I take a message?" → **Gatekeeper**, whatever the record says
+- A second voice joins and asks about cost → **CEO + CFO track**
+- "I'm one of the engineers here" → **Engineer track** (different pains: AI liability and E&O, not board D&O)
 
-Streaming transcription plus language analysis detects:
+### 5.2 How receptive they are
 
-- **Objections:** price, timing, competitor, "not a priority", "need to check with…"
-- **Buying signals:** "what would onboarding look like?", "how quickly could we start?", questions about contracts or pricing tiers
-- **Competitor mentions** and current tools
-- **Pain points:** problems the prospect describes in their own words
-- **Decision process:** other stakeholders, budget cycles, approval steps
-- **Rep claims:** product capabilities, pricing, guarantees and commitments (passed to the compliance check)
+A simple **warm / neutral / cool / cold** reading from the transcript itself:
 
+- **Words:** "oh sure, what's up" vs "who gave you this number?"
+- **Shape:** one-word answers, cutting the rep off, long silences before replying, or asking questions back
+- **Trend:** whether their share of the conversation is growing or shrinking
 
+Receptivity is part of the moment. The playbook learns separately what works on a warm CEO and on a cold one. If a jokey line beats the straight answer when the prospect is cold, Cue will find that out and start suggesting it.
 
-### 3.2 Conversation flow
+### 5.3 What just happened
 
-How the conversation is moving, independent of content:
+The **moment**: opener, gatekeeper, "what's this regarding?", brush-off, objection (and which one), buying signal, ready to close.
 
-- **Talk ratio:** rep vs prospect speaking time (reps who dominate tend to lose)
-- **Question rate:** how many questions the rep asks, and whether the prospect asks any
-- **Monologues:** long uninterrupted stretches by either side
-- **Interruptions** and overlapping speech
-- **Response latency:** long pauses before the prospect answers
-- **Engagement trend:** the prospect's share of the conversation rising or falling over time
+**Who + receptivity + moment** = the **situation**. Every suggestion, and everything Cue learns, is keyed on the situation.
 
-
-
-### 3.3 Voice tone
-
-Prosody analysis of the prospect's voice:
-
-- **Energy and pace:** speeding up and getting louder vs slowing down and going flat
-- **Pitch variation:** animated vs monotone
-- **Hesitation markers:** "um", trailing off, restarts
-- **Shift detection:** a clear change in tone after a specific moment (e.g. right after pricing is mentioned)
-
-Tone is used as **shifts relative to that person's own baseline earlier in the call**, not as absolute judgements. A naturally quiet person isn't flagged as disengaged.
-
-### 3.4 Video
-
-On video calls, with consent, Cue analyses the prospect's camera feed for **engagement cues**:
-
-- **Attention:** looking at the screen vs looking away, off-screen or multitasking
-- **Facial expression changes:** for example, a frown or a smile at a specific moment
-- **Nodding and visible reactions**
-- **Presence:** leaving the frame, turning away, others joining on camera
-
-Like tone, video is read as **change from that person's baseline** and always **combined with the other signals**. A single expression never triggers a prompt by itself. Cue reports *engagement cues* ("attention dropped after pricing") rather than claiming to know what someone feels.
-
-### Combining the signals
-
-Example: the prospect's **talk share falls** (flow), their **voice goes flat** (tone), they **look away from the screen** (video), all right after the rep **mentions price** (language). Together these are a strong signal, so Cue prompts: *"Engagement dropped after pricing. Pause and ask what's on their mind."*
-
----
-
-
-
-## 4. How Cue learns
-
-
-
-### 4.1 Outcomes
-
-Every call gets an outcome, pulled from the CRM or set by the rep:
-
-- Meeting booked / next step agreed
-- Deal moved forward a stage
-- Deal won / lost
-- No clear next step
-
-
-
-### 4.2 From outcomes to moments
-
-Cue links each outcome back to **specific moments** in the call: the objection, what the rep did next, and how the prospect reacted across all four signals. Across many calls, this produces **lessons**:
-
-> *"When a CFO raises price early, reps who asked about the cost of their current process (instead of offering a discount) booked a follow-up 70% of the time."*
-
-> *"Calls where the rep spoke more than 65% of the time rarely progressed past the first meeting."*
-
-> *"When prospects in logistics mentioned seasonal peaks, sharing the retail-peak case study led to a next step in 6 of 8 calls."*
-
-
-
-### 4.3 Lesson store
-
-Lessons are stored with:
-
-- **The situation they apply to:** prospect role, industry, deal stage, objection type
-- **Evidence:** how many calls support it, and the success rate
-- **Status:** *candidate* (too little evidence) → *verified* (enough calls) → *retired* (stopped working)
-
-Only **verified** lessons become live prompts. Candidates are shown to sales managers for review first. Lessons that stop working, because a market shifted or a competitor changed pricing, are automatically downranked and retired.
-
-### 4.4 Team-wide learning
-
-Lessons are shared across the whole sales team. When one rep discovers what handles a new competitor objection, every rep gets that prompt on their next call. A team of 50 reps learns 50 times faster than any individual.
-
----
-
-
-
-## 5. How the Mubit gateway is used
-
-
-
-### Why Cue needs it
-
-Real-time prompts must appear **within a second or two**, while the moment is still live. Running a large frontier model on every few seconds of every call is too slow and too expensive at scale.
-
-### How it works
-
-1. **Every model call routes through Mubit's gateway**: one change to the API base URL.
-  ```python
-   from openai import OpenAI
-   client = OpenAI(
-       base_url="https://api.mubit.ai/openai/v1",
-       api_key=os.environ["MUBIT_API_KEY"],
-   )
-  ```
-2. **Cue's model calls are highly repetitive.** The same few jobs run thousands of times, each with a **fixed prompt and output format**, so Mubit groups them into clean tasks:
-  - *Moment detection:* last 30 seconds of conversation + signal summary → detected moment (objection type, buying signal, engagement drop…)
-  - *Prompt generation:* detected moment + matching lessons → one-line prompt
-  - *Claim extraction:* rep's sentence → list of factual claims, for the compliance check
-  - *Post-call lesson writing:* call summary + outcome → candidate lessons
-3. **Teacher phase:** initially, a frontier model handles every task. Mubit records the calls.
-4. **Mubit trains adapters**, small task-specific models tested against the frontier model's answers.
-5. **Production:** live calls run on the adapters:
-  - **Fast enough for real time**
-  - **Cheap enough to run on every call** for every rep
-  - **Trained on the team's own calls**, so the knowledge is built into the model rather than pasted into prompts
-  - **Owned by the customer**, not rented from a model provider
-6. **Continuous improvement:** new calls keep flowing through the gateway, so adapters can be retrained as the team's market and lessons evolve. Ideally they're trained on calls with **good outcomes**, so the model learns from what won.
-
-The frontier model stays available as a fallback for unusual moments the adapters don't handle confidently.
-
----
-
-
-
-## 6. How Banyan Sapling is used
-
-Sapling checks claims against policy and evidence, returning `supported`, `violation`, `insufficient_information` or `inconsistent_context`, with a calibrated `unsure` status when it won't commit. Cue uses it in three places.
-
-### 6.1 Live check on what the rep says
-
-Each factual claim the rep makes is checked as it's said:
+### 5.4 The flow
 
 ```
-Policy:   "Only claim capabilities listed in the current product sheet.
-           No guaranteed results. Discounts above 10% need manager approval."
-Evidence: product sheet v4.2, price list, this prospect's CRM record
-Claim:    "Our platform integrates natively with SAP."
+ Trellus call (in the HubSpot tab)               HubSpot contact
+         │ tab audio + rep mic                         │ name, title, company
+         ▼                                             ▼
+ Live transcript (speaker-labelled)            Exa research (at dial time)
+         │                                             │ raise, hiring, product, news
+         ▼                                             │
+ ┌─ Read the moment (via Mubit) ──────────┐            │
+ │ who · receptivity · moment             │            │
+ └──────────────────┬─────────────────────┘            │
+                    ▼                                  │
+     Playbook: best lines for this situation           │
+     (ranked by meetings booked, team-wide)            │
+                    ▼                                  ▼
+          Write the line (via Mubit) ◄──────── hooks for this prospect
+                    ▼
+          Sapling policy check
+                    ▼
+            ✨ Card in the panel
 ```
 
+---
 
-| Sapling result             | Example                                      | Rep sees                                                       |
-| -------------------------- | -------------------------------------------- | -------------------------------------------------------------- |
-| `supported`                | Claim matches the product sheet              | Nothing (no interruption)                                      |
-| `violation`                | "Guaranteed 40% cost reduction"              | ⚠️ *"Guarantees aren't allowed. Rephrase as typical results."* |
-| `insufficient_information` | "Integrates with SAP" (not in product sheet) | ⚠️ *"SAP integration isn't confirmed. Offer to follow up."*    |
-| `inconsistent_context`     | Price list and contract template disagree    | ⚠️ Flagged to the sales ops team after the call                |
-| status `unsure`            | Edge case                                    | Logged for manager review after the call, not shown live       |
+## 6. Learning what books meetings
 
+### 6.1 One metric
 
-Reps get a chance to **correct themselves before the call ends**, rather than a compliance problem surfacing weeks later.
+**A BDR's job is to book the meeting.** That's what Cue optimises for.
 
-### 6.2 Check on Cue's own prompts
+Later outcomes (did the meeting happen, did the company buy a policy) are real, but they depend on the AE, the quote, the timing and a dozen other things. They can't be fairly traced back to one line on one cold call. Cue reports them, but doesn't rank lines on them.
 
-Before any prompt is shown, Sapling checks it against the same policy, so Cue never coaches a rep into a violation (e.g. "offer 25% off to close today" when the limit is 10%).
+### 6.2 Every step has a job
 
-### 6.3 Check on new lessons
+Not every line can book a meeting by itself. The opener's job is to earn the next thirty seconds. So each moment is scored on what it's for, with the booked meeting as the final word:
 
-A learning system will discover shortcuts. If overpromising books more meetings, the data will say "overpromise". Every new lesson is checked by Sapling before it can be verified and shared:
+| Moment | Its job | Counted as a win when… |
+| --- | --- | --- |
+| Gatekeeper | Get through | Transferred, or got the decision-maker's name / best time |
+| Opener | Earn time | The prospect is still talking 30 s later |
+| "What's this regarding?" | Earn time | The prospect asks a follow-up instead of ending the call |
+| Brush-off / objection | Keep it alive | The call continues past the next two turns |
+| Close | **Book it** | Meeting booked |
+| *Every line* | — | **Also credited if the call ends in a booked meeting** |
 
-> Lesson: *"Offering 20% discounts on the first call doubles meeting rates."*
-> → **violation** (discount policy) → quarantined, never shown to reps, flagged to managers.
+### 6.3 The playbook
 
-**The result:** Cue learns to win **inside the rules**. The team gets better without becoming riskier.
+- Every suggestion has a `line_id`. After the call, Cue checks the transcript to see **whether the rep actually said it** (or something close).
+- Each line keeps simple stats **per situation**: times shown, times used, step wins, meetings booked.
+- Lines are ranked with a bandit (Thompson sampling): proven winners are shown most often, new lines still get a fair trial, and lines that stop working fade out.
+- **Outcome comes from Trellus and HubSpot:** the call disposition, or a meeting created on the contact. The rep can also tap **Booked** in the panel.
+- **New lines come from the reps.** When a rep goes off-script and the call books, Cue pulls out what they said as a **candidate line**. It's policy-checked, then a manager approves it before it joins the playbook.
+
+The playbook updates after every call. No retraining is needed for Cue to start preferring a line that's winning.
 
 ---
 
+## 7. How Mubit is used
 
+[Mubit](https://docs.mubit.ai) sits between Cue and the model provider. Every model call goes through it with a one-line change:
 
-## 7. Architecture
-
-```
-          Live call (audio + video)
-                    │
-     ┌──────────────┼───────────────────────────┐
-     ▼              ▼              ▼            ▼
- Streaming      Conversation    Voice tone    Video
- transcription  flow metrics    analysis      engagement cues
-     │              │              │            │
-     └──────────────┴──────┬───────┴────────────┘
-                           ▼
-                 Signal fusion (rolling window)
-                           │
-                           ▼
-          Moment detection ── via Mubit gateway (adapter)
-                           │
-              ┌────────────┴─────────────┐
-              ▼                          ▼
-     Lesson store lookup           Claim extraction ── via gateway
-              │                          │
-              ▼                          ▼
-     Prompt generation             Sapling compliance check
-       (via gateway)                     │
-              │                          │
-              ▼                          ▼
-      Sapling check on prompt ──► Rep's prompt panel ◄── compliance flags
-                           
-          After the call:
-     Outcome (CRM / rep) ──► link to moments ──► candidate lessons
-          ──► Sapling check ──► manager review ──► verified lesson store
-          All model calls ──► Mubit gateway ──► adapter retraining
+```python
+from openai import OpenAI
+client = OpenAI(
+    base_url="https://api.mubit.ai/openai/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
 ```
 
+Mubit records every call, groups calls with the same instructions and output format into **tasks**, and once a task has enough examples (25 by default) trains an **adapter**: a small model built for that one job, tested against the frontier model's answers.
 
+Cue is deliberately built from a few fixed, high-volume tasks, which is exactly what Mubit learns well:
 
-### Real-time design principles
+| Task | In | Out | Runs |
+| --- | --- | --- | --- |
+| `read_moment` | last ~30 s of transcript + HubSpot title | `{who, receptivity, moment}` | after every prospect turn |
+| `write_line` | situation + top playbook lines + Exa hooks | `{say, why, line_id}` | at every decision moment |
+| `research_brief` | Exa results | 3 hooks for this prospect | when the call starts |
+| `review_call` | full transcript + outcome | lines used, candidate new lines | after the call |
 
-- **Prompts only at decision moments.** Cue never streams constant advice.
-- **Latency budget:** prompt on screen within ~1–2 seconds of the moment.
-- **Graceful degradation:** if any signal drops (camera off, poor audio), Cue keeps working on the rest. If the lesson store or models are unreachable, the call simply continues without prompts.
-- **Prompts are suggestions.** The rep is always in control.
+- Every request carries `metadata.session_id = <call id>`, so each phone call shows up in Mubit as one session.
+- Anything prospect-specific goes in the **user message**, never the instructions, so every call of a task lands in the same Mubit task.
 
----
+### Why this is the right split
 
+- **The playbook decides what wins.** It learns from meetings booked and updates after every call.
+- **Mubit makes it fast and cheap.** `write_line` always gets the current best lines and tailors one to this prospect and this moment. Mubit distils that into a small model trained on our own calls. That's what lets Cue run on every dial for every rep, within the ~1.5 s window where a suggestion is still useful.
 
-
-## 8. After the call
-
-**For the rep:**
-
-- A 30-second recap: key moments, what went well, one thing to try next time
-- Compliance flags with suggested follow-up corrections (e.g. a follow-up email clarifying the SAP point)
-- Auto-drafted follow-up email, also checked by Sapling before sending
-
-**For managers:**
-
-- **Team playbook:** verified lessons ranked by impact, with the calls behind them
-- **Lesson review queue:** approve, edit or reject candidate lessons
-- **Compliance dashboard:** violations caught, by rep and claim type, plus trends
-- **Coaching view:** which reps use which prompts, and how outcomes change
+As the playbook improves, the adapter gets better inputs. As the adapter improves, suggestions get faster and cheaper. Over time, the opener, the gatekeeper line and the answer to any curveball all converge on what books meetings for this team.
 
 ---
 
+## 8. How Banyan Sapling is used
 
+[Banyan Sapling](https://huggingface.co/MubitLabs/banyan-sapling) checks a **claim** against a **policy** and **evidence**, and returns `supported`, `violation`, `insufficient_information` or `inconsistent_context`. Its calibrated `status` can also be `unsure`. Insurance is regulated, so Cue never wants to coach a rep into saying something they can't.
 
-## 9. Privacy, consent and trust
+1. **Every suggestion, before it's shown.** If a line would break policy, it's never displayed.
+2. **What the rep says.** Claims about coverage, price or terms are checked live. Example policy (illustrative): *"Never promise a specific claim will be covered. Never quote a premium before a quote is generated."* A violation shows an amber card with a safe rephrase.
+3. **New candidate lines.** Optimising for meetings will surface shortcuts: if overpromising books meetings, the data will say "overpromise". Every new line passes Sapling before it can join the playbook. Cue learns to win **inside the rules**.
 
-Built into the product, not bolted on:
+`unsure` results are never shown live. They go to a manager review list after the call.
 
-- **Consent first:** all participants are notified that the call is recorded and analysed. Video analysis only runs when the prospect has consented; otherwise Cue uses language, flow and tone only.
-- **Engagement cues, not mind-reading:** Cue reports observable changes ("attention dropped after pricing") and never labels a person's emotions or character. Cues always come from multiple combined signals.
-- **Regional controls:** video and tone analysis can be switched off per region or customer to meet local rules (e.g. EU AI Act restrictions on emotion recognition, GDPR rules on biometric data, call-recording consent laws).
-- **Data minimisation:** raw video isn't stored. Only derived, time-stamped engagement cues are kept, with configurable retention.
-- **Reps aren't surveilled:** Cue analyses the *prospect's* engagement to help the rep. Rep-facing analytics focus on coaching, not monitoring.
-- **Customer-owned models:** adapters trained through Mubit belong to the customer and are trained only on their data.
+## 9. How Exa is used
+
+When the dial starts, Cue runs a few [Exa](https://exa.ai) searches on the prospect and their company (`category: "company"` / `"people"`, `highlights: true`) and turns what it finds into hooks for the opener:
+
+| Exa finds… | Hook for a Corgi call |
+| --- | --- |
+| A recent raise | The board and new investors will expect D&O |
+| An AI product | AI liability |
+| Lots of open roles | EPLI as the team grows |
+| Enterprise customers | E&O and cyber that contracts require |
+| A new office or market | Coverage where they now operate |
+
+Research runs at dial time, never on the live suggestion path. If the prospect mentions something new mid-call ("we just launched in Europe"), a fast `lite` search (~450 ms) can refresh the hooks in the background.
+
+## 10. Working with Trellus
+
+Trellus stays exactly as it is: the dialer, the parallel lines, the voicemail drops and the CRM logging. Cue sits beside it:
+
+- **Side panel** docked next to the Trellus / HubSpot tab
+- **Audio** captured in the browser: the prospect from the calling tab, the rep from the mic
+- **Context** from the HubSpot contact Trellus is dialling
+- **Outcome** from the Trellus disposition or the HubSpot meeting, with a **Booked** button in the panel as a fallback
+
+No changes to how reps already work. Install the extension, and the next call has Cue on it.
 
 ---
 
+## 11. The demo
 
+A teammate plays the prospect. The screen recording shows Trellus and Cue side by side.
 
-## 10. Who it's for
+1. **Setup:** a HubSpot contact for a real, recently funded startup, title **CEO**. Cue shows the Exa brief: the raise, the AI product, the hiring.
+2. **Dial.** The teammate answers as an **assistant** → 🚪 gatekeeper card. The rep uses it and gets put through.
+3. **The CEO picks up.** 👋 opener card, tailored to a CEO who just raised.
+4. **"What's this regarding?"**, played twice: once warm, once cold and short. **Two different cards.** The cold one is the self-aware joke.
+5. **"We already have a broker."** 🛡️ objection card, with its success rate.
+6. **The rep slips:** "that'd definitely be covered" → ⚠️ amber compliance card with a safe rephrase.
+7. **Price question** → 🟢 buying signal → close card → **meeting booked**.
+8. **After the call:** the playbook updates on screen (the lines used get their win), and the Mubit console shows the call as one session across four tasks, with the `write_line` adapter tested against the frontier model.
 
-- **B2B sales teams** (SDRs and account executives) with repeatable sales motions
-- **Regulated sales:** financial services, insurance, healthcare, where live compliance checks have direct value
-- **Fast-growing teams** onboarding new reps who need to ramp quickly
-- **Customer success and renewals teams:** the same product applied to churn and expansion calls
+Before demo day we run simulated calls through Mubit so every task has passed the 25-example mark and has a trained adapter to show.
 
+## 12. Stack
 
+| Layer | Choice |
+| --- | --- |
+| Extension | Chrome MV3, side panel UI |
+| Audio | `chrome.tabCapture` (prospect) + `getUserMedia` (rep) |
+| Transcription | Streaming speech-to-text with speaker labels |
+| Models | Frontier model through the Mubit gateway → Mubit adapters |
+| Policy checks | Banyan Sapling, self-hosted on a GPU (~46 GB BF16; ~100 ms median on an H200) |
+| Research | Exa search API |
+| CRM + outcomes | HubSpot, Trellus dispositions |
+| Dialer | Trellus (unchanged) |
 
-## 11. Business model
+## 13. Open questions
 
-- **Per rep, per month** subscription
-- **Compliance add-on** for regulated industries (live claim checking, audit trail, dashboards)
-- **Enterprise tier:** custom policies, regional controls, dedicated adapters, CRM integrations
+- **Serving adapters live.** Mubit's docs currently show adapters being tested in the console (*Try models*), not called from code. If live serving isn't available yet, the demo runs on the frontier model through Mubit and shows the adapter in the console. *Ask the Mubit team.*
+- **Training on outcomes.** Could Mubit weight or filter training examples by "meeting booked"? Then the adapter could learn what books meetings directly, not only through the playbook. *Ask the Mubit team.*
+- **Small samples.** A line needs enough calls behind it before its stats mean anything. Step-level wins (§6.2) give faster signal than meetings alone.
+- **Sapling on insurance language.** Sapling is a research preview, and its model card notes insurance-claim examples coming back `unsure`. Expect a busy review list at first, and tune the policy wording.
+- **Consent.** Call recording needs consent (two-party consent in some US states, and in the UK). Cue reads receptivity from **words**, not voice biometrics, and never labels a person's emotions.
 
-**Why customers stay:** Cue gets more valuable the longer it's used. The lesson store and trained models are built from the team's own calls, so switching away means losing their accumulated sales intelligence.
+## 14. Later
 
-## 12. What makes Cue different
-
-
-| Typical call tools                     | Cue                                                           |
-| -------------------------------------- | ------------------------------------------------------------- |
-| Analyse calls **after** they happen    | Coaches **during** the call                                   |
-| Generic sales advice                   | Advice from **your team's own outcomes**                      |
-| One signal (usually transcript)        | **Four signals combined:** language, flow, tone, video        |
-| Large models, slow and costly per call | **Small trained models** via Mubit: fast enough for real time |
-| Compliance reviewed weeks later        | **Live claim checking** with Sapling                          |
-| Learning can drift into bad habits     | **Every lesson is policy-checked** before it spreads          |
-
-
-
-
-## 13. Limits and open questions
-
-- **Outcome noise:** deals are won or lost for many reasons beyond one call. Lessons need enough calls behind them to be trusted, which is why only verified lessons go live.
-- **Signal reliability:** tone and video cues vary between people, cultures and setups (lighting, camera quality, accents). Cue relies on changes from each person's baseline and on combining signals, but cues remain probabilistic.
-- **Sapling maturity:** Sapling is a research preview and often returns `unsure` on messy real-world text. Cue therefore holds uncertain cases for review after the call rather than interrupting live.
-- **Latency:** real-time prompts depend on fast transcription and small models; the gateway adapters are essential to hit the latency budget.
-- **Regulation:** rules on emotion recognition, biometric data and call recording differ by country and are changing. Regional controls and consent-first design are required from day one.
-
-
-
-## 14. Roadmap
-
-1. **v1:** language + flow signals, live prompts from verified lessons, live compliance checks, post-call recap
-2. **v2:** voice tone, Mubit adapters in production for all real-time tasks, manager playbook and lesson review
-3. **v3:** consented video engagement cues, regional controls, CRM-driven outcome tracking
-4. **v4:** customer success and renewal calls; multilingual support; per-industry policy packs
-
+- **Voice tone** as a second receptivity signal, on top of the transcript
+- **Playbooks per segment:** seed vs Series B, US vs UK, founder vs finance lead
+- **Onboarding mode:** more guidance and the "why" behind each line for new reps; only the big moments for veterans
+- **Manager view:** which lines win, who's using them, where new reps get stuck
+- **Practice mode:** role-play against a simulated prospect built from real call patterns
