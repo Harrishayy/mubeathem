@@ -76,6 +76,9 @@ All in `packages/core/src/schema`. Summary:
   situation timeline with tone and features, every suggestion with the rep's actions and latency,
   policy checks, receptivity trend, outcome (with raw Trellus strings), the rep's debrief, Trellus
   fields. This is what `review_call` reads and what `GET /api/export.jsonl` writes.
+- **Suggestion** latency fields (optional, §5.3): `stage` (`instant` | `refined`), `refinedAt`,
+  `refinedLatencyMs`, `precomputed` (`standby`). A refined card re-uses the instant card's `id`;
+  `latencyMs` is always the first version's.
 - **PlaybookLine**: a line with per-situation `LineStats` (`shown, used, stepWins, booked, lost`) and a
   status (`active | candidate | retired | rejected`).
 
@@ -139,7 +142,35 @@ Mubit's docs show no public feedback endpoint today; ratings in the console are 
 server keeps `(mubitRequestId → outcome)` pairs in the `mubit_links` table and exports them, ready
 for an outcome-weighted training hook (context.md §13, "Training on outcomes").
 
+### 4.4 What we send Mubit, and what we keep
+
+Mubit gets, per call: the task's fixed instructions, the input JSON, the strict output schema, the
+model and the session (`prompt_cache_key = callId`). With `CUE_MUBIT_RECORD=metadata` it is told
+(`x-middleware-record: metadata`) to keep no request or answer text.
+
+Mubit has no trace-export API (its docs only cover importing traces *from* Langfuse, Braintrust or
+Logfire), so the server owns the trace store. `ModelRunner.run()` (`apps/server/src/services/models.ts`)
+records a `MubitTrace` (`api.ts`) for every success, failure and timeout, and for a cancelled run only
+when the request really went out (the same rules as `mubit_calls`); a missing key records nothing.
+Each trace carries the request id, task, model, session/call, `instructionsVersion` (the task def's
+`version` in `packages/mubit`), latency, attempts, tokens, cost, the input JSON and the parsed output.
+`TelemetryStore.link` also stamps the trace with its call and suggestion ids.
+
+- Table `mubit_traces` (migration 2), indexed on `at`, `(task, at)`, `session_id`, `request_id`, `call_id`.
+- Non-blocking: `record`/`link` only queue in memory; `TraceStore` flushes in one transaction every
+  250 ms or 50 queued items (`CUE_TRACE_FLUSH_MS`, `CUE_TRACE_FLUSH_ROWS`), on server close and on
+  process exit. A failed flush is logged, never thrown into the pipeline.
+- Bodies are JSON text capped at `CUE_TRACE_MAX_BODY_BYTES` (64 KB) per field; a longer body is kept as
+  a string prefix and the row is marked `truncated`. Under `CUE_MUBIT_RECORD=metadata` no bodies are
+  kept locally either. `CUE_TRACE_RETENTION_DAYS` (default 0 = forever) prunes on boot.
+- Reads (`/api/traces`, `/api/insights`, export) flush first, so they always see the latest calls.
+
 ## 5. API (`apps/server`, default `http://localhost:8787`)
+
+`POST /api/calls` takes an optional `contactId`: the server fills the prospect from the saved contact (typed fields win), stamps the contact's last call and links the call to it.
+
+Pre-call research (`pipeline/research.ts`): with `EXA_API_KEY` and/or `VALYU_API_KEY`, Exa (company, last-180-day news, person; the work-email domain narrows the company search) and Valyu (company news and web, person) run in parallel with a per-provider timeout, merge alternately, drop repeat pages, and cache per person (`CUE_RESEARCH_CACHE_MINUTES`). The findings plus CRM facts go to `research_brief`; each hook carries `via` and `url` of the page it came from, and the brief lists its `sources`. A provider failing just contributes nothing.
+
 
 Every body is parsed with the matching schema in `packages/core/src/schema/api.ts`. Errors are
 `ApiError`. Auth: `x-cue-token` when `CUE_API_TOKEN` is set. CORS for `CUE_ALLOWED_ORIGINS`.
@@ -148,7 +179,12 @@ Every body is parsed with the matching schema in `packages/core/src/schema/api.t
 |---|---|
 | `GET /health` | `HealthResponse` |
 | `POST /api/calls` | `CreateCallRequest` → `CallView` (starts the brief in the background) |
-| `GET /api/calls?limit=` | `CallSummary[]` |
+| `GET /api/calls?repId=&outcome=&status=&q=&contactId=&source=&debriefed=1&from=&to=&limit=&offset=` | `CallSummary[]` (with rep, rating, attitude, what went well / badly, review summary). `x-total-count` header for paging. `outcome=none` = no outcome yet |
+| `GET /api/team?from=&to=&weeks=` | `TeamResponse`: per rep calls, connected, booked, booking rate, cues shown/used, avg rating, avg cue impact, debriefed, weekly trend; plus team totals. Practice and imported calls are left out |
+| `GET /api/contacts?q=&ownerRepId=&limit=&offset=` | `ContactListResponse` (`{items, total}`), most recently called first |
+| `POST /api/contacts` · `PUT /api/contacts/:id` · `GET` · `DELETE` | `ContactInput` → `Contact`. Email is unique (case-insensitive); 409 on a clash |
+| `POST /api/contacts/import` | `ContactImportRequest` (CSV ≤ 2 MB, header row; aliases like "Full Name", "Job Title"; other columns become facts; an existing email updates) → `ContactImportResponse` |
+| `POST /api/research/warm` | `{contactId}` or `{prospect}` → 202 `{configured, providers}`. Runs Exa + Valyu now and caches the findings, so the call's brief doesn't wait on the web |
 | `GET /api/calls/:id` | `CallView` |
 | `GET /api/calls/:id/stream` | SSE. First `view` (a `CallView`), then one `event` per `CallEvent`. Heartbeat comment every 15 s. `Last-Event-ID` resumes from a seq |
 | `POST /api/calls/:id/turns` | `AddTurnRequest` → `202 {turnId}`. Final prospect turns run the pipeline; final rep turns run the claim check and usage matching |
@@ -161,6 +197,10 @@ Every body is parsed with the matching schema in `packages/core/src/schema/api.t
 | `POST /api/playbook/lines/:id/approve` · `/reject` | → `PlaybookLine` |
 | `GET /api/stats` | `StatsResponse` (per-task Mubit telemetry) |
 | `GET /api/export.jsonl` | one `CallRecord` per line |
+| `GET /api/traces?task=&callId=&ok=&before=&limit=` | `TraceListResponse`: trace summaries (no bodies), newest first; `before` = previous `nextCursor`; `limit` 1–500, default 50 |
+| `GET /api/traces/:id` | `TraceDetail` (a full `MubitTrace` with input and output) |
+| `GET /api/insights?range=24h\|7d\|30d\|all` | `InsightsResponse`: per-task calls/ok/failed/aborted/p50/p95/cost/tokens/errors, an hourly (24h) or daily series, and outcome insights from the event log (booking rate with vs without cues used, per-moment used/step-win/booked rates, top lines, servedBy and writePath mix, turn→card latency, review averages). Default `7d` |
+| `GET /api/traces/export?format=jsonl\|openai\|langfuse&task=&range=` | Streamed download. `jsonl`: one `MubitTrace` per line. `openai`: `{messages:[system,user,assistant]}` chat fine-tune rows for successful calls with the current instructions version. `langfuse`: `{batch:[…]}` ingestion events, a `trace-create` per session and a `generation-create` per Mubit call (model, usage, input, output, start/end, `metadata.requestId`). Same code as `pnpm --filter @cue/server traces:export` |
 | `GET /api/trellus/status` · `POST /api/trellus/sync` | Trellus health; pull recent sessions and match outcomes |
 
 ### 5.1 The live pipeline (per final prospect turn)
@@ -173,8 +213,9 @@ Every body is parsed with the matching schema in `packages/core/src/schema/api.t
    to moment-level stats, plus one exploration slot for a young line).
 6. `write_line` with those candidates. If `risky_claim` or the rules pre-filter flags the line,
    `check_claim`; a `violation` swaps in the best safe line instead.
-7. `suggestion.shown`. Target ≤ 1.5 s from turn to card on `gpt-4o-mini` + `gpt-4.1-mini`; the event
-   carries `latencyMs`.
+7. `suggestion.shown`. The event carries `latencyMs`. With the latency layers (§5.3) the first card
+   is shown before steps 3–6 (target p50 ≤ 350 ms, p95 ≤ 500 ms after the prospect stops) and this
+   step re-emits it in place.
 
 Rep turns: rules pre-filter for claims ("definitely covered", "guarantee", a premium figure, "no
 exclusions"); a hit goes to `check_claim`; a `violation` emits `policy.checked` and a compliance card.
@@ -185,6 +226,59 @@ exclusions"); a hit goes to `check_claim`; a `violation` emits `policy.checked` 
 `feedback.submitted` (or 10 min after end with an outcome) run `review_call` → `review.completed` →
 apply to the playbook: stats for every shown line (shown, used, step win, booked/lost), candidate
 lines added with `status: 'candidate'` after a policy check → `playbook.updated`.
+
+### 5.3 Latency: a usable card within 300–500 ms
+
+Mubit's `read_moment` (~1.6 s) and `write_line` (~1.5 s) cannot answer inside a conversational pause,
+so the live path is layered. The fast layer works before any model call; Mubit refines and pre-writes.
+Measured with `pnpm --filter @cue/server latency:sim` (real-time replays with interim transcripts);
+numbers and the strategy log are in `docs/perf/latency.md`.
+
+1. **Endpointing** (`CUE_EARLY_TRIGGER`). Interim prospect turns (`final: false`, stable `id`) go to
+   `TurnPipeline.interim`. `endpointGuess` (core, `signals/endpoint.ts`) calls a partial finished when it
+   ends in `?`/`!` or in `.` after a word a sentence can end on (Deepgram punctuates interims), or
+   after `CUE_ENDPOINT_PAUSE_MS` (default 250) of unchanged text (twice that after a comma or a word
+   like "and", "the", "um"). The turn then starts on the interim, before the final (which lands
+   300–1000 ms after the speaker stops). The first prospect interim of an utterance also warms the
+   Mubit connection (`CUE_WARM_MUBIT`: parallel `GET /models`, no model call).
+2. **Instant card** (`CUE_INSTANT_CARD`). The rules read (`rulesReadMoment` + `applyIdentity`) and the
+   bandit's top line are emitted at once as `suggestion.shown` with `stage: 'instant'`,
+   `servedBy: 'rules'`, or `servedBy: 'cache'` + `precomputed: 'standby'` when a standby line for that
+   moment and persona is ready (step 4). In process this takes a few ms.
+3. **Refinement**. `read_moment` starts with the instant card; `write_line` starts speculatively on the
+   card's situation (or takes over the standby write already in flight for it). When the model read
+   lands, `situation.read` is emitted as before, and a Mubit version of the card may be re-emitted with
+   the **same suggestion id** (`stage: 'refined'`, `refinedAt`, `refinedLatencyMs`; `latencyMs` keeps the
+   first card's) — the reducer replaces a shown card with the same id, so the UI updates in place. The
+   swap policy (`pipeline/latency.ts → swapDecision`):
+   - never after the rep acted on the card (`suggestion.action`), never once the rep has started
+     talking (any rep turn, interim or final, after this prospect turn), never more than
+     `CUE_REFINE_WINDOW_MS` (default 500) after the final arrived (while the prospect is still talking
+     it is always allowed), never a downgrade (model → rules);
+   - same moment: upgrade the wording; identical words: re-emitted for the label only;
+   - different moment: only if the instant read was weak (< 0.6), or a model read ≥ 0.6 replaces a
+     rules read, or the newcomer is surer by ≥ 0.1.
+   A model line that was not allowed in is **recycled** as a standby line for that moment. When the
+   instant layer was quiet and the model wants a card, it appears only until the rep replies
+   (`suggestion.skipped: late: rep already replying`).
+   Early runs are coalesced: one run per utterance; a growing interim with the same rules moment keeps
+   the run and its Mubit calls; only a change of moment restarts it (the card is replaced in place).
+   The final adopts the early run when its text or rules moment matches (`CUE_EARLY_MUBIT=0` holds the
+   Mubit stages until the final instead).
+4. **Standby** (`CUE_STANDBY`, 0–3). After a card, Mubit pre-writes lines for the moment we are in and
+   the card's `upNext` predictions, while the rep talks. Lines are screened with `findRiskyClaims` and the
+   writer's `risky_claim`; each is served once, for the same persona, within 3 prospect turns / 2 min.
+   Each is an ordinary `write_line` call (traced, same instructions); its `lastProspectTurn` is the
+   predicted `ifTheySay`.
+
+Without a key the server runs only the rules layer (with endpointing): one `situation.read` and one card
+per turn, no `stage`. `TurnPipeline.recentTimings()` records per turn: early or not, `instantMs`, what
+served the instant card, and what happened to the refinement (`swapped: upgrade`, `kept: rep_speaking`…).
+
+UI contract: render `current` as before; when a `suggestion.shown` arrives for the id on screen, update
+the text in place (no enter animation); `stage: 'instant'` with `view.pending` true can show a quiet
+"refining" hint. Clients should lock the card (ignore same-id updates) as soon as their own VAD hears the
+rep, since the server only learns it from the rep's first interim (~300–700 ms later).
 
 ## 6. Trellus
 

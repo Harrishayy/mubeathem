@@ -16,9 +16,9 @@ Product spec: [context.md](context.md) · System: [architecture.md](architecture
 
 | | |
 |---|---|
-| ![A live card during the demo call, written through Mubit](docs/media/live-card.png) | ![Collapsed overbar over a CRM page, Night Shift](docs/media/overbar-night.png) |
+| ![A live card during the demo call, written through Mubit](docs/media/live-card.png) | ![The overbar in Night Shift, on a buying signal](docs/media/overbar-night.png) |
 | ![Compliance card after the rep overpromised](docs/media/expanded-compliance.png) | ![Model screen: every task past Mubit's 25-example adapter threshold](docs/media/model.png) |
-| ![The playbook learning from the call](docs/media/playbook.png) | ![Phone: the overbar as a bottom pill](docs/media/phone.png) |
+| ![The playbook learning from the call](docs/media/playbook.png) | ![Phone: the overbar as a bottom sheet](docs/media/phone.png) |
 
 ---
 
@@ -42,7 +42,11 @@ Product spec: [context.md](context.md) · System: [architecture.md](architecture
                             ▼
           check_claim (Mubit / Banyan Sapling) for anything risky
                             ▼
-                   ✦ one card in the overbar  (~1.7 s median after the prospect stops)
+                   ✦ one card in the overbar, refined in place
+
+ Latency layers (docs/perf/latency.md): the card is up before Mubit answers — rules read + top line
+ (or a line Mubit pre-wrote for this moment) on an interim that looks finished: p50 0 ms, p95 ~205 ms
+ after the prospect stops. Mubit's version replaces it in place only before the rep speaks.
 
  After the call: outcome (rep tap · Trellus disposition) + rep debrief
           → review_call (Mubit) on the full CallRecord → playbook stats + candidate lines
@@ -89,6 +93,33 @@ Mubit groups calls with the same instructions, output format and model into a **
 then tops up `check_claim` with realistic rep claims, so every task passes the 25-example threshold
 before a demo. The **Model** screen shows each task's progress, latency, cost
 and last request id.
+
+### Traces and insights
+
+Mubit has no trace export, so the server keeps its own: **every** Mubit call (success, failure,
+timeout, or sent-then-cancelled) lands in the `mubit_traces` table with its request id, task,
+model, instructions version, latency, tokens, cost, the input JSON and the parsed output, linked to
+the phone call and the card it fed. Writes are buffered in memory and flushed in one transaction every
+250 ms (or 50 rows, and on shutdown), so the live pipeline never waits on them. Bodies are capped per
+field (`CUE_TRACE_MAX_BODY_BYTES`, 64 KB, marked `truncated`) and are not kept at all under
+`CUE_MUBIT_RECORD=metadata`. `CUE_TRACE_RETENTION_DAYS` (0 = forever) prunes on boot.
+
+- `GET /api/traces?task=&callId=&ok=&before=&limit=` and `GET /api/traces/:id`: browse and inspect.
+- `GET /api/insights?range=24h|7d|30d|all`: per-task calls, failures, p50/p95, cost and errors over
+  time, plus what worked: booking rate with vs without cues used, per-moment used / step-win / booked
+  rates, top lines, `servedBy` and speculative-write mix, turn→card latency, review averages.
+- `GET /api/traces/export?format=jsonl|openai|langfuse&task=&range=` streams raw traces, OpenAI chat
+  fine-tuning rows (successful calls, current instructions), or a Langfuse ingestion batch (a trace per
+  call, a generation per Mubit call). `pnpm --filter @cue/server traces:export -- --format openai --range 30d`
+  writes the same to `apps/server/exports/`.
+
+Calls logged before the trace store existed are backfilled from the telemetry table as metadata-only
+traces (no bodies, instructions version 0, so fine-tune exports skip them). The web app's **Insights**
+screen reads all of this. It shows:
+- headline numbers (calls, success rate, spend, booking-rate lift when a cue was used, turn→card latency);
+- what books meetings, by moment and by line;
+- per-task health with an activity chart;
+- every trace, with its full input and output and one-click exports.
 
 ## 3. Repo
 
@@ -174,6 +205,8 @@ pnpm test:e2e       # Playwright: design system, web app (320 → 1920 px, light
 pnpm --filter @cue/extension e2e   # loads the built extension into Chromium on a hostile CRM fixture
 pnpm test:live      # opt-in live Mubit tests (cheap models)
 pnpm --filter @cue/mubit test:live -- eval   # read_moment eval: 26 labelled lines
+pnpm --filter @cue/server latency:sim         # real-time call replays → turn-to-card latency (docs/perf/latency.md)
+pnpm --filter @cue/server latency:sim --mubit --cap=0.05   # the same through Mubit, spend-capped
 ```
 
 What the tests cover, beyond units: contract parsing at every boundary; the reducer replaying any
@@ -198,12 +231,23 @@ Every variable, with its default, is in [.env.example](.env.example).
 | `EXA_API_KEY` | Prospect research at dial time; without it the brief uses CRM facts |
 | `SAPLING_URL` | Self-hosted Banyan Sapling; without it `check_claim` runs through Mubit |
 | `CUE_PORT`, `CUE_DB_PATH`, `CUE_ALLOWED_ORIGINS`, `CUE_API_TOKEN` | Server |
+| `CUE_TRACE_RETENTION_DAYS`, `CUE_TRACE_MAX_BODY_BYTES` | Local Mubit trace store: days kept (0 = forever), per-body cap (64 KB) |
+| `CUE_INSTANT_CARD`, `CUE_EARLY_TRIGGER`, `CUE_EARLY_MUBIT` | Latency layers (on by default): instant rules/standby card, endpointing on interim transcripts, Mubit started on that early trigger |
+| `CUE_ENDPOINT_PAUSE_MS`, `CUE_REFINE_WINDOW_MS`, `CUE_STANDBY`, `CUE_WARM_MUBIT` | Pause that ends an unpunctuated interim (250), how long after the final a refined card may still replace the instant one (500), predicted moments pre-written by Mubit (0–3), connection warm-up |
 
 ## 7. Design
 
 Three directions over one component set: **Honey** (Mubit's amber and sage, light and dark),
 **Night Shift** (dark glass, for floating over any page) and **Signal** (high contrast for phones in
 hand). The line is set in Newsreader, so what the rep says reads as speech, apart from the interface.
+
+**The dashboard system.**
+- **Layout:** every screen is a full-viewport dashboard, like a control room for the call. A deep-olive band holds the section tabs (Live, Practice, Playbook, Model, Insights, History, Settings). Below it, cream panes sit on an olive ground with an 8 px gutter. Each pane has a mono-capitals head, a body that scrolls inside itself, and actions pinned in a ruled footer.
+- **Live:** the transcript and capture on the left, the cue large in the centre with its standby table, the prospect file on the right, and a call timeline across the bottom (speech lanes, numbered cue flags, the mood line, a now rule).
+- **Other screens:** Playbook, Practice, Model and Insights use the same parts: `Pane`, `DataTable`, `KpiStrip`, `KeyValue`, `StatGrid` and `ActionBar` from `@cue/ui`.
+- **Inherited from the earlier pass:** each suggestion is a numbered cue (Q07); the moment's colour appears only as a margin rule, a small key and the quotes. Compliance slips are hold cues with caution tape, and the outcome lands as a rubber stamp.
+- **Production rules:** text wraps and never truncates, wide tables scroll inside their own box, and the page never scrolls sideways from 320 px to 1920 px. Post-call work like the debrief opens as a modal over the screen you're on.
+
 **Sprout**, the mascot, is the model growing on your calls: it listens, thinks, perks up with a card,
 folds its leaves at a compliance slip, blooms when a meeting is booked, and grows a leaf per task as
 Mubit gets closer to training an adapter. `pnpm --filter @cue/ui dev` opens the gallery with every
