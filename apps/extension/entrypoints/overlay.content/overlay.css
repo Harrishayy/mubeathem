@@ -1,0 +1,68 @@
+/*
+ * Extension-only bits of the on-page overlay (the card under the overbar). Tokens only: every value
+ * comes from @cue/ui's Night Shift direction. Lives inside the shadow root, so nothing here can
+ * reach the host page and nothing on the host page can reach it.
+ */
+:host {
+  /* Belt and braces over WXT's `all: initial`: a page rule like `* { all: unset }` matches the host
+     element itself, so pin what the host needs inline too (see index.tsx). */
+  display: block;
+}
+
+.cxo-card {
+  /* Lives in the Overbar's accessory slot, so it moves with the bar when dragged. */
+  pointer-events: auto;
+  width: 100%;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  box-shadow: var(--highlight), var(--shadow-2);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--text-small);
+  line-height: var(--leading-body);
+  animation: cxo-in var(--dur-panel) var(--ease-out) both;
+}
+
+@keyframes cxo-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cxo-card { animation: none; }
+}
+
+.cxo-row { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.cxo-row + .cxo-row { padding-top: var(--space-2); border-top: 1px solid var(--line); }
+.cxo-who { display: grid; min-width: 0; flex: 1; }
+.cxo-kicker {
+  font-size: var(--text-micro);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--accent-text);
+  font-weight: var(--weight-semibold);
+}
+.cxo-name {
+  font-family: var(--font-display);
+  font-size: var(--text-lead);
+  font-weight: var(--display-weight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cxo-meta { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cxo-note { flex: 1; min-width: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.cxo-actions { display: flex; align-items: center; gap: var(--space-1); flex: none; }
+.cxo-actions--end { justify-content: flex-end; }
+
+.cxo-form { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-3); }
+.cxo-form .cxo-actions { grid-column: 1 / -1; }
+
+@media (max-width: 480px) {
+  .cxo-row { flex-wrap: wrap; }
+  .cxo-form { grid-template-columns: 1fr; }
+}

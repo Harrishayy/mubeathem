@@ -1,0 +1,29 @@
+{
+  "name": "@cue/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "node --env-file-if-exists=../../.env dist/main.js",
+    "build": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/main.js --packages=external --alias:@cue/core=../../packages/core/src/index.ts --alias:@cue/mubit=../../packages/mubit/src/index.ts --alias:@cue/trellus=../../packages/trellus/src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --exclude 'test/live/**'",
+    "seed": "tsx --env-file-if-exists=../../.env src/scripts/seed.ts",
+    "test:live": "MUBIT_LIVE=1 vitest run test/live"
+  },
+  "dependencies": {
+    "@cue/core": "workspace:*",
+    "@cue/mubit": "workspace:*",
+    "@cue/trellus": "workspace:*",
+    "@hono/node-server": "^2.1.5",
+    "hono": "^4.13.13",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cue/client": "workspace:*",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "vitest": "^5.0.5"
+  }
+}
