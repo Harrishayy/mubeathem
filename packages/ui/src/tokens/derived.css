@@ -1,0 +1,23 @@
+/*
+ * Tokens derived from the semantic set, identical in every direction. They only reference other
+ * tokens, so a direction never has to repeat them.
+ */
+[data-cue] {
+  /* receptivity drifts gold (warm) to ice (cold): the same families the moments use */
+  --recept-warm: var(--moment-close);
+  --recept-cold: var(--moment-cold);
+
+  --focus-ring: 0 0 0 var(--focus-offset) var(--bg), 0 0 0 calc(var(--focus-offset) + var(--focus-width)) var(--focus);
+  --hairline: var(--rule-weight, 1px) solid var(--line);
+  --btn-sheen: inset 0 1px 0 rgb(255 255 255 / 0.3);
+}
+
+/* A moment family sets --m, --m-soft and --m-ink so components can say `var(--m)` once. */
+[data-cue] .cue-fam-gatekeeper { --m: var(--moment-gatekeeper); --m-soft: var(--moment-gatekeeper-soft); --m-ink: var(--moment-gatekeeper-ink); }
+[data-cue] .cue-fam-opener { --m: var(--moment-opener); --m-soft: var(--moment-opener-soft); --m-ink: var(--moment-opener-ink); }
+[data-cue] .cue-fam-cold { --m: var(--moment-cold); --m-soft: var(--moment-cold-soft); --m-ink: var(--moment-cold-ink); }
+[data-cue] .cue-fam-objection { --m: var(--moment-objection); --m-soft: var(--moment-objection-soft); --m-ink: var(--moment-objection-ink); }
+[data-cue] .cue-fam-signal { --m: var(--moment-signal); --m-soft: var(--moment-signal-soft); --m-ink: var(--moment-signal-ink); }
+[data-cue] .cue-fam-close { --m: var(--moment-close); --m-soft: var(--moment-close-soft); --m-ink: var(--moment-close-ink); }
+[data-cue] .cue-fam-compliance { --m: var(--moment-compliance); --m-soft: var(--moment-compliance-soft); --m-ink: var(--moment-compliance-ink); }
+[data-cue] .cue-fam-neutral { --m: var(--moment-neutral); --m-soft: var(--moment-neutral-soft); --m-ink: var(--moment-neutral-ink); }

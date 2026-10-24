@@ -1,0 +1,109 @@
+/*
+ * Direction 1 · Honey (default). Mubit's world: honey on sage, cream ground. Calm, warm, premium.
+ * Light and dark; <CueRoot theme="system"> resolves the system preference to data-theme.
+ *
+ * Raw palette (mubit.ai): honey #efbd73 / #ffe2a6 · sage #345c46 / #567756 / #66805a ·
+ * lichen #a6b297 · cream #f8f5ee / #f6f8f2. Raw values live in token files only.
+ */
+[data-cue][data-dir='honey'],
+[data-cue]:not([data-dir]) {
+  --bg: #f3f6ee;
+  --surface: #fcfdf9;
+  --surface-2: #eef2e7;
+  --surface-3: #e5eadd;
+  --ink: #1b3025;
+  --ink-2: #44594b;
+  --ink-3: #5a6b5e;
+  --line: #dbe2d1;
+  --line-strong: #aeb9a2;
+  --accent: #efbd73;
+  --accent-hover: #f3c987;
+  --accent-ink: #2a1c05;
+  --accent-soft: #fbecd2;
+  --accent-text: #85550f;
+  --focus: #345c46;
+  --ok: #2c6a45; --ok-soft: #e1eee2;
+  --warn: #8f5400; --warn-soft: #fbead0;
+  --bad: #ad261d; --bad-soft: #fbe3df;
+  --info: #2b5c8a; --info-soft: #e2ebf5;
+  --glass: rgba(252, 253, 249, 0.9);
+  --glass-blur: 18px;
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  --scrim: rgba(18, 30, 23, 0.32);
+  --shadow-rgb: 27 48 37;
+  --shadow-1: 0 1px 2px rgb(var(--shadow-rgb) / 0.06), 0 1px 1px rgb(var(--shadow-rgb) / 0.03);
+  --shadow-2: 0 2px 6px rgb(var(--shadow-rgb) / 0.06), 0 14px 32px -12px rgb(var(--shadow-rgb) / 0.2);
+  --shadow-3: 0 6px 16px rgb(var(--shadow-rgb) / 0.08), 0 30px 64px -20px rgb(var(--shadow-rgb) / 0.34);
+  --glow: 0 0 0 1px rgb(var(--shadow-rgb) / 0.04);
+
+  --font-display: 'Newsreader', 'Cue Serif Fallback', Georgia, serif;
+  --font-body: 'Schibsted Grotesk', 'Cue Sans Fallback', system-ui, sans-serif;
+  --font-line: var(--font-display);
+  --line-weight: 500;
+  --display-weight: 560;
+
+  --sprout-leaf: #5c8a52; --sprout-leaf-2: #8db27a; --sprout-vein: #d9ead0; --sprout-stem: #4a6f45;
+  --sprout-pod: #efbd73; --sprout-pod-shade: #d69b4b; --sprout-face: #2a1c05; --sprout-cheek: #f29f7d;
+  --sprout-bloom: #ffe2a6; --sprout-bloom-core: #e4932f; --sprout-ring: #66805a; --sprout-off: #a5ab9f;
+
+  --rule-weight: 1px;
+  color-scheme: light;
+
+  /* moments:start honey-light */
+  --moment-gatekeeper: #7189a4; --moment-gatekeeper-soft: #e9f0f8; --moment-gatekeeper-ink: #40546b;
+  --moment-opener: #4a81eb; --moment-opener-soft: #e7f0ff; --moment-opener-ink: #1e4ca5;
+  --moment-cold: #1794b5; --moment-cold-soft: #dbf4fd; --moment-cold-ink: #015c72;
+  --moment-objection: #966cd7; --moment-objection-soft: #f2ecff; --moment-objection-ink: #603a95;
+  --moment-signal: #2e9e52; --moment-signal-soft: #def7e2; --moment-signal-ink: #00642b;
+  --moment-close: #a77f08; --moment-close-soft: #fbeed2; --moment-close-ink: #684e00;
+  --moment-compliance: #c66b04; --moment-compliance-soft: #ffebdd; --moment-compliance-ink: #7c4101;
+  --moment-neutral: #828880; --moment-neutral-soft: #eef0ed; --moment-neutral-ink: #4f544e;
+  /* moments:end */
+}
+
+[data-cue][data-dir='honey'][data-theme='dark'],
+[data-cue]:not([data-dir])[data-theme='dark'] {
+  --bg: #0e1511;
+  --surface: #18221c;
+  --surface-2: #202c25;
+  --surface-3: #121a15;
+  --ink: #eef2e8;
+  --ink-2: #bac7b6;
+  --ink-3: #98a695;
+  --line: #2a372f;
+  --line-strong: #44544a;
+  --accent: #efbd73;
+  --accent-hover: #f6cc8c;
+  --accent-ink: #2a1c05;
+  --accent-soft: #3a3121;
+  --accent-text: #ffd994;
+  --focus: #ffe2a6;
+  --ok: #8fd0a2; --ok-soft: #1f3528;
+  --warn: #f2b860; --warn-soft: #3a2c17;
+  --bad: #ff978a; --bad-soft: #3f2220;
+  --info: #93beef; --info-soft: #1d2d3e;
+  --glass: rgba(24, 34, 28, 0.9);
+  --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --scrim: rgba(0, 0, 0, 0.5);
+  --shadow-rgb: 0 0 0;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-2: 0 2px 6px rgb(0 0 0 / 0.25), 0 16px 36px -12px rgb(0 0 0 / 0.55);
+  --shadow-3: 0 6px 16px rgb(0 0 0 / 0.3), 0 32px 70px -20px rgb(0 0 0 / 0.7);
+  --glow: 0 0 0 1px rgb(255 255 255 / 0.03);
+
+  --sprout-leaf: #79ab69; --sprout-leaf-2: #a6cf8f; --sprout-vein: #e3f2d8; --sprout-stem: #6a9660;
+  --sprout-pod: #efbd73; --sprout-pod-shade: #c98c3c; --sprout-face: #2a1c05; --sprout-cheek: #f29f7d;
+  --sprout-bloom: #ffe2a6; --sprout-bloom-core: #f0a33e; --sprout-ring: #a6b297; --sprout-off: #6c7469;
+  color-scheme: dark;
+
+  /* moments:start honey-dark */
+  --moment-gatekeeper: #9eb3cc; --moment-gatekeeper-soft: #2a3139; --moment-gatekeeper-ink: #ccd9e8;
+  --moment-opener: #87b1fe; --moment-opener-soft: #20304d; --moment-opener-ink: #c3d8ff;
+  --moment-cold: #68bfdc; --moment-cold-soft: #19353e; --moment-cold-ink: #b0e0f2;
+  --moment-objection: #bf9cfa; --moment-objection-soft: #352a48; --moment-objection-ink: #decefe;
+  --moment-signal: #71c885; --moment-signal-soft: #1c3822; --moment-signal-ink: #b5e6be;
+  --moment-close: #d5ab45; --moment-close-soft: #3c2e0e; --moment-close-ink: #eed59f;
+  --moment-compliance: #f49849; --moment-compliance-soft: #46280f; --moment-compliance-ink: #ffcca6;
+  --moment-neutral: #adb3ac; --moment-neutral-soft: #2f312f; --moment-neutral-ink: #d5d9d4;
+  /* moments:end */
+}

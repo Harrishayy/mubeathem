@@ -1,0 +1,109 @@
+/*
+ * Direction 3 · Signal. Phones in hand, bright rooms, tired eyes: maximum legibility. High contrast,
+ * bigger line type (24 px), stronger moment colours, no translucency. WCAG AA everywhere and AAA
+ * (7:1) for the line text, asserted in test/contrast.test.ts.
+ */
+[data-cue][data-dir='signal'] {
+  --bg: #f1f3ef;
+  --surface: #ffffff;
+  --surface-2: #eceee9;
+  --surface-3: #e1e5de;
+  --ink: #0a0f0c;
+  --ink-2: #27322b;
+  --ink-3: #3e4a42;
+  --line: #c3cabf;
+  --line-strong: #0a0f0c;
+  --accent: #f2b54a;
+  --accent-hover: #f5c165;
+  --accent-ink: #120b00;
+  --accent-soft: #fdeccb;
+  --accent-text: #6a4200;
+  --focus: #0a0f0c;
+  --ok: #165a32; --ok-soft: #d9efe0;
+  --warn: #7a4200; --warn-soft: #fde5c4;
+  --bad: #9a1a12; --bad-soft: #fbdcd8;
+  --info: #17487a; --info-soft: #dbe7f4;
+  --glass: #ffffff;
+  --glass-blur: 0px;
+  --highlight: none;
+  --scrim: rgba(0, 0, 0, 0.45);
+  --shadow-rgb: 10 15 12;
+  --shadow-1: 0 1px 0 rgb(var(--shadow-rgb) / 0.12);
+  --shadow-2: 0 2px 0 rgb(var(--shadow-rgb) / 0.1), 0 10px 24px -12px rgb(var(--shadow-rgb) / 0.3);
+  --shadow-3: 0 3px 0 rgb(var(--shadow-rgb) / 0.12), 0 24px 48px -16px rgb(var(--shadow-rgb) / 0.4);
+  --glow: none;
+
+  --font-display: 'Atkinson Hyperlegible Next', 'Cue Legible Fallback', Verdana, system-ui, sans-serif;
+  --font-body: 'Atkinson Hyperlegible Next', 'Cue Legible Fallback', Verdana, system-ui, sans-serif;
+  --font-line: var(--font-display);
+  --line-weight: 600;
+  --display-weight: 700;
+  --text-line: 24px;
+  --text-line-compact: 17px;
+  --leading-line: 1.28;
+  --tracking-display: -0.005em;
+
+  --sprout-leaf: #2f7d3f; --sprout-leaf-2: #57a361; --sprout-vein: #d6f0d6; --sprout-stem: #24622f;
+  --sprout-pod: #f2b54a; --sprout-pod-shade: #c98714; --sprout-face: #0a0f0c; --sprout-cheek: #ef8a63;
+  --sprout-bloom: #ffd76b; --sprout-bloom-core: #d9780a; --sprout-ring: #24622f; --sprout-off: #8c938a;
+
+  --rule-weight: 1.5px;
+  /* Labels stay in the legible face, a size up: mono capitals are hard on tired eyes. */
+  --font-label: var(--font-body); --label-size: 12px; --label-weight: 700; --label-tracking: 0.04em;
+  color-scheme: light;
+
+  /* moments:start signal-light */
+  --moment-gatekeeper: #57718e; --moment-gatekeeper-soft: #dfe9f5; --moment-gatekeeper-ink: #293f57;
+  --moment-opener: #2c66d9; --moment-opener-soft: #dce9ff; --moment-opener-ink: #003094;
+  --moment-cold: #057b98; --moment-cold-soft: #c9effd; --moment-cold-ink: #014456;
+  --moment-objection: #804fc4; --moment-objection-soft: #ebe3fe; --moment-objection-ink: #4c1b82;
+  --moment-signal: #01853c; --moment-signal-soft: #ccf4d3; --moment-signal-ink: #004b1e;
+  --moment-close: #8b6902; --moment-close-soft: #fae6bb; --moment-close-ink: #4e3a02;
+  --moment-compliance: #a45804; --moment-compliance-soft: #ffe2cc; --moment-compliance-ink: #5d3001;
+  --moment-neutral: #6a7169; --moment-neutral-soft: #e6e9e5; --moment-neutral-ink: #393f38;
+  /* moments:end */
+}
+
+[data-cue][data-dir='signal'][data-theme='dark'] {
+  --bg: #000000;
+  --surface: #0b0d0c;
+  --surface-2: #171b18;
+  --surface-3: #050605;
+  --ink: #ffffff;
+  --ink-2: #d9dfd6;
+  --ink-3: #b9c1b6;
+  --line: #333b35;
+  --line-strong: #eef2ec;
+  --accent: #ffc35c;
+  --accent-hover: #ffd07f;
+  --accent-ink: #160e00;
+  --accent-soft: #2f2511;
+  --accent-text: #ffd585;
+  --focus: #ffd585;
+  --ok: #8ee0a2; --ok-soft: #10301b;
+  --warn: #ffc46e; --warn-soft: #34250e;
+  --bad: #ff9d93; --bad-soft: #3a1714;
+  --info: #9cc8ff; --info-soft: #11263d;
+  --glass: #0b0d0c;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-rgb: 0 0 0;
+  --shadow-1: 0 0 0 1px #333b35;
+  --shadow-2: 0 0 0 1px #333b35, 0 16px 32px -12px rgb(0 0 0 / 0.8);
+  --shadow-3: 0 0 0 1px #4a544c, 0 30px 60px -20px rgb(0 0 0 / 0.9);
+
+  --sprout-leaf: #7fd27f; --sprout-leaf-2: #a8e6a0; --sprout-vein: #effbe9; --sprout-stem: #66b868;
+  --sprout-pod: #ffc35c; --sprout-pod-shade: #d18f1e; --sprout-face: #160e00; --sprout-cheek: #ff9f7c;
+  --sprout-bloom: #ffe08a; --sprout-bloom-core: #ff9f1c; --sprout-ring: #ffc35c; --sprout-off: #6f776d;
+  color-scheme: dark;
+
+  /* moments:start signal-dark */
+  --moment-gatekeeper: #a7c0de; --moment-gatekeeper-soft: #1e2731; --moment-gatekeeper-ink: #dfe9f5;
+  --moment-opener: #9bbefe; --moment-opener-soft: #10244b; --moment-opener-ink: #dce9ff;
+  --moment-cold: #62cef0; --moment-cold-soft: #002c38; --moment-cold-ink: #cbeffc;
+  --moment-objection: #c9acfe; --moment-objection-soft: #2c1d44; --moment-objection-ink: #ebe3ff;
+  --moment-signal: #6ed889; --moment-signal-soft: #062f13; --moment-signal-ink: #cef3d4;
+  --moment-close: #e8b631; --moment-close-soft: #332400; --moment-close-ink: #f9e6bd;
+  --moment-compliance: #ffa65f; --moment-compliance-soft: #3e1c00; --moment-compliance-ink: #ffe2cc;
+  --moment-neutral: #b9c0b8; --moment-neutral-soft: #252724; --moment-neutral-ink: #e6e9e5;
+  /* moments:end */
+}
