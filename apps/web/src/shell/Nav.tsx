@@ -1,75 +1,71 @@
-import { Icon, Sprout, type IconName } from '@cue/ui';
-import { mascotFor } from '@cue/core';
-import { hrefFor, type Route } from '../router';
+import { ADAPTER_THRESHOLD_DEFAULT } from './constants';
+import { AppBar, BandTag, Button, CallTimer, type AppTab } from '@cue/ui';
+import { useResource } from '../hooks/useResource';
+import { hrefFor, type Route, type SimpleRoute } from '../router';
+import { getApi } from '../state/api';
 import { callStore } from '../state/call';
 import { useStore } from '../state/store';
+import { endAndDebrief } from './useOverbar';
 
-export interface NavItem {
-  route: Route['name'];
-  label: string;
-  icon: IconName;
-}
+type Section = SimpleRoute;
 
-export const NAV: NavItem[] = [
-  { route: 'live', label: 'Live', icon: 'phone' },
-  { route: 'practice', label: 'Practice', icon: 'mic' },
-  { route: 'playbook', label: 'Playbook', icon: 'leaf' },
-  { route: 'model', label: 'Model', icon: 'sprout' },
-  { route: 'history', label: 'History', icon: 'clock' },
-  { route: 'settings', label: 'Settings', icon: 'settings' },
+const SECTIONS: { id: Section; label: string }[] = [
+  { id: 'live', label: 'Live' },
+  { id: 'contacts', label: 'Contacts' },
+  { id: 'history', label: 'History' },
+  { id: 'team', label: 'Team' },
+  { id: 'playbook', label: 'Playbook' },
+  { id: 'model', label: 'Model' },
+  { id: 'insights', label: 'Insights' },
+  { id: 'settings', label: 'Settings' },
 ];
 
-function isActive(item: NavItem, route: Route): boolean {
-  if (route.name === 'debrief') return item.route === 'history';
-  return item.route === route.name;
+function activeSection(route: Route): Section {
+  if (route.name === 'debrief') return 'history';
+  if (route.name === 'pip') return 'live';
+  return route.name;
 }
 
-/** Slim left rail on desktop. */
-export function Rail({ route }: { route: Route }) {
-  const { view, connection } = useStore(callStore);
+/**
+ * The deep-olive band on every screen: wordmark, section tabs (Live carries a dot during a call,
+ * Playbook and Model carry their counts), and on the right the Mubit status or the call tally with
+ * End call.
+ */
+export function TopBar({ route }: { route: Route }) {
+  const { view } = useStore(callStore);
   const live = view?.status === 'live';
-  return (
-    <nav className="web-rail" aria-label="Cue">
-      <a className="web-rail__brand" href={hrefFor({ name: 'live' })} aria-label="Cue home">
-        <Sprout state={mascotFor(view, connection)} size={34} decorative />
-      </a>
-      <ul className="web-rail__list">
-        {NAV.map((item) => {
-          const active = isActive(item, route);
-          return (
-            <li key={item.route}>
-              <a className={`web-rail__item${active ? ' is-active' : ''}`} href={hrefFor({ name: item.route } as Route)} aria-current={active ? 'page' : undefined}>
-                <span className="web-rail__icon">
-                  <Icon name={item.icon} size={20} />
-                  {item.route === 'live' && live && <span className="web-live-dot" aria-label="Call in progress" />}
-                </span>
-                <span className="web-rail__label">{item.label}</span>
-              </a>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
+  const stats = useResource((signal) => getApi().stats({ signal }), [], 30_000);
+  const playbook = useResource((signal) => getApi().playbook({ signal }), [], 60_000);
+  const tasks = stats.data?.tasks ?? [];
+  const trained = tasks.filter((t) => t.ok >= (t.adapterThreshold || ADAPTER_THRESHOLD_DEFAULT)).length;
+  const lines = playbook.data?.lines.filter((l) => l.status === 'active').length;
 
-/** Bottom tab bar on phones. */
-export function TabBar({ route }: { route: Route }) {
-  const live = useStore(callStore, (s) => s.view?.status === 'live');
-  return (
-    <nav className="web-tabs" aria-label="Cue">
-      {NAV.map((item) => {
-        const active = isActive(item, route);
-        return (
-          <a key={item.route} className={`web-tabs__item${active ? ' is-active' : ''}`} href={hrefFor({ name: item.route } as Route)} aria-current={active ? 'page' : undefined}>
-            <span className="web-tabs__icon">
-              <Icon name={item.icon} size={20} />
-              {item.route === 'live' && live && <span className="web-live-dot" aria-label="Call in progress" />}
-            </span>
-            <span className="web-tabs__label">{item.label}</span>
-          </a>
-        );
-      })}
-    </nav>
-  );
+  const tabs: AppTab[] = SECTIONS.map((s) => ({
+    id: s.id,
+    label: s.label,
+    href: hrefFor({ name: s.id } as Route),
+    live: s.id === 'live' && live,
+    count: s.id === 'playbook' && lines !== undefined ? lines : s.id === 'model' && tasks.length > 0 ? `${trained}/${tasks.length}` : undefined,
+  }));
+
+  const end = live ? (
+    <>
+      <span className="cue-tallybox" role="status">
+        <span className="cue-tallybox__dot" aria-hidden />
+        <span className="cue-label" style={{ color: 'var(--bad)' }}>
+          Live
+        </span>
+        <CallTimer startedAt={view.startedAt} endedAt={view.endedAt} />
+      </span>
+      <Button size="sm" variant="secondary" icon="phone-off" onClick={() => void endAndDebrief()}>
+        End call
+      </Button>
+    </>
+  ) : stats.error ? (
+    <BandTag tone="warn">Server offline</BandTag>
+  ) : tasks.length > 0 ? (
+    <BandTag tone={trained === tasks.length ? 'ok' : 'plain'}>{`Mubit · ${trained}/${tasks.length} trained`}</BandTag>
+  ) : null;
+
+  return <AppBar tabs={tabs} active={activeSection(route)} end={end} />;
 }

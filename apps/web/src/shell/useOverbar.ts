@@ -1,19 +1,22 @@
 import type { OverbarProps, SuggestionCardHandle } from '@cue/ui';
-import { useCallback, useRef } from 'react';
+import { useCallback } from 'react';
 import { levelStore } from '../capture/level';
 import { useHotkeys } from '../hooks/useHotkeys';
 import { navigate } from '../router';
 import { callStore, endCall, sendAction } from '../state/call';
 import { settingsStore } from '../state/settings';
 import { useStore } from '../state/store';
-import { setOverbar, toast, uiStore } from '../state/ui';
+import { openDebrief, setOverbar, toast, uiStore } from '../state/ui';
+
+/** The one card handle every surface writes to. */
+const CARD: { current: SuggestionCardHandle | null } = { current: null };
 
 export async function endAndDebrief(outcome?: Parameters<typeof endCall>[0]): Promise<void> {
   const id = callStore.get().callId;
   if (!id) return;
   try {
     await endCall(outcome);
-    navigate({ name: 'debrief', id });
+    openDebrief(id);
   } catch (e) {
     toast({ tone: 'bad', title: 'Could not end the call', description: e instanceof Error ? e.message : String(e) });
   }
@@ -25,8 +28,9 @@ export function useOverbar(opts: { win?: Window | null; hotkeys?: boolean } = {}
   const mode = useStore(uiStore, (u) => u.overbar);
   const voiceLevel = useStore(levelStore);
   const debug = useStore(settingsStore, (s) => s.debug);
-  // The card on screen; shortcuts go through it so its own state (Used, the editor) stays in step.
-  const card = useRef<SuggestionCardHandle | null>(null);
+  // The card on screen (overbar or Live dashboard); shortcuts go through it so its own state (Used,
+  // the editor) stays in step. Shared, so whichever surface shows the card answers the keys.
+  const card = CARD;
 
   const onAction = useCallback<OverbarProps['onAction']>((sid, action, text) => void sendAction(sid, action, text), []);
   const live = view?.status === 'live';
@@ -62,5 +66,6 @@ export function useOverbar(opts: { win?: Window | null; hotkeys?: boolean } = {}
     voiceLevel,
     cardRef: card,
     debug,
+    shortcuts: opts.hotkeys !== false,
   };
 }

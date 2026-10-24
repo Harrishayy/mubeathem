@@ -3,13 +3,10 @@ import { callStore } from '../state/call';
 import { CallConsole } from './live/CallConsole';
 import { NewCall } from './live/NewCall';
 
-/** The overbar (rendered globally) over a calm backdrop: the composer, or the call console. */
+/** The Live dashboard: the new-call composer, or the call console once a call is on. */
 export function Live() {
   const hasCall = useStore(callStore, (s) => s.view !== null);
   return (
-    <div className="web-screen web-live">
-      <div className="web-backdrop" aria-hidden />
-      {hasCall ? <CallConsole /> : <NewCall />}
-    </div>
+    <div className="web-screen web-live">{hasCall ? <CallConsole /> : <NewCall />}</div>
   );
 }

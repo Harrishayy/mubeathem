@@ -2,7 +2,7 @@ import type { Speaker } from '@cue/core';
 import { createStore } from '../state/store';
 
 /**
- * Single-mic demos: whoever holds Space is the rep, otherwise the mic is the prospect. A toggle can
+ * One mic for both sides: whoever holds Space is the rep, otherwise the mic is the prospect. A toggle can
  * lock it either way (a headset rep with the prospect on speaker, say).
  */
 export interface SpeakerState {

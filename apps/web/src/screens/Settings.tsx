@@ -1,18 +1,20 @@
 import { OUTCOMES, OUTCOME_LABEL, type Outcome } from '@cue/core';
-import { Button, Chip, IconButton, SegmentedControl, Switch, TextField } from '@cue/ui';
+import { ActionBar, Button, Chip, IconButton, KeyValue, Pane, PaneSection, SegmentedControl, Switch, TextField } from '@cue/ui';
 import { useState, type FormEvent } from 'react';
 import { useResource } from '../hooks/useResource';
 import { getApi } from '../state/api';
-import { settingsStore, updateSettings, type Density, type Direction, type ThemePref, type TranscriberKind } from '../state/settings';
+import { repIdFor, settingsStore, updateSettings, type Density, type Direction, type ThemePref, type TranscriberKind } from '../state/settings';
 import { useStore } from '../state/store';
 import { toast } from '../state/ui';
 
-/** Server, look, capture and Trellus. Everything but the Trellus key stays in this browser. */
+/** You, the look, capture, server and Trellus. Everything but the Trellus key stays in this browser. */
 export function SettingsScreen() {
   const s = useStore(settingsStore);
   const [server, setServer] = useState(s.serverUrl);
   const [token, setToken] = useState(s.token);
   const health = useResource((signal) => getApi().health({ signal }), [s.serverUrl, s.token]);
+  const team = useResource((signal) => getApi().team({}, { signal }), [s.serverUrl, s.token]);
+  const members = team.data?.members ?? [];
 
   const saveServer = (e: FormEvent) => {
     e.preventDefault();
@@ -21,86 +23,82 @@ export function SettingsScreen() {
   };
 
   return (
-    <div className="web-screen web-page web-settings">
-      <header className="web-page__head">
-        <div>
-          <p className="web-eyebrow">Settings</p>
-          <h1 className="web-h1">Make Cue yours</h1>
-        </div>
-      </header>
-
-      <form className="web-panel web-stack" onSubmit={saveServer} aria-labelledby="set-server">
-        <div className="web-panel__head">
-          <h2 className="web-h3" id="set-server">
-            Server
-          </h2>
-          <Chip size="sm" tone={health.data?.ok ? 'ok' : health.loading ? 'neutral' : 'bad'} icon={health.data?.ok ? 'check' : health.loading ? 'dot' : 'wifi-off'}>
-            {health.data?.ok ? `Connected · v${health.data.version}` : health.loading ? 'Checking…' : 'Not reachable'}
-          </Chip>
-        </div>
-        <div className="web-grid-2">
-          <TextField label="Server URL" value={server} onChange={(e) => setServer(e.target.value)} placeholder="Same origin" hint="Leave empty to use this site's /api (the dev server proxies it)." inputMode="url" autoComplete="off" />
-          <TextField label="Access token" optional type="password" value={token} onChange={(e) => setToken(e.target.value)} hint="Sent as x-cue-token when the server asks for one." autoComplete="off" />
-        </div>
-        {health.data && (
-          <p className="web-muted web-small">
-            Mubit {health.data.mubit.configured ? 'on' : 'off (rules engine)'} · Sapling {health.data.sapling.configured ? 'on' : 'off'} · Exa {health.data.exa.configured ? 'on' : 'off'} ·{' '}
-            {health.data.store.calls} calls stored
-          </p>
-        )}
-        <div className="web-row web-row--end">
-          <Button type="submit" variant="primary">
-            Save
-          </Button>
-        </div>
-      </form>
-
-      <section className="web-panel web-stack" aria-labelledby="set-look">
-        <h2 className="web-h3" id="set-look">
-          Look
-        </h2>
-        <SegmentedControl<Direction>
-          label="Direction"
-          options={[
-            { value: 'honey', label: 'Honey' },
-            { value: 'night', label: 'Night Shift' },
-            { value: 'signal', label: 'Signal' },
-          ]}
-          value={s.direction}
-          onChange={(direction) => updateSettings({ direction })}
-        />
-        <div className="web-grid-2">
-          <SegmentedControl<ThemePref>
-            label="Theme"
-            options={[
-              { value: 'system', label: 'System' },
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-            ]}
-            value={s.theme}
-            onChange={(theme) => updateSettings({ theme })}
+    <div className="cue-dash-grid web-set-grid">
+      <h1 className="web-sr">Make Cue yours</h1>
+      <Pane label="You and appearance" hint="Your name marks the calls you make, so Team can show your own numbers." scroll={false} className="web-set-grid__general">
+        <div className="web-stack">
+          <TextField
+            label="Your name"
+            value={s.repName}
+            onChange={(e) => updateSettings({ repName: e.target.value, repId: repIdFor(e.target.value) })}
+            maxLength={120}
+            autoComplete="name"
+            hint={s.repId ? undefined : 'Add your name to see your own numbers on Team.'}
+            id="settings-rep-name"
           />
-          <SegmentedControl<Density>
-            label="Density"
+          {members.length > 0 && (
+            <label className="web-select">
+              <span className="cue-field__label">Or pick yourself from the team</span>
+              <select
+                className="web-input"
+                value={members.some((m) => m.rep.id === s.repId) ? s.repId : ''}
+                onChange={(e) => {
+                  const m = members.find((x) => x.rep.id === e.target.value);
+                  if (m) updateSettings({ repId: m.rep.id, repName: m.rep.name });
+                }}
+              >
+                <option value="">Someone new</option>
+                {members.map((m) => (
+                  <option key={m.rep.id} value={m.rep.id}>
+                    {m.rep.name || m.rep.id}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <SegmentedControl<Direction>
+            label="Look"
+            showLabel
             options={[
-              { value: 'comfortable', label: 'Comfortable' },
-              { value: 'compact', label: 'Compact' },
+              { value: 'honey', label: 'Honey' },
+              { value: 'night', label: 'Night Shift' },
+              { value: 'signal', label: 'Signal' },
             ]}
-            value={s.density}
-            onChange={(density) => updateSettings({ density })}
+            value={s.direction}
+            onChange={(direction) => updateSettings({ direction })}
           />
+          <div className="web-grid-2">
+            <SegmentedControl<ThemePref>
+              label="Light or dark"
+              showLabel
+              options={[
+                { value: 'system', label: 'System' },
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' },
+              ]}
+              value={s.theme}
+              onChange={(theme) => updateSettings({ theme })}
+            />
+            <SegmentedControl<Density>
+              label="Spacing"
+              showLabel
+              options={[
+                { value: 'comfortable', label: 'Comfortable' },
+                { value: 'compact', label: 'Compact' },
+              ]}
+              value={s.density}
+              onChange={(density) => updateSettings({ density })}
+            />
+          </div>
+          {s.direction === 'night' && <p className="web-muted web-small">Night Shift is always dark.</p>}
         </div>
-        {s.direction === 'night' && <p className="web-muted web-small">Night Shift is always dark.</p>}
-      </section>
+      </Pane>
 
-      <section className="web-panel web-stack" aria-labelledby="set-capture">
-        <h2 className="web-h3" id="set-capture">
-          Calls
-        </h2>
-        <div className="web-grid-2">
-          <TextField label="Your name" value={s.repName} onChange={(e) => updateSettings({ repName: e.target.value })} maxLength={120} />
+      <Pane label="Listening" hint="How Cue hears the call. Browser speech uses your mic; typed only means you enter what was said." scroll={false} className="web-set-grid__capture">
+        <div className="web-stack">
           <SegmentedControl<TranscriberKind>
             label="Transcriber"
+            showLabel
             options={[
               { value: 'webspeech', label: 'Browser speech' },
               { value: 'typed', label: 'Typed only' },
@@ -108,24 +106,50 @@ export function SettingsScreen() {
             value={s.transcriber}
             onChange={(transcriber) => updateSettings({ transcriber })}
           />
+          <Switch label="Show how each line was made" description="Adds who wrote it (Mubit or the playbook rules), how long it took and the Mubit request id under each line." checked={s.debug} onCheckedChange={(debug) => updateSettings({ debug })} />
+          <Switch label="Show the Live tips again" description="The short how-it-works note on the Live screen." checked={!s.seenLiveHint} onCheckedChange={(on) => updateSettings({ seenLiveHint: !on })} />
         </div>
-        <Switch label="Read the practice prospect aloud" description="Uses the browser's voice for the simulated prospect's lines." checked={s.practiceVoice} onCheckedChange={(practiceVoice) => updateSettings({ practiceVoice })} />
-        <Switch label="Show how each card was made" description="Adds the write path, latency and Mubit request id to the card. Handy on stage." checked={s.debug} onCheckedChange={(debug) => updateSettings({ debug })} />
-        <Switch label="Hands-free demo" description="Demo mode fills in the debrief and opens the playbook on its own." checked={s.demoHandsFree} onCheckedChange={(demoHandsFree) => updateSettings({ demoHandsFree })} />
-        <SegmentedControl<string>
-          label="Demo pace"
-          options={[
-            { value: '0.75', label: 'Relaxed' },
-            { value: '1', label: 'Natural' },
-            { value: '1.5', label: 'Brisk' },
-            { value: '2.5', label: 'Rehearsal' },
-          ]}
-          value={String(s.demoSpeed)}
-          onChange={(v) => updateSettings({ demoSpeed: Number(v) })}
-        />
-      </section>
+      </Pane>
 
       <Trellus />
+
+      <Pane
+        label="Data and privacy"
+        hint="Which server Cue talks to and which add-ons it has switched on."
+        scroll={false}
+        className="web-set-grid__data"
+        actions={
+          <Chip size="sm" tone={health.data?.ok ? 'ok' : health.loading ? 'neutral' : 'bad'} icon={health.data?.ok ? 'check' : health.loading ? 'dot' : 'wifi-off'}>
+            {health.data?.ok ? `Connected · v${health.data.version}` : health.loading ? 'Checking…' : 'Not reachable'}
+          </Chip>
+        }
+        footer={
+          <ActionBar end={<a className="cue-btn cue-btn--ghost cue-btn--md" href={getApi().exportUrl()} download>Export calls (JSONL)</a>}>
+            <Button type="submit" form="set-server" variant="primary">
+              Save
+            </Button>
+          </ActionBar>
+        }
+      >
+        <form id="set-server" className="web-stack" onSubmit={saveServer} aria-label="Server">
+          <p className="web-muted web-small">Everything on this page stays in this browser, except the Trellus key and the disposition map, which live on the server. Provider keys never reach the browser.</p>
+          <div className="web-grid-2">
+            <TextField label="Server URL" value={server} onChange={(e) => setServer(e.target.value)} placeholder="Same origin" hint="Leave empty to use this site's /api (the dev server proxies it)." inputMode="url" autoComplete="off" />
+            <TextField label="Access token" optional type="password" value={token} onChange={(e) => setToken(e.target.value)} hint="Sent as x-cue-token when the server asks for one." autoComplete="off" />
+          </div>
+          {health.data && (
+            <KeyValue
+              items={[
+                { label: 'Mubit (AI)', value: health.data.mubit.configured ? 'On' : 'Off: lines come straight from the playbook' },
+                { label: 'Sapling (tone)', value: health.data.sapling.configured ? 'On' : 'Off' },
+                { label: 'Exa (web research)', value: health.data.exa.configured ? 'On' : 'Off' },
+                ...(health.data.valyu ? [{ label: 'Valyu (web research)', value: health.data.valyu.configured ? 'On' : 'Off' }] : []),
+                { label: 'Calls stored', value: <span className="cue-num">{health.data.store.calls}</span> },
+              ]}
+            />
+          )}
+        </form>
+      </Pane>
     </div>
   );
 }
@@ -167,35 +191,43 @@ function Trellus() {
   };
 
   return (
-    <section className="web-panel web-stack" aria-labelledby="set-trellus">
-      <div className="web-panel__head">
-        <h2 className="web-h3" id="set-trellus">
-          Trellus
-        </h2>
+    <Pane
+      label="Trellus"
+      hint="Trellus is the dialer. Connect it and Cue picks up each call's outcome on its own."
+      scroll={false}
+      pad="none"
+      className="web-set-grid__trellus"
+      actions={
         <Chip size="sm" tone={st?.configured ? (st.reachable === false ? 'bad' : 'ok') : 'neutral'}>
           {!st ? 'Checking…' : st.configured ? (st.reachable === false ? 'Not reachable' : 'Connected') : 'Trellus not connected'}
         </Chip>
-      </div>
-      <p className="web-muted web-small">
-        Trellus keeps dialing. Cue reads outcomes from its Call Data API; the key is stored on the server and never comes back to the browser.
-        {st?.lastSyncAt ? ` Last sync ${new Date(st.lastSyncAt).toLocaleString()}.` : ''}
-        {st?.lastError ? ` Last error: ${st.lastError}` : ''}
-      </p>
-      <form className="web-grid-2" onSubmit={saveKey}>
-        <TextField label="API key" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" placeholder={st?.configured ? 'Saved. Paste to replace.' : ''} />
-        <TextField label="Team id" optional value={team} onChange={(e) => setTeam(e.target.value)} autoComplete="off" />
-        <div className="web-row">
-          <Button type="submit" variant="primary" loading={busy === 'key'} disabled={!key.trim()}>
-            Save key
-          </Button>
-          <Button variant="secondary" icon="refresh" loading={busy === 'sync'} onClick={() => void sync()}>
-            Sync now
-          </Button>
+      }
+    >
+      <PaneSection label="Connection">
+        <div className="web-stack">
+          <p className="web-muted web-small">
+            Trellus keeps dialing. Cue reads outcomes from its Call Data API; the key is stored on the server and never comes back to the browser.
+            {st?.lastSyncAt ? ` Last sync ${new Date(st.lastSyncAt).toLocaleString()}.` : ''}
+            {st?.lastError ? ` Last error: ${st.lastError}` : ''}
+          </p>
+          <form className="web-stack" onSubmit={saveKey}>
+            <div className="web-grid-2">
+              <TextField label="API key" type="password" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" placeholder={st?.configured ? 'Saved. Paste to replace.' : ''} />
+              <TextField label="Team id" optional value={team} onChange={(e) => setTeam(e.target.value)} autoComplete="off" />
+            </div>
+            <ActionBar>
+              <Button type="submit" variant="primary" loading={busy === 'key'} disabled={!key.trim()}>
+                Save key
+              </Button>
+              <Button variant="secondary" icon="refresh" loading={busy === 'sync'} onClick={() => void sync()}>
+                Sync now
+              </Button>
+            </ActionBar>
+          </form>
         </div>
-      </form>
-
+      </PaneSection>
       <Dispositions />
-    </section>
+    </Pane>
   );
 }
 
@@ -233,16 +265,19 @@ function Dispositions() {
   };
 
   return (
-    <div className="web-stack web-dispo">
-      <div className="web-panel__head">
-        <h3 className="web-h4">Disposition map</h3>
-        {d && (
+    <PaneSection
+      label="Disposition map"
+      hint="Trellus labels each call (a disposition). Pick which Cue outcome each label counts as."
+      actions={
+        d && (
           <Chip size="sm" tone={d.unmapped.length ? 'warn' : 'ok'}>
             {d.unmapped.length ? `${d.unmapped.length} not mapped` : `${d.source === 'trellus' ? 'Trellus' : 'Cue native'} vocabulary`}
           </Chip>
-        )}
-      </div>
-      <p className="web-muted web-small">How each disposition counts when Cue reads a call's outcome. Your changes are saved on the server.{d?.error ? ` ${d.error}` : ''}</p>
+        )
+      }
+    >
+    <div className="web-stack">
+      {d?.error && <p className="web-muted web-small">{d.error}</p>}
       {res.error && !d ? (
         <p className="web-note web-note--warn">Can't load the map: {res.error.message}</p>
       ) : !d ? null : (
@@ -253,7 +288,7 @@ function Dispositions() {
             const via = overrides[raw] ? 'override' : learned?.via ?? 'override';
             return (
               <li key={raw} className={`web-dispo__row${via === 'unmapped' ? ' is-unmapped' : ''}`}>
-                <span className="web-dispo__key web-trunc" title={raw}>
+                <span className="web-dispo__key">
                   {raw}
                 </span>
                 <span className="web-muted web-small">{VIA_LABEL[via]}</span>
@@ -283,7 +318,7 @@ function Dispositions() {
           setLabel('');
         }}
       >
-        <TextField label="Another disposition" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={120} placeholder="Demo set" />
+        <TextField label="Another disposition" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={120} placeholder="Meeting set" />
         <label className="web-select">
           <span className="cue-field__label">Counts as</span>
           <select className="web-input" value={outcome} onChange={(e) => setOutcome(e.target.value as Outcome)}>
@@ -298,16 +333,20 @@ function Dispositions() {
           Add
         </Button>
       </form>
-      <div className="web-row web-row--end">
-        {dirty && (
-          <Button variant="ghost" onClick={() => setDraft(null)}>
-            Discard
-          </Button>
-        )}
+      <ActionBar
+        end={
+          dirty && (
+            <Button variant="ghost" onClick={() => setDraft(null)}>
+              Discard
+            </Button>
+          )
+        }
+      >
         <Button variant="primary" onClick={() => void save()} loading={saving} disabled={!dirty}>
           Save map
         </Button>
-      </div>
+      </ActionBar>
     </div>
+    </PaneSection>
   );
 }

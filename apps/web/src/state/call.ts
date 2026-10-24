@@ -1,5 +1,5 @@
-import { subscribeCall, TurnBuffer, type Connection, type EventSourceCtor, type TurnInput } from '@cue/client';
-import type { CallEvent, CallView, CreateCallRequest, Outcome, SuggestionAction } from '@cue/core';
+import { subscribeCall, TurnBuffer, type Connection, type CueApi, type EventSourceCtor, type TurnInput } from '@cue/client';
+import type { CallEvent, CallView, Outcome, SuggestionAction } from '@cue/core';
 import { getApi } from './api';
 import { createStore } from './store';
 import { uiStore } from './ui';
@@ -18,7 +18,7 @@ export const callStore = createStore<CallState>({ callId: null, view: null, conn
 type Listener = (e: CallEvent, v: CallView) => void;
 const eventListeners = new Set<Listener>();
 
-/** Every applied event of the attached call (demo mode waits on these). */
+/** Every applied event of the attached call. */
 export function onCallEvent(fn: Listener): () => void {
   eventListeners.add(fn);
   return () => eventListeners.delete(fn);
@@ -69,7 +69,8 @@ export function detachCall(): void {
   callStore.set({ callId: null, view: null, connection: 'live', queued: 0, error: null });
 }
 
-export async function startCall(req: CreateCallRequest): Promise<CallView> {
+/** Starts a call (with `contactId`, the server fills the prospect from the saved contact). */
+export async function startCall(req: Parameters<CueApi['createCall']>[0]): Promise<CallView> {
   const view = await getApi().createCall(req);
   attachCall(view.id, view);
   return view;
@@ -101,7 +102,7 @@ export async function endCall(outcome?: Outcome): Promise<CallView | null> {
   return view;
 }
 
-/** The Space-to-talk demo and the composer both need the latest call's start. */
+/** Space-to-talk and the composer both need the latest call's start. */
 export function callStartedAt(): number | null {
   return callStore.get().view?.startedAt ?? null;
 }

@@ -4,7 +4,6 @@ export type Direction = 'honey' | 'night' | 'signal';
 export type ThemePref = 'light' | 'dark' | 'system';
 export type Density = 'comfortable' | 'compact';
 export type TranscriberKind = 'webspeech' | 'typed';
-export type DemoVariant = 'cold' | 'warm' | 'both';
 
 export interface Settings {
   /** Empty = same origin (the dev server proxies /api and /health to @cue/server). */
@@ -15,14 +14,10 @@ export interface Settings {
   density: Density;
   transcriber: TranscriberKind;
   repName: string;
+  /** Who you are on the team: your calls, your numbers on Team. Empty until you set your name. */
   repId: string;
-  /** Read the simulated prospect's lines aloud in practice. */
-  practiceVoice: boolean;
-  demoVariant: DemoVariant;
-  /** 1 = natural speaking pace. */
-  demoSpeed: number;
-  /** Fill and submit the debrief in demo mode too. */
-  demoHandsFree: boolean;
+  /** The first-run hint on Live has been dismissed. */
+  seenLiveHint: boolean;
   /** Show servedBy / latency on cards. */
   debug: boolean;
 }
@@ -36,10 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   transcriber: 'webspeech',
   repName: 'Alex Rivera',
   repId: 'rep_alex',
-  practiceVoice: false,
-  demoVariant: 'cold',
-  demoSpeed: 1,
-  demoHandsFree: true,
+  seenLiveHint: false,
   debug: false,
 };
 
@@ -60,7 +52,6 @@ const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   theme: ['light', 'dark', 'system'],
   density: ['comfortable', 'compact'],
   transcriber: ['webspeech', 'typed'],
-  demoVariant: ['cold', 'warm', 'both'],
 };
 
 /** Reads persisted settings, keeping only fields with the right type. Never throws. */
@@ -80,7 +71,6 @@ export function loadSettings(storage: StorageLike | null = safeStorage()): Setti
     const d = DEFAULT_SETTINGS[key];
     if (v === undefined || typeof v !== typeof d) continue;
     if (ENUMS[key] && !ENUMS[key]!.includes(v as string)) continue;
-    if (key === 'demoSpeed' && (!Number.isFinite(v) || (v as number) <= 0 || (v as number) > 4)) continue;
     (out as unknown as Record<string, unknown>)[key] = v;
   }
   return out;
@@ -99,6 +89,23 @@ export function saveSettings(s: Settings, storage: StorageLike | null = safeStor
 
 export const settingsStore = createStore<Settings>(loadSettings());
 settingsStore.subscribe(() => saveSettings(settingsStore.get()));
+
+/** `Sam O'Neil` → `rep_sam_o_neil`: a stable id for a typed name (empty name → no id). */
+export function repIdFor(name: string): string {
+  const slug = name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 60);
+  return slug ? `rep_${slug}` : '';
+}
+
+/** First name for buttons ("Call Maya"). */
+export function firstName(name: string): string {
+  return name.trim().split(/\s+/)[0] ?? '';
+}
 
 export function updateSettings(patch: Partial<Settings>): void {
   settingsStore.set((s) => ({ ...s, ...patch }));
