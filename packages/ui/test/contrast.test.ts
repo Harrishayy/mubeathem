@@ -78,6 +78,18 @@ describe.each(contexts())('$name tokens', ({ vars, backdrops, aaa }) => {
       expect(pair('focus', surface), 'focus ring on surface').toBeGreaterThanOrEqual(3);
     });
 
+    it(`dashboard chrome clears AA ${label}`, () => {
+      const band = over(color(vars, 'band'), page);
+      for (const fg of ['band-ink', 'band-ink-2', 'band-ok', 'band-warn']) expect(pair(fg, band), `${fg} on band`).toBeGreaterThanOrEqual(4.5);
+      const head = over(color(vars, 'pane-head'), surface);
+      for (const fg of ['ink', 'ink-2', 'ink-3']) expect(pair(fg, head), `${fg} on pane-head`).toBeGreaterThanOrEqual(4.5);
+      const rowOn = over(color(vars, 'row-on'), surface);
+      for (const fg of ['ink', 'ink-2']) expect(pair(fg, rowOn), `${fg} on row-on`).toBeGreaterThanOrEqual(4.5);
+      // The active tab is the page ground: its ink must read there too.
+      expect(pair('ink', bg), 'ink on the active tab').toBeGreaterThanOrEqual(4.5);
+      expect(pair('pane-line', surface), 'pane rule on surface').toBeGreaterThanOrEqual(1.25);
+    });
+
     it(`status colours clear AA ${label}`, () => {
       for (const s of ['ok', 'warn', 'bad', 'info']) {
         expect(pair(s, surface), `${s} on surface`).toBeGreaterThanOrEqual(4.5);

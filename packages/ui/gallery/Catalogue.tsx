@@ -29,6 +29,7 @@ import {
   ScrollArea,
   SegmentedControl,
   Sheet,
+  Dialog,
   Skeleton,
   Sparkline,
   Sprout,
@@ -41,6 +42,20 @@ import {
   TranscriptView,
   UpNextList,
   FlagsView,
+  ActionBar,
+  AppBar,
+  Bar,
+  BandTag,
+  CallTimeline,
+  CueStage,
+  DataTable,
+  KeyValue,
+  Kpi,
+  KpiStrip,
+  Pane,
+  PaneSection,
+  Hint,
+  StatGrid,
   type OverbarMode,
   type SuggestionCardHandle,
   type ToastData,
@@ -92,6 +107,7 @@ export function Catalogue({ state: s, playback, only }: { state: GalleryState; p
   return (
     <>
       <DemoSection playback={playback} />
+      <DashboardSection views={views} stress={s.stress} />
       <OverbarSection views={views} />
       <CardsSection cards={cards} stress={s.stress} />
       <SproutSection />
@@ -99,6 +115,97 @@ export function Catalogue({ state: s, playback, only }: { state: GalleryState; p
       <AfterCallSection views={views} />
       <PrimitivesSection />
     </>
+  );
+}
+
+const TABLE_ROWS = [
+  { id: 'a', rank: '01', text: 'Makes sense, most founders do. When did they last re-quote you after the raise?', rate: 0.62, calls: 24 },
+  { id: 'b', rank: '02', text: 'Totally fair. Brokers are great at renewals; we are a second quote built for funded startups.', rate: 0.51, calls: 41 },
+  { id: 'c', rank: '03', text: 'Good, that means someone is looking. Did they cover the new board under D&O?', rate: 0.47, calls: 19 },
+];
+
+/** The dashboard system: band, panes, KPIs, tables, readouts, the flush cue and the call timeline. */
+function DashboardSection({ views, stress }: { views: Record<keyof typeof VIEWS, CallView>; stress: boolean }) {
+  const [sel, setSel] = useState<string | null>('a');
+  const long = 'An extremely long unbroken string that must wrap rather than truncate: Supercalifragilisticexpialidocious-insurance-for-AI-startups-after-a-Series-A';
+  const rows = stress ? TABLE_ROWS.map((r) => ({ ...r, text: `${r.text} ${long}` })) : TABLE_ROWS;
+  const v = views.objection;
+  return (
+    <Section id="dashboard" title="Dashboard" lede="The olive band, cream panes with ruled heads, KPIs, tables that scroll inside their own box, readouts, the cue set flush in a pane, and the call timeline. Text wraps; nothing truncates.">
+      <Specimen label="AppBar · BandTag" wide>
+        <AppBar
+          active="playbook"
+          tabs={[
+            { id: 'live', label: 'Live', href: '#', live: true },
+            { id: 'contacts', label: 'Contacts', href: '#' },
+            { id: 'team', label: 'Team', href: '#' },
+            { id: 'playbook', label: 'Playbook', href: '#', count: 42 },
+            { id: 'model', label: 'Model', href: '#', count: '6/6' },
+            { id: 'insights', label: 'Insights', href: '#' },
+          ]}
+          onNavigate={(_, e) => e.preventDefault()}
+          end={<BandTag>Mubit · 6/6 adapters</BandTag>}
+        />
+      </Specimen>
+      <Specimen label="KpiStrip · Kpi" wide>
+        <KpiStrip>
+          <Kpi label="Mubit calls" value="709" note="1.85M tokens" />
+          <Kpi label="Succeeded" value="95%" note="36 failed or cancelled" tone="warn" />
+          <Kpi label="Booking rate" value="13%" note="+13 pts when a cue was used" tone="ok" />
+          <Kpi label="Turn → card" value="2.1 s" note={stress ? long : 'p95 3.6 s over 190 cards'} />
+        </KpiStrip>
+      </Specimen>
+      <Specimen label="Pane · DataTable (selectable, Enter/Space) · ActionBar" wide>
+        <div style={{ height: 300, display: 'grid' }}>
+          <Pane label="Lines" meta="3 ranked" actions={<BandTag tone="plain">filter</BandTag>} pad="none" footer={<ActionBar end={<Button size="sm" variant="ghost">Retire</Button>}><Button size="sm" variant="primary" icon="check">Approve</Button></ActionBar>}>
+            <DataTable
+              label="Ranked lines"
+              rows={rows}
+              rowKey={(r) => r.id}
+              selectedKey={sel}
+              onSelect={(r) => setSel(r.id)}
+              rowFamily={() => 'objection'}
+              columns={[
+                { key: 'rank', header: '#', width: '40px', mono: true, render: (r) => r.rank },
+                { key: 'text', header: 'Line', render: (r) => <span className="cue-table__line">{r.text}</span> },
+                { key: 'rate', header: 'Win rate', width: '170px', render: (r) => <Bar value={r.rate} label={`${Math.round(r.rate * 100)}%`} /> },
+                { key: 'calls', header: 'Calls', width: '60px', mono: true, align: 'end', render: (r) => r.calls },
+              ]}
+            />
+          </Pane>
+        </div>
+      </Specimen>
+      <Specimen label="Pane hint · PaneSection hint · Hint">
+        <Pane label="Your booking rate" hint={stress ? long : 'Meetings booked out of calls where someone picked up. Compared with the team average.'} scroll={false}>
+          <PaneSection label="Weekly" hint="Calls and meetings per week, oldest first.">
+            <Hint term="read_moment">{stress ? long : "Cue's read of who is on the line, their mood and what just happened."}</Hint>
+          </PaneSection>
+        </Pane>
+      </Specimen>
+      <Specimen label="KeyValue · StatGrid · PaneSection">
+        <Pane label="Prospect" scroll={false} pad="none">
+          <div style={{ padding: 16 }}>
+            <KeyValue items={[{ label: 'Stage', value: stress ? long : 'Series A, $14M (March)' }, { label: 'On the line', value: 'CEO 92%' }, { label: 'You talked', value: <Bar value={0.42} label="42%" tone="accent" /> }]} />
+          </div>
+          <PaneSection label="Scorecard">
+            <StatGrid items={[{ label: 'Cues used', value: '3/4', note: 'One skipped' }, { label: 'Flags', value: '0' }, { label: 'Talk ratio', value: '46%' }, { label: 'Turn → cue', value: '1.6 s' }]} />
+          </PaneSection>
+        </Pane>
+      </Specimen>
+      <Specimen label="CueStage · flush, in a pane">
+        <div style={{ height: 420, display: 'grid' }}>
+          <Pane label="Cue" pad="none">
+            <CueStage view={v} onAction={noop} variant="flush" shortcuts />
+          </Pane>
+        </div>
+      </Specimen>
+      <Specimen label="CallTimeline · live and booked" wide>
+        <Pane label="Call timeline" scroll={false} pad="none">
+          <CallTimeline view={v} now={v.startedAt + 95_000} />
+          <CallTimeline view={views.booked} />
+        </Pane>
+      </Specimen>
+    </Section>
   );
 }
 
@@ -379,6 +486,21 @@ function CallPartsSection({ views }: { views: Record<keyof typeof VIEWS, CallVie
         <Specimen label="BriefView · ready">
           <BriefView brief={v.brief} />
         </Specimen>
+        <Specimen label="BriefView · with provenance and sources">
+          <BriefView
+            brief={
+              v.brief && {
+                ...v.brief,
+                hooks: v.brief.hooks.map((h, i) => ({ ...h, via: ['exa', 'valyu', 'crm'][i % 3]!, ...(i % 3 === 2 ? {} : { url: `https://example.com/news/${i}` }) })),
+                sources: [
+                  { title: 'Lumen Labs raises $14M Series A to scale lab automation', url: 'https://example.com/news/0', via: 'exa', publishedAt: '2026-03-12' },
+                  { title: 'Maya Chen on hiring the first 40 engineers, and why the next 40 will be harder to find than the first', url: 'https://example.com/news/1', via: 'valyu', publishedAt: null },
+                  { title: 'CRM record', url: null, via: 'crm', publishedAt: null },
+                ],
+              }
+            }
+          />
+        </Specimen>
         <Specimen label="BriefView · loading and empty">
           <BriefView brief={null} loading />
           <BriefView brief={null} />
@@ -429,6 +551,7 @@ function PrimitivesSection() {
   const [rating, setRating] = useState<number | null>(4);
   const [text, setText] = useState('');
   const [sheet, setSheet] = useState(false);
+  const [dialog, setDialog] = useState(false);
   const [toasts, setToasts] = useState<ToastData[]>([]);
   const addToast = (tone: ToastData['tone']) =>
     setToasts((t) => [...t, { id: String(Date.now()), tone, title: tone === 'ok' ? 'Debrief saved' : tone === 'bad' ? "Couldn't reach the server" : tone === 'warn' ? 'Mic paused' : 'Trellus synced', description: tone === 'bad' ? 'Your notes are kept locally.' : undefined, action: tone === 'bad' ? { label: 'Retry', onClick: noop } : undefined }]);
@@ -537,14 +660,23 @@ function PrimitivesSection() {
             <p className="g-copy">Hidden content is inert.</p>
           </Drawer>
         </Specimen>
-        <Specimen label="Sheet · Toast">
+        <Specimen label="Dialog · Sheet · Toast">
           <div className="g-wrap">
+            <Button onClick={() => setDialog(true)}>Open dialog</Button>
             <Button onClick={() => setSheet(true)}>Open sheet</Button>
             <Button onClick={() => addToast('ok')}>Toast</Button>
             <Button onClick={() => addToast('bad')}>Error toast</Button>
           </div>
           <ToastRegion inline toasts={[{ id: 'a', tone: 'ok', title: 'Debrief saved', description: 'Cue is learning from this call.', duration: null }, { id: 'b', tone: 'warn', title: 'Mic paused', duration: null }]} onDismiss={noop} />
           <ToastRegion toasts={toasts} onDismiss={(id) => setToasts((t) => t.filter((x) => x.id !== id))} />
+          <Dialog open={dialog} onClose={() => setDialog(false)} eyebrow="Debrief" title="How did it go?" description="Maya Chen · CEO · Lumen Labs">
+            <div className="g-sheet-body">
+              <p className="g-copy">Work that belongs to the current screen opens here, never in a new page. Escape, the close button or the backdrop close it.</p>
+              <Button variant="primary" onClick={() => setDialog(false)}>
+                Done
+              </Button>
+            </div>
+          </Dialog>
           <Sheet open={sheet} onClose={() => setSheet(false)} title="A bottom sheet" modal>
             <div className="g-sheet-body">
               <p className="g-copy">Drag the handle down or flick to close. Escape closes too.</p>
@@ -570,7 +702,7 @@ function PrimitivesSection() {
           <ErrorState message="Mubit didn't answer in time. The playbook's top line is showing instead." onRetry={noop} compact />
         </Specimen>
         <Specimen label="EmptyState with Sprout">
-          <EmptyState art={<Sprout state="idle" size={72} />} title="Ready when you are" action={<Button variant="primary">Start a practice call</Button>}>
+          <EmptyState art={<Sprout state="idle" size={72} />} title="Ready when you are" action={<Button variant="primary">Add a contact</Button>}>
             Start a call in Trellus and Cue will show the line to say next.
           </EmptyState>
         </Specimen>

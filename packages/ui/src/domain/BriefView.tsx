@@ -20,7 +20,34 @@ function host(url: string): string {
   }
 }
 
-/** The pre-call brief: a summary, three hooks with their source, and a suggested opener. */
+const VIA_LABEL: Record<string, string> = { exa: 'Exa', valyu: 'Valyu', crm: 'CRM', web: 'Web', manual: 'You', fixture: 'Sample' };
+/** "Exa", "Valyu", "CRM": where a hook or source came from, in a word. */
+export function viaLabel(via: string | undefined | null): string | null {
+  if (!via) return null;
+  return VIA_LABEL[via] ?? via.charAt(0).toUpperCase() + via.slice(1);
+}
+
+function safeUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function dateLabel(s: string | null): string | null {
+  if (!s) return null;
+  const t = Date.parse(s);
+  if (Number.isNaN(t)) return s;
+  return new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(t);
+}
+
+/**
+ * The pre-call brief: a summary, hooks with where each came from (Exa, Valyu, CRM; linked to the page
+ * when there is one), a suggested opener, and a collapsible list of every source the research read.
+ */
 export function BriefView({ brief, loading, className }: BriefViewProps) {
   const [copied, setCopied] = useState(false);
   if (loading && !brief)
@@ -48,21 +75,36 @@ export function BriefView({ brief, loading, className }: BriefViewProps) {
     <div className={cx('cue-brief', className)}>
       <p className="cue-brief__summary">{brief.summary}</p>
       <ul className="cue-brief__hooks">
-        {brief.hooks.map((h, i) => (
-          <li key={i} className="cue-brief__hook">
-            <Chip size="sm" tone="accent">
-              {PRODUCT_LABEL[h.product]}
-            </Chip>
-            <span className="cue-brief__hook-text">{h.hook}</span>
-            {h.source && (
-              <a className="cue-brief__src" href={h.source} target="_blank" rel="noreferrer">
-                {host(h.source)}
-                <Icon name="external" size={12} />
-                <span className="cue-vh"> (opens in a new tab)</span>
-              </a>
-            )}
-          </li>
-        ))}
+        {brief.hooks.map((h, i) => {
+          const url = safeUrl(h.url) ?? safeUrl(h.source);
+          const via = viaLabel(h.via);
+          return (
+            <li key={i} className="cue-brief__hook">
+              <Chip size="sm" tone="accent">
+                {PRODUCT_LABEL[h.product]}
+              </Chip>
+              {url ? (
+                <a className="cue-brief__hook-text cue-brief__hook-link" href={url} target="_blank" rel="noopener noreferrer">
+                  {h.hook}
+                  <span className="cue-vh"> (opens in a new tab)</span>
+                </a>
+              ) : (
+                <span className="cue-brief__hook-text">{h.hook}</span>
+              )}
+              {(via || url) && (
+                <span className="cue-brief__prov">
+                  {via && <span className="cue-brief__via" title={`Found by ${via}`}>{via}</span>}
+                  {url && (
+                    <span className="cue-brief__src">
+                      {host(url)}
+                      <Icon name="external" size={12} />
+                    </span>
+                  )}
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ul>
       <div className="cue-brief__opener">
         <div className="cue-brief__opener-head">
@@ -70,8 +112,42 @@ export function BriefView({ brief, loading, className }: BriefViewProps) {
           <IconButton icon={copied ? 'check' : 'copy'} label={copied ? 'Copied' : 'Copy opener'} size="sm" onClick={copy} />
         </div>
         <p className="cue-brief__opener-text">{brief.opener}</p>
-        {brief.servedBy !== 'mubit' && <p className="cue-card__note">{brief.servedBy === 'rules' ? 'Written from CRM facts · model offline' : 'Cached brief'}</p>}
+        {brief.servedBy !== 'mubit' && <p className="cue-card__note">{brief.servedBy === 'rules' ? 'Written from saved details only (the model was offline)' : 'Saved brief from earlier'}</p>}
       </div>
+      {brief.sources && brief.sources.length > 0 && (
+        <details className="cue-brief__sources">
+          <summary className="cue-brief__sources-head">
+            <Icon name="chevron" size={14} className="cue-brief__sources-chev" />
+            <span>Where this came from</span>
+            <span className="cue-brief__sources-n">{brief.sources.length}</span>
+          </summary>
+          <ul className="cue-brief__sources-list">
+            {brief.sources.map((src, i) => {
+              const url = safeUrl(src.url);
+              const via = viaLabel(src.via);
+              const date = dateLabel(src.publishedAt);
+              return (
+                <li key={i} className="cue-brief__source">
+                  {url ? (
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="cue-brief__source-title">
+                      {src.title || host(url)}
+                      <Icon name="external" size={12} />
+                      <span className="cue-vh"> (opens in a new tab)</span>
+                    </a>
+                  ) : (
+                    <span className="cue-brief__source-title">{src.title}</span>
+                  )}
+                  <span className="cue-brief__source-meta">
+                    {via && <span className="cue-brief__via">{via}</span>}
+                    {url && <span>{host(url)}</span>}
+                    {date && <time dateTime={src.publishedAt ?? undefined}>{date}</time>}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

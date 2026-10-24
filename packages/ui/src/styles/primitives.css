@@ -34,6 +34,7 @@
   transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-ui) var(--ease-standard), color var(--dur-ui) var(--ease-standard), border-color var(--dur-ui) var(--ease-standard), box-shadow var(--dur-ui) var(--ease-standard);
 }
 .cue-btn { padding: 0 var(--space-4); }
+a.cue-btn { text-decoration: none; }
 .cue-btn--sm { min-height: 32px; padding: 0 var(--space-3); font-size: var(--text-caption); }
 .cue-btn--lg { min-height: 44px; padding: 0 var(--space-5); font-size: var(--text-body); }
 .cue-btn--block { width: 100%; }
@@ -138,14 +139,15 @@
 [dir='rtl'] .cue-seg__thumb { transform: translateX(calc(var(--seg-i) * -100%)); }
 [data-dir='night'] .cue-seg { background: var(--surface-3); }
 [data-dir='night'] .cue-seg__thumb { background: var(--surface-2); box-shadow: var(--highlight); }
-.cue-seg__item { position: relative; z-index: 1; min-height: 30px; padding: 0 var(--space-3); border-radius: calc(var(--radius-control) - 3px); font-size: var(--text-caption); font-weight: var(--weight-semibold); color: var(--ink-2); white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: color var(--dur-ui) var(--ease-standard); min-width: 0; }
+.cue-seg__item { position: relative; z-index: 1; min-height: 30px; padding: 3px var(--space-3); border-radius: calc(var(--radius-control) - 3px); font-size: var(--text-caption); font-weight: var(--weight-semibold); color: var(--ink-2); text-align: center; overflow-wrap: anywhere; line-height: 1.2; display: inline-flex; align-items: center; justify-content: center; gap: 6px; transition: color var(--dur-ui) var(--ease-standard); min-width: 0; }
 .cue-seg__item[aria-checked='true'] { color: var(--ink); }
 .cue-seg--sm .cue-seg__item { min-height: 26px; padding: 0 var(--space-2); font-size: var(--text-micro); }
 
 /* ── Fields ── */
 .cue-field { display: grid; gap: 6px; min-width: 0; }
 .cue-field__top { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-2); }
-.cue-field__label { font-size: var(--text-small); font-weight: var(--weight-semibold); color: var(--ink); }
+.cue-field__label { font-family: var(--font-label); font-size: var(--label-size); font-weight: var(--label-weight); letter-spacing: var(--label-tracking); text-transform: var(--label-case); color: var(--ink-2); }
+.cue-field__optional { text-transform: none; letter-spacing: 0; }
 .cue-field__optional { font-weight: var(--weight-regular); color: var(--ink-3); }
 .cue-field__count { font-size: var(--text-micro); color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .cue-field__count.is-over { color: var(--bad); }
@@ -297,3 +299,32 @@
   [data-cue]:not([data-motion='full']) *, [data-cue]:not([data-motion='full']) *::before, [data-cue]:not([data-motion='full']) *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
 [data-cue][data-motion='reduce'] *, [data-cue][data-motion='reduce'] *::before, [data-cue][data-motion='reduce'] *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+
+/* Counts in an index row read as plain figures; only a bad count gets the filled box. */
+.cue-drawer__meta .cue-count:not(.is-bad) { border: 0; padding: 0; min-width: 0; font-size: var(--text-caption); color: inherit; }
+
+/* ── Dialog ──
+   A sheet of the prompt book laid over the page: squared, ruled under the title, no blur. */
+.cue-dialog {
+  margin: auto; padding: 0; border: var(--rule-weight, 1px) solid var(--line-strong); border-radius: var(--radius-card);
+  width: min(100% - 32px, 640px); max-height: min(100dvh - 48px, 920px);
+  background: var(--card-ground); color: var(--ink); box-shadow: var(--shadow-3);
+  overflow: hidden; overscroll-behavior: contain;
+}
+.cue-dialog--lg { width: min(100% - 32px, 860px); }
+.cue-dialog::backdrop { background: var(--scrim); }
+.cue-dialog[open] { display: flex; animation: cue-dialog-in var(--dur-panel) var(--ease-out); }
+.cue-dialog[open]::backdrop { animation: cue-fade-in var(--dur-panel) var(--ease-out); }
+@keyframes cue-dialog-in { from { opacity: 0; transform: translateY(10px) scale(0.985); } }
+.cue-dialog__frame { display: flex; flex-direction: column; min-height: 0; width: 100%; }
+.cue-dialog__head { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-5) var(--space-5) var(--space-4); border-bottom: 1px solid var(--line-strong); }
+.cue-dialog__titles { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.cue-dialog__title { font-family: var(--font-display); font-weight: var(--display-weight); font-size: var(--text-h2); line-height: var(--leading-tight); letter-spacing: var(--tracking-display); overflow-wrap: anywhere; }
+.cue-dialog__desc { font-family: var(--font-label); font-size: var(--label-size); letter-spacing: var(--label-tracking); text-transform: var(--label-case); color: var(--ink-2); overflow-wrap: anywhere; }
+.cue-dialog__close { margin-top: -4px; margin-inline-end: -6px; }
+.cue-dialog__body { padding: var(--space-5); overflow-y: auto; min-height: 0; scrollbar-width: thin; }
+[data-dir='signal'] .cue-dialog { border-width: 2px; }
+@media (max-width: 560px) {
+  .cue-dialog, .cue-dialog--lg { width: 100%; max-width: 100%; height: 100dvh; max-height: 100dvh; border-radius: 0; border: 0; }
+  .cue-dialog__head, .cue-dialog__body { padding-inline: var(--space-4); }
+}

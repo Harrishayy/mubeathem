@@ -7,26 +7,29 @@
  */
 [data-cue][data-dir='honey'],
 [data-cue]:not([data-dir]) {
-  --bg: #f3f6ee;
-  --surface: #fcfdf9;
-  --surface-2: #eef2e7;
-  --surface-3: #e5eadd;
+  --bg: #e1e6cf;
+  --surface: #fbfaf2;
+  --surface-2: #eff1e2;
+  --surface-3: #e5e8d5;
   --ink: #1b3025;
-  --ink-2: #44594b;
-  --ink-3: #5a6b5e;
-  --line: #dbe2d1;
-  --line-strong: #aeb9a2;
+  --ink-2: #46553a;
+  --ink-3: #56643f;
+  --line: #dde2cb;
+  --line-strong: #a8b38c;
   --accent: #efbd73;
   --accent-hover: #f3c987;
   --accent-ink: #2a1c05;
-  --accent-soft: #fbecd2;
+  --accent-soft: #faefd6;
   --accent-text: #85550f;
-  --focus: #345c46;
-  --ok: #2c6a45; --ok-soft: #e1eee2;
+  --focus: #2f4229;
+  --ok: #2c6a45; --ok-soft: #e1eedb;
   --warn: #8f5400; --warn-soft: #fbead0;
-  --bad: #ad261d; --bad-soft: #fbe3df;
+  --bad: #a3271c; --bad-soft: #fbe3df;
   --info: #2b5c8a; --info-soft: #e2ebf5;
-  --glass: rgba(252, 253, 249, 0.9);
+  /* dashboard chrome: the deep-olive band, pane heads and pane rules */
+  --band: #2f4229; --band-ink: #f3f1e4; --band-ink-2: #c9d2ae; --band-ok: #b9dca2; --band-warn: #f2c98a;
+  --pane-head: #eff1e2; --pane-line: #c8d0b2; --row-on: #faefd6;
+  --glass: rgba(251, 250, 242, 0.94);
   --glass-blur: 18px;
   --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
   --scrim: rgba(18, 30, 23, 0.32);
@@ -82,6 +85,8 @@
   --warn: #f2b860; --warn-soft: #3a2c17;
   --bad: #ff978a; --bad-soft: #3f2220;
   --info: #93beef; --info-soft: #1d2d3e;
+  --band: #0a110d; --band-ink: #eef2e8; --band-ink-2: #a9b6a5; --band-ok: #8fd0a2; --band-warn: #f2b860;
+  --pane-head: #1c2720; --pane-line: #2f3d34; --row-on: #3a3121;
   --glass: rgba(24, 34, 28, 0.9);
   --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   --scrim: rgba(0, 0, 0, 0.5);

@@ -33,7 +33,7 @@ export function ProspectHeader({ prospect, situation, trend, className }: Prospe
         <dl className="cue-prospect__read">
           <div>
             <dt className="cue-label">On the line</dt>
-            <dd className={cx('cue-prospect__persona', unsure && 'is-unsure')} title={unsure ? 'A guess so far' : undefined}>
+            <dd className={cx('cue-prospect__persona', unsure && 'is-unsure')} title={unsure ? 'A guess so far: Cue is still working out who answered' : 'Who Cue thinks answered'}>
               {PERSONA_LABEL[situation.persona]}
               {unsure && <span className="cue-persona__q">?</span>}
             </dd>

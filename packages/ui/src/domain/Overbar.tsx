@@ -100,14 +100,18 @@ export function Overbar(props: OverbarProps) {
   const mascot = mascotFor(view, connection);
   const momentFamily = view?.current ? MOMENT_META[view.current.situation.moment].family : 'neutral';
 
-  // Escape collapses when focus is inside the overbar.
+  // Escape collapses when focus is inside the overbar. Listens on the overbar's own root node, so it
+  // also works inside a Shadow DOM (the extension overlay), where window never sees the key and
+  // document.activeElement is the shadow host.
   useEffect(() => {
-    if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && rootRef.current?.contains(document.activeElement)) onModeChange('collapsed');
+    const el = rootRef.current;
+    if (!expanded || !el) return;
+    const root = el.getRootNode() as Document | ShadowRoot;
+    const onKey = (e: Event) => {
+      if ((e as KeyboardEvent).key === 'Escape' && el.contains(root.activeElement)) onModeChange('collapsed');
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    root.addEventListener('keydown', onKey);
+    return () => root.removeEventListener('keydown', onKey);
   }, [expanded, onModeChange]);
 
   const toggle = useCallback(() => onModeChange(expanded ? 'collapsed' : 'expanded'), [expanded, onModeChange]);
@@ -299,10 +303,12 @@ function Bar({ view, connection, mascot, expanded, panelId, onToggle, voiceLevel
             </span>
           )}
           <div className="cue-bar__line" onClick={onToggle}>
-            {/* Keyed so a new line re-mounts with a CSS enter; the old one is gone at once (no stale DOM). */}
+            {/* Keyed by card id so a new card re-mounts with a CSS enter; a refined version of the same card only cross-fades its words. */}
             <p key={current?.id ?? line.text} className="cue-bar__text cue-swap-in" aria-live="polite">
               {line.tone === 'warn' && <Icon name="alert" size={14} className="cue-bar__warn" />}
-              {line.text}
+              <span key={line.text} className="cue-line__words--refined">
+                {line.text}
+              </span>
             </p>
           </div>
         </>
@@ -349,7 +355,7 @@ function ExpandedBody({ view, connection, onAction, drawers, cardRef, debug, sho
     return (
       <div className="cue-panel">
         <EmptyState art={<Sprout state={connection === 'offline' ? 'offline' : 'idle'} size={84} />} title={connection === 'offline' ? "You're offline" : 'Ready when you are'}>
-          {connection === 'offline' ? 'Cue reconnects on its own. Typed turns still work.' : 'Start a call in Trellus, or a practice call, and Cue will show the line to say next.'}
+          {connection === 'offline' ? 'Cue reconnects on its own. Typed turns still work.' : 'Start a call in Trellus or from Live, and Cue will show the line to say next.'}
         </EmptyState>
       </div>
     );
@@ -362,7 +368,7 @@ function ExpandedBody({ view, connection, onAction, drawers, cardRef, debug, sho
       <div className="cue-panel__main">
         <ProspectHeader prospect={view.prospect} situation={view.situation} trend={view.receptivityTrend} />
         <div className="cue-panel__stage">
-          <CardStage view={view} onAction={onAction} cardRef={cardRef} debug={debug} shortcuts={shortcuts} />
+          <CueStage view={view} onAction={onAction} cardRef={cardRef} debug={debug} shortcuts={shortcuts} />
         </div>
         {view.lastError && live && (
           <p className="cue-panel__note" role="status">
@@ -399,20 +405,34 @@ function ExpandedBody({ view, connection, onAction, drawers, cardRef, debug, sho
   );
 }
 
-/** One card at a time; a new one cross-fades in over ~150 ms with a tiny lift (context.md §4.2). */
-function CardStage({ view, onAction, cardRef, debug, shortcuts }: { view: CallView; onAction: OnSuggestionAction; cardRef?: Ref<SuggestionCardHandle>; debug?: boolean; shortcuts?: boolean }) {
+export interface CueStageProps {
+  view: CallView;
+  onAction: OnSuggestionAction;
+  cardRef?: Ref<SuggestionCardHandle>;
+  debug?: boolean;
+  shortcuts?: boolean;
+  /** `flush` drops the card chrome so it sits edge to edge in a dashboard pane. */
+  variant?: 'card' | 'flush';
+}
+
+/**
+ * The cue on screen: the live suggestion or compliance hold, the "reading the moment" state, the
+ * quiet state, or the ended card with its stamp. One at a time; a new one cross-fades in over
+ * ~150 ms with a tiny lift (context.md §4.2). Shared by the overbar and the Live dashboard.
+ */
+export function CueStage({ view, onAction, cardRef, debug, shortcuts, variant = 'card' }: CueStageProps) {
   const live = view.status === 'live';
   const c: Suggestion | null = live ? view.current : null;
   const at = c ? view.history.findIndex((h) => h.suggestion.id === c.id) : -1;
   const cue = c ? (at >= 0 ? at + 1 : view.history.length + 1) : undefined;
   const key = c?.id ?? (live ? (view.pending ? 'pending' : 'quiet') : 'ended');
   return (
-    <div key={key} className="cue-stage cue-swap-in">
+    <div key={key} className={cx('cue-stage', 'cue-swap-in', variant === 'flush' && 'cue-stage--flush')}>
         {c ? (
           c.kind === 'compliance' ? (
             <ComplianceCard ref={cardRef} suggestion={c} onAction={onAction} cue={cue} />
           ) : (
-            <SuggestionCard ref={cardRef} suggestion={c} onAction={onAction} debug={debug} cue={cue} shortcuts={shortcuts} />
+            <SuggestionCard ref={cardRef} suggestion={c} onAction={onAction} debug={debug} cue={cue} shortcuts={shortcuts} refining={c.stage === 'instant' && c.servedBy !== 'mubit' && view.pending} />
           )
         ) : !live ? (
           <EndedCard view={view} />

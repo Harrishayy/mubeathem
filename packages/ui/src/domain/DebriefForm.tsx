@@ -16,6 +16,8 @@ export interface DebriefFormProps {
   onSkip?: () => void;
   /** Focus the outcome group on mount (default true). */
   autoFocus?: boolean;
+  /** Draw the form's own heading. Off inside a Dialog, which already titles it. */
+  heading?: boolean;
   className?: string;
 }
 
@@ -74,7 +76,7 @@ function ChipRadio<V extends string>({ label, options, value, onChange, labels, 
  * The post-call debrief: one screen, keyboard first, ≤ 20 s. Outcome is required; everything else is
  * optional. ⌘/Ctrl + Enter submits from anywhere in the form.
  */
-export function DebriefForm({ view, onSubmit, onSkip, autoFocus = true, className }: DebriefFormProps) {
+export function DebriefForm({ view, onSubmit, onSkip, autoFocus = true, heading = true, className }: DebriefFormProps) {
   const ids = { outcome: useId(), attitude: useId(), cards: useId() };
   const [outcome, setOutcome] = useState<Outcome | null>(view.outcome?.outcome && view.outcome.outcome !== 'unknown' ? view.outcome.outcome : null);
   const [rating, setRating] = useState<number | null>(null);
@@ -149,15 +151,19 @@ export function DebriefForm({ view, onSubmit, onSkip, autoFocus = true, classNam
         }
       }}
     >
-      <header className="cue-debrief__head">
-        <div>
-          <h2 className="cue-debrief__title">How did it go?</h2>
-          <p className="cue-debrief__sub">
-            {[view.prospect.name, view.prospect.company, duration].filter(Boolean).join(' · ')}
-          </p>
-        </div>
-        <Sprout state="idle" size={44} decorative />
-      </header>
+      {heading && (
+        <header className="cue-debrief__head">
+          <div>
+            <h2 className="cue-debrief__title">How did it go?</h2>
+            <p className="cue-debrief__sub">
+              {[view.prospect.name, view.prospect.company, duration].filter(Boolean).join(' · ')}
+            </p>
+          </div>
+          <Sprout state="idle" size={44} decorative />
+        </header>
+      )}
+
+      <p className="cue-hint">Thirty seconds here teaches Cue which lines book meetings. Only the outcome is required.</p>
 
       <ChipRadio id={ids.outcome} label="Outcome" options={DEBRIEF_OUTCOMES} value={outcome} onChange={setOutcome} labels={OUTCOME_LABEL} error={tried && !outcome ? 'Pick an outcome to save the call.' : undefined} />
 
@@ -178,7 +184,7 @@ export function DebriefForm({ view, onSubmit, onSkip, autoFocus = true, classNam
       {view.history.length > 0 && (
         <fieldset className="cue-debrief__cards">
           <legend className="cue-debrief__label" id={ids.cards}>
-            Which cards helped?
+            Which suggestions helped?
           </legend>
           <ul>
             {view.history.map(({ suggestion: s }) => {

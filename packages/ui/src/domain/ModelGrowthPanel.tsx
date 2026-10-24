@@ -15,12 +15,12 @@ export interface ModelGrowthPanelProps {
 }
 
 export const TASK_COPY: Record<TaskStats['task'], string> = {
-  read_moment: 'Reads who, receptivity and the moment',
-  write_line: 'Tailors the line to say',
-  research_brief: 'Turns research into hooks',
-  check_claim: 'Checks claims against policy',
-  review_call: 'Learns what worked after the call',
-  simulate_prospect: 'Plays the prospect in practice',
+  read_moment: "Works out who's on the line, their mood and what just happened",
+  write_line: 'Writes the one line to say next',
+  research_brief: 'Turns web research into talking points before the call',
+  check_claim: "Checks what you said against what's allowed",
+  review_call: 'Grades the call afterwards and learns what worked',
+  simulate_prospect: 'Plays a simulated prospect (not used on real calls)',
 };
 
 function CopyId({ id }: { id: string }) {
@@ -82,11 +82,11 @@ function TaskRow({ t }: { t: TaskStats }) {
       </div>
       <dl className="cue-task__nums">
         <div>
-          <dt>p50</dt>
+          <dt>Typical</dt>
           <dd>{t.calls ? formatMs(t.p50Ms) : '–'}</dd>
         </div>
         <div>
-          <dt>p95</dt>
+          <dt>Slowest</dt>
           <dd>{t.calls ? formatMs(t.p95Ms) : '–'}</dd>
         </div>
         <div>
@@ -125,7 +125,7 @@ export function ModelGrowthPanel({ stats, live, className }: ModelGrowthPanelPro
             )}
           </h2>
           <p className="cue-model__lede">
-            {ready} of {stats.tasks.length} tasks have enough examples for Mubit to train an adapter: a small model built on your team's calls.
+            {ready} of {stats.tasks.length} tasks have enough examples for Mubit to train a custom model (an adapter) on your team's calls.
           </p>
           <dl className="cue-model__totals">
             <div>

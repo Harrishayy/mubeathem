@@ -45,9 +45,14 @@ test('live call: card, use it, end, debrief, playbook learns', async ({ page, re
   await noOverflow(page, 'start');
   await shot(page, '01-start');
 
-  await page.getByLabel('Name').fill('Maya Chen');
-  await page.getByLabel('Title').fill('CEO');
-  await page.getByLabel('Company').fill('Lumen Labs');
+  // Someone new (the saved-contact path has its own spec): type them in, don't save.
+  const typeNew = page.getByRole('button', { name: 'Or type someone new' });
+  if (await typeNew.isVisible()) await typeNew.click();
+  const form = page.getByRole('form', { name: 'Someone new' });
+  await form.getByLabel('Name').fill('Maya Chen');
+  await form.getByLabel('Title').fill('CEO');
+  await form.getByLabel('Company').fill('Lumen Labs');
+  await form.getByLabel(/Save to contacts/).uncheck();
   await page.getByRole('button', { name: 'Start call' }).click();
   await expect(page.locator('#say-input')).toBeVisible();
 
@@ -56,7 +61,20 @@ test('live call: card, use it, end, debrief, playbook learns', async ({ page, re
   await expect.poll(async () => (await callState(page)).view?.current?.say ?? null, { timeout: 15_000 }).not.toBeNull();
   const card = (await callState(page)).view!.current!;
 
-  // Collapsed overbar: one pill, ≤ 56 px, fully on screen, the line on a single line.
+  // The Live dashboard shows the cue in its own pane, with the line in full.
+  const stage = page.getByRole('region', { name: 'Cue', exact: true });
+  await expect(stage.locator('.cue-stage .cue-card').first()).toBeVisible();
+  await expect(stage.getByText(card.say)).toBeVisible();
+  await noOverflow(page, 'live');
+  await shot(page, '02-live-dashboard', false);
+
+  // U marks it used (the shortcut reaches the card on the dashboard).
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.keyboard.press('u');
+  await expect.poll(async () => (await callState(page)).view?.history.find((h) => h.suggestion.id === card.id)?.action ?? null).toBe('used');
+
+  // On any other screen the overbar floats over it during the call: one strip, ≤ 56 px, on screen.
+  await page.goto('/#/history');
   const bar = page.locator('.cue-overbar .cue-bar').first();
   await expect(bar).toBeVisible();
   const box = (await bar.boundingBox())!;
@@ -65,43 +83,34 @@ test('live call: card, use it, end, debrief, playbook learns', async ({ page, re
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(vp.width + 0.5);
   expect(box.y + box.height).toBeLessThanOrEqual(vp.height + 0.5);
-  // Exiting lines may still be in the DOM mid-cross-fade; the one on screen is the card's.
-  const text = bar.locator('.cue-bar__text', { hasText: card.say.slice(0, 20) });
-  await expect(text).toBeVisible();
-  await expect
-    .poll(() => bar.locator('.cue-bar__text').evaluateAll((els) => els.filter((e) => Number(getComputedStyle(e).opacity) > 0.05).length), { timeout: 3_000 })
-    .toBe(1);
-  const lines = await text.evaluate((el) => el.scrollHeight / parseFloat(getComputedStyle(el).lineHeight));
-  expect(lines).toBeLessThan(1.6);
-  await noOverflow(page, 'live');
-  await shot(page, '02-live-collapsed', false);
-
+  await expect(bar.locator('.cue-bar__text', { hasText: card.say.slice(0, 20) })).toBeVisible();
+  await noOverflow(page, 'history with overbar');
+  await shot(page, '03-overbar-over-history', false);
   // Expand (⌘/Ctrl+.), see the card, collapse with Esc.
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press('ControlOrMeta+.');
   await expect(page.locator('.cue-overbar .cue-card').first()).toBeVisible();
-  await noOverflow(page, 'live expanded');
-  await shot(page, '03-live-expanded', false);
-
-  // U marks it used.
-  await page.keyboard.press('u');
-  await expect.poll(async () => (await callState(page)).view?.history.find((h) => h.suggestion.id === card.id)?.action ?? null).toBe('used');
+  await noOverflow(page, 'overbar expanded');
   await page.keyboard.press('Escape');
+  await page.goto('/#/live');
+  await expect(stage).toBeVisible();
 
   // Rep says the line, the prospect objects: a second card.
   await page.getByRole('radio', { name: 'You' }).click();
   await page.locator('#say-input').fill(card.say);
   await page.locator('#say-input').press('Enter');
-  await page.getByRole('radio', { name: 'Prospect' }).click();
+  await page.getByRole('radio', { name: 'Maya' }).click();
   await addProspect(page, 'We already have a broker, they set all that up when we raised the seed.');
   await expect.poll(async () => (await callState(page)).view?.current?.id ?? card.id, { timeout: 15_000 }).not.toBe(card.id);
   await shot(page, '04-live-console');
 
-  // B books the meeting and opens the debrief.
+  // B books the meeting and opens the debrief as a modal over the console (no page change).
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const urlBefore = page.url();
   await page.keyboard.press('b');
-  await expect(page).toHaveURL(/#\/debrief\//);
-  await expect(page.getByRole('heading', { name: 'How did it go?' })).toBeVisible();
+  const debrief = page.getByRole('dialog', { name: 'How did it go?' });
+  await expect(debrief).toBeVisible();
+  expect(page.url()).toBe(urlBefore);
   await noOverflow(page, 'debrief');
   await shot(page, '05-debrief');
 
@@ -112,6 +121,7 @@ test('live call: card, use it, end, debrief, playbook learns', async ({ page, re
   await shot(page, '06-review');
 
   await page.getByRole('button', { name: 'See the playbook' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'What books meetings' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Just learned' })).toBeVisible();
   await noOverflow(page, 'playbook');
@@ -124,7 +134,8 @@ test('live call: card, use it, end, debrief, playbook learns', async ({ page, re
 });
 
 for (const [route, heading] of [
-  ['practice', 'Rehearse the track'],
+  ['contacts', 'Contacts'],
+  ['team', 'How you and the team are doing'],
   ['model', 'Every call trains it'],
   ['history', 'Past calls'],
   ['settings', 'Make Cue yours'],
@@ -138,14 +149,11 @@ for (const [route, heading] of [
   });
 }
 
-test('practice call: the simulated prospect answers and Cue coaches', async ({ page }) => {
-  await page.goto('/#/practice');
-  await page.getByRole('button', { name: 'Start practice call' }).click();
-  await expect(page.locator('#practice-say')).toBeVisible();
-  await expect.poll(async () => (await callState(page)).view?.turns.length ?? 0, { timeout: 15_000 }).toBeGreaterThan(0);
-  await page.locator('#practice-say').fill("Hi, it's Alex at Corgi. Quick one: has anyone talked to you about D&O since your raise?");
-  await page.locator('#practice-say').press('Enter');
-  await expect.poll(async () => (await callState(page)).view?.turns.length ?? 0, { timeout: 15_000 }).toBeGreaterThan(2);
-  await noOverflow(page, 'practice call');
-  await shot(page, 'practice-call');
+test('no demo or practice wording anywhere a rep can see', async ({ page }) => {
+  for (const route of ['live', 'contacts', 'history', 'team', 'playbook', 'model', 'insights', 'settings']) {
+    await page.goto(`/#/${route}`);
+    await page.waitForTimeout(400);
+    const text = (await page.locator('body').innerText()).toLowerCase();
+    expect(text, route).not.toMatch(/\bdemo\b|\bpractice\b/);
+  }
 });

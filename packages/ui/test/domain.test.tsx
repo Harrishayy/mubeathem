@@ -54,7 +54,7 @@ describe('Overbar', () => {
     const v = VIEWS.cold();
     wrap(<Overbar view={v} connection="live" mode="collapsed" onModeChange={onMode} onAction={noop} placement="inline" />);
     const line = screen.getByText(v.current!.say);
-    expect(line.getAttribute('aria-live')).toBe('polite');
+    expect(line.closest('[aria-live]')?.getAttribute('aria-live')).toBe('polite');
     const expand = screen.getByRole('button', { name: 'Expand' });
     expect(expand.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(expand);
@@ -75,9 +75,26 @@ describe('Overbar', () => {
   it('Escape collapses when focus is inside', () => {
     const onMode = vi.fn();
     wrap(<Overbar view={VIEWS.cold()} connection="live" mode="expanded" onModeChange={onMode} onAction={noop} placement="inline" />);
-    screen.getByRole('button', { name: 'Used it' }).focus();
-    fireEvent.keyDown(window, { key: 'Escape' });
+    const used = screen.getByRole('button', { name: 'Used it' });
+    used.focus();
+    fireEvent.keyDown(used, { key: 'Escape' });
     expect(onMode).toHaveBeenCalledWith('collapsed');
+  });
+
+  it('Escape collapses inside a Shadow DOM (the extension overlay)', () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const mount = document.createElement('div');
+    shadow.append(mount);
+    const onMode = vi.fn();
+    render(<CueRoot theme="light"><Overbar view={VIEWS.cold()} connection="live" mode="expanded" onModeChange={onMode} onAction={noop} placement="inline" /></CueRoot>, { container: mount });
+    const used = [...shadow.querySelectorAll('button')].find((b) => b.textContent?.includes('Used it'))!;
+    used.focus();
+    expect(shadow.activeElement).toBe(used);
+    fireEvent.keyDown(used, { key: 'Escape' });
+    expect(onMode).toHaveBeenCalledWith('collapsed');
+    host.remove();
   });
 
   it('card actions reach onAction with the suggestion id', () => {

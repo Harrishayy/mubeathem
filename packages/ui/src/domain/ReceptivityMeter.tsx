@@ -43,7 +43,7 @@ export function ReceptivityMeter({ score, trend, label = true, className }: Rece
       aria-valuemax={1}
       aria-valuenow={Number(s.toFixed(2))}
       aria-valuetext={text}
-      title={`Receptivity: ${text}`}
+      title={`Mood: ${text}`}
     >
       <span className="cue-recept__bars" aria-hidden>
         {Array.from({ length: BARS }, (_, i) => (

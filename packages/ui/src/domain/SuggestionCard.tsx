@@ -22,6 +22,8 @@ export interface SuggestionCardProps {
   cue?: number;
   /** Show keyboard hints (U, D, E) on the actions. Only where the app binds them. */
   shortcuts?: boolean;
+  /** Mubit is still tailoring this (instant) card; it will update in place. */
+  refining?: boolean;
   className?: string;
 }
 
@@ -35,9 +37,11 @@ export interface SuggestionCardHandle {
 }
 
 /** Honest, quiet provenance: never present a fallback as the model. */
-export function provenanceNote(s: Pick<Suggestion, 'servedBy'>): string | null {
+export function provenanceNote(s: Pick<Suggestion, 'servedBy' | 'stage'>, refining = false): string | null {
+  // the instant card is the playbook line on purpose; Mubit's tailored version replaces it in place
+  if (s.stage === 'instant' && s.servedBy !== 'mubit') return refining ? 'Playbook line · tailoring it to them…' : 'Playbook line';
   if (s.servedBy === 'rules') return 'Playbook line as written · model offline';
-  if (s.servedBy === 'cache') return 'Cached line';
+  if (s.servedBy === 'cache') return 'Saved line from earlier';
   return null;
 }
 
@@ -58,12 +62,16 @@ export function cueLabel(n: number): string {
 
 /** The line, wrapped in hanging curly quotes drawn in the moment colour. */
 export function Line({ text, id, size }: { text: string; id?: string; size: 'hero' | 'compact' }) {
+  // A refined version of the same card swaps its words in place: a quiet cross-fade, no re-entry.
+  const first = useRef(text);
   return (
     <p className={cx('cue-line', size === 'compact' && 'cue-line--compact')} id={id}>
       <span className="cue-line__q cue-line__q--open" aria-hidden>
         “
       </span>
-      {text}
+      <span key={text} className={cx(text !== first.current && 'cue-line__words--refined')}>
+        {text}
+      </span>
       <span className="cue-line__q" aria-hidden>
         ”
       </span>
@@ -94,7 +102,7 @@ export function Tally({ rate, label }: { rate: number; label?: string }) {
  * in the margin rule and the quotes, nowhere else. Long strings wrap anywhere; nothing overflows.
  */
 export const SuggestionCard = forwardRef<SuggestionCardHandle, SuggestionCardProps>(function SuggestionCard(
-  { suggestion: s, onAction, size = 'hero', showEvidence = true, editing: editingProp, onEditingChange, debug, cue, shortcuts, className },
+  { suggestion: s, onAction, size = 'hero', showEvidence = true, editing: editingProp, onEditingChange, debug, cue, shortcuts, refining, className },
   ref,
 ) {
   const lineId = useId();
@@ -131,7 +139,7 @@ export const SuggestionCard = forwardRef<SuggestionCardHandle, SuggestionCardPro
   }));
   const tag = BASIS_TAG[s.evidence.basis];
   const who = situationLabel(s.situation);
-  const note = provenanceNote(s);
+  const note = provenanceNote(s, refining);
   const compact = size === 'compact';
   const rate = s.evidence.winRate;
 
@@ -208,7 +216,7 @@ export const SuggestionCard = forwardRef<SuggestionCardHandle, SuggestionCardPro
         </footer>
       )}
       {(debug || (note && !compact)) && !editing && (
-        <p className={cx('cue-card__note', s.servedBy !== 'mubit' && 'is-fallback')} title={s.mubitRequestIds.join(', ') || undefined}>
+        <p className={cx('cue-card__note', s.servedBy !== 'mubit' && s.stage !== 'instant' && 'is-fallback')} aria-live="polite" title={s.mubitRequestIds.join(', ') || undefined}>
           {note ?? 'Tailored by Mubit'}
           {debug && (
             <span className="cue-card__debug">

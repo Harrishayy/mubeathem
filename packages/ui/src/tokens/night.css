@@ -27,6 +27,8 @@
   --warn: #ffbd64; --warn-soft: rgba(255, 189, 100, 0.13);
   --bad: #ff9c94; --bad-soft: rgba(255, 143, 134, 0.12);
   --info: #94bff5; --info-soft: rgba(148, 191, 245, 0.12);
+  --band: #050607; --band-ink: #f4f1e8; --band-ink-2: #b0b4aa; --band-ok: #95d6a2; --band-warn: #ffbd64;
+  --pane-head: rgba(255, 255, 255, 0.035); --pane-head-solid: #1b1e1f; --pane-line: rgba(255, 255, 255, 0.1); --row-on: rgba(255, 197, 111, 0.1);
   --glass: rgba(16, 18, 19, 0.82);
   --glass-blur: 22px;
   --highlight: inset 0 1px 0 rgba(255, 255, 255, 0.09), inset 0 0 0 1px rgba(255, 255, 255, 0.05);

@@ -15,6 +15,8 @@ export interface TranscriptViewProps {
   /** Speaker names; defaults to "You" and "Prospect". */
   names?: { rep?: string; prospect?: string };
   maxHeight?: number | string;
+  /** Landmark name for the scroller. `null` when a surrounding pane already names it (no duplicate landmark, and the pane scrolls). */
+  label?: string | null;
   className?: string;
 }
 
@@ -22,7 +24,7 @@ export interface TranscriptViewProps {
  * The live transcript, speaker-labelled. Follows new turns unless the reader has scrolled up, in
  * which case a "Jump to latest" button appears. Interim speech is shown dimmed until it is final.
  */
-export function TranscriptView({ turns, interim, highlightTurnId, follow = true, names, maxHeight = 320, className }: TranscriptViewProps) {
+export function TranscriptView({ turns, interim, highlightTurnId, follow = true, names, maxHeight = 320, label = 'Transcript', className }: TranscriptViewProps) {
   const scroller = useRef<HTMLDivElement | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const all = interim && !turns.some((t) => t.id === interim.id) ? [...turns, interim] : turns;
@@ -45,7 +47,7 @@ export function TranscriptView({ turns, interim, highlightTurnId, follow = true,
       <ScrollArea
         ref={scroller}
         maxHeight={maxHeight}
-        label="Transcript"
+        label={label ?? undefined}
         onScroll={(el) => setAtBottom(el.scrollTop + el.clientHeight >= el.scrollHeight - 24)}
       >
         <ol className="cue-transcript__list" aria-live="off">

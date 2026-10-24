@@ -8,7 +8,7 @@
   display: flex; align-items: center; gap: 10px;
   height: var(--bar-height); min-width: 0; width: 100%;
   padding-inline: 10px 6px;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-bar, var(--radius-md));
   background: var(--glass);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4); backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
   border: var(--rule-weight, 1px) solid var(--line);
@@ -82,7 +82,12 @@
 @container bar (max-width: 300px) {
   .cue-bar__chip-icon { display: none; }
 }
+@container bar (max-width: 400px) {
+  .cue-bar__status { padding-inline: 6px; }
+  .cue-bar { gap: 8px; }
+}
 @container bar (max-width: 340px) {
+  .cue-bar__status { border-inline-start: 0; padding-inline-start: 0; }
   .cue-bar__live { display: none; }
   .cue-bar { gap: 6px; }
   .cue-bar__mascot { width: 30px; }
@@ -122,6 +127,11 @@
 @keyframes cue-swap-in { from { opacity: 0; transform: translateY(6px); filter: blur(3px); } }
 @media (prefers-reduced-motion: reduce) { [data-cue]:not([data-motion='full']) .cue-swap-in { animation-name: cue-fade-in; } }
 [data-cue][data-motion='reduce'] .cue-swap-in { animation-name: cue-fade-in; }
+/* Mubit's tailored words replacing the instant line on the same card: fade only, no movement. */
+.cue-line__words--refined { animation: cue-refine var(--dur-swap) var(--ease-out) both; }
+@keyframes cue-refine { from { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { [data-cue]:not([data-motion='full']) .cue-line__words--refined { animation: none; } }
+[data-cue][data-motion='reduce'] .cue-line__words--refined { animation: none; }
 @keyframes cue-fade-in { from { opacity: 0; } }
 
 /* ── The panel ── */
