@@ -16,6 +16,10 @@
               opacity: 0; transition: opacity .25s; pointer-events: none; }
   .deciding b { color: var(--accent); font-weight: 600; }
   .deciding.on { opacity: 1; }
+  .speed-label { position: absolute; top: 16px; right: 16px; padding: 6px 10px; border-radius: 8px;
+                 background: rgba(11, 15, 20, .78); border: 1px solid var(--line); font-size: 13px;
+                 color: var(--text); font-variant-numeric: tabular-nums; pointer-events: none; }
+  .speed-label[hidden] { display: none; }
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 14px;
               background: var(--surface); border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
   .controls select, .controls button { font: inherit; color: var(--text); background: var(--surface-2);
@@ -33,8 +37,12 @@
 <div class="stage">
   <video id="video" controls playsinline muted preload="auto"></video>
   <div class="deciding" id="deciding">Deciding via <b>Mubit</b>…</div>
+  <div class="speed-label" id="speed-label">0.5× speed</div>
   <div class="controls">
     <label>Take <select id="take"></select></label>
+    <label>Speed <select id="speed">
+      <option value="0.25">0.25×</option><option value="0.5" selected>0.5×</option><option value="1">1×</option>
+    </select></label>
     <label><input type="checkbox" id="pause" checked> Pause at decisions</label>
     <span class="spacer"></span>
     <button id="restart" type="button">Restart</button>
@@ -59,6 +67,8 @@ function holdFor(event) {
 const video = document.getElementById("video");
 const takeSelect = document.getElementById("take");
 const pauseBox = document.getElementById("pause");
+const speedSelect = document.getElementById("speed");
+const speedLabel = document.getElementById("speed-label");
 const deciding = document.getElementById("deciding");
 const root = document.getElementById("panel");
 root.innerHTML = PANEL_HTML;
@@ -136,13 +146,15 @@ video.addEventListener("play", () => {
 
 async function loadTake(meta) {
   cancelBeat();
-  const [log, frames] = await Promise.all([
+  const [log, framesFile] = await Promise.all([
     fetch(meta.log, { cache: "no-store" }).then((r) => r.text()),
     fetch(meta.frames, { cache: "no-store" }).then((r) => r.json()),
   ]);
+  const frames = Array.isArray(framesFile) ? framesFile : framesFile.times;
   const events = log.split("\n").filter(Boolean).map((line) => JSON.parse(line));
   timeline = events.map((event) => ({ vt: videoTime(event.t, frames, meta.fps), event }));
   video.src = meta.video;
+  video.playbackRate = Number(speedSelect.value);
   resetTo(0);
   history.replaceState(null, "", `?take=${encodeURIComponent(meta.take)}`);
 }
@@ -157,6 +169,15 @@ async function main() {
   await loadTake(first);
   requestAnimationFrame(tick);
 }
+
+// Slow motion of the recorded run; the physics itself ran at full speed.
+function applySpeed() {
+  video.playbackRate = Number(speedSelect.value);
+  speedLabel.textContent = `${speedSelect.value}× speed`;
+  speedLabel.hidden = speedSelect.value === "1";
+}
+speedSelect.addEventListener("change", applySpeed);
+video.addEventListener("loadedmetadata", applySpeed);
 
 takeSelect.addEventListener("change", () => loadTake(takes.find((t) => t.take === takeSelect.value)));
 document.getElementById("restart").addEventListener("click", () => { video.currentTime = 0; video.play(); });
