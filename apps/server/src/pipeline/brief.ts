@@ -1,43 +1,53 @@
-import type { Brief, ProductLine, Prospect, ResearchBriefInput, ResearchHook } from '@cue/core';
+import type { Brief, BriefSource, ProductLine, Prospect, ResearchHook } from '@cue/core';
 import { personaFromTitle } from '../adapters/core';
 import { clip, type Services } from '../services/context';
-
-type Finding = ResearchBriefInput['findings'][number];
+import { crmFindings, research, type Finding } from './research';
 
 /**
- * Call start, never on the live path: Exa (when `EXA_API_KEY`) or CRM facts → `research_brief` →
- * `brief.ready`. Falls back to a rules brief from the CRM facts, labelled `servedBy: 'rules'`.
+ * Call start, never on the live path: web research (Exa and Valyu in parallel, when keyed) plus CRM
+ * facts → `research_brief` → `brief.ready`, with every hook citing where it came from. Falls back to
+ * a rules brief from the CRM facts, labelled `servedBy: 'rules'`.
  */
 export async function runBrief(s: Services, callId: string): Promise<void> {
   try {
     const view = s.store.view(callId);
     if (!view) return;
     const p = view.prospect;
-    let findings: Finding[] = [];
-    let via = 'crm';
-    if (s.config.exaApiKey) {
-      findings = await exaFindings(s, p);
-      if (findings.length) via = 'exa';
-    }
-    if (!findings.length) findings = crmFindings(p);
+    const web = await research(s, p);
+    const findings: Finding[] = [...web, ...crmFindings(p).slice(0, web.length ? 4 : 8)];
+    const sources: BriefSource[] = findings.slice(0, 12).map((f) => ({ title: clip(f.title || f.url || 'Untitled', 200), url: f.url, via: f.via, publishedAt: f.publishedAt ? f.publishedAt.slice(0, 40) : null }));
 
     const r = await s.models.run(
       'research_brief',
-      { prospect: { name: p.name, title: p.title, company: p.company, facts: p.facts }, findings, seller: s.config.seller },
+      {
+        prospect: { name: p.name, title: p.title, company: p.company, facts: p.facts },
+        findings: findings.map(({ title, text, url, publishedAt }) => ({ title, text, url, publishedAt })),
+        seller: s.config.seller,
+      },
       { callId, budgetMs: s.config.budgets.briefMs },
     );
     let brief: Brief;
     if (r.ok) {
       brief = {
         summary: clip(r.output.summary, 400),
-        hooks: r.output.hooks.slice(0, 5).map((h) => ({ hook: clip(h.hook, 240), product: h.product, ...(h.source ? { source: clip(h.source, 400) } : {}), via })),
+        hooks: r.output.hooks.slice(0, 5).map((h) => {
+          const from = h.source ? cited(findings, h.source) : null;
+          return {
+            hook: clip(h.hook, 240),
+            product: h.product,
+            ...(h.source ? { source: clip(h.source, 400) } : {}),
+            via: from?.via ?? (web.length ? 'web' : 'crm'),
+            ...(from?.url ? { url: from.url.slice(0, 2000) } : {}),
+          };
+        }),
         opener: clip(r.output.opener, 320),
         personaGuess: r.output.persona_guess,
         servedBy: 'mubit',
+        sources,
       };
       s.telemetry.link(r.requestId, callId, 'research_brief');
     } else {
-      brief = rulesBrief(p, view.rep.name, s.config.seller.company);
+      brief = { ...rulesBrief(p, view.rep.name, s.config.seller.company), sources };
       if (r.code !== 'not_configured')
         s.store.append({ type: 'pipeline.error', callId, stage: 'research_brief', message: clip(`${r.code}: ${r.message}; served by rules`, 480), retryable: r.retryable });
     }
@@ -52,47 +62,15 @@ export async function runBrief(s: Services, callId: string): Promise<void> {
   }
 }
 
-function crmFindings(p: Prospect): Finding[] {
-  return Object.entries(p.facts)
-    .slice(0, 8)
-    .map(([k, v]) => ({ title: `CRM: ${k}`, text: v, url: null, publishedAt: null }));
-}
-
-interface ExaResult {
-  title?: string | null;
-  url?: string | null;
-  publishedDate?: string | null;
-  highlights?: string[];
-  text?: string;
-}
-
-/** Two Exa searches (company, person) with highlights; any failure yields no findings. */
-async function exaFindings(s: Services, p: Prospect): Promise<Finding[]> {
-  const search = async (query: string, category: 'company' | 'people'): Promise<Finding[]> => {
-    try {
-      const res = await s.fetch('https://api.exa.ai/search', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', 'x-api-key': s.config.exaApiKey },
-        body: JSON.stringify({ query, category, numResults: 3, contents: { highlights: true } }),
-        signal: AbortSignal.timeout(5000),
-      });
-      if (!res.ok) return [];
-      const json = (await res.json()) as { results?: ExaResult[] };
-      return (json.results ?? []).map((r) => ({
-        title: clip(r.title ?? '', 200),
-        text: clip((r.highlights ?? []).join(' ') || r.text || '', 800),
-        url: r.url ?? null,
-        publishedAt: r.publishedDate ?? null,
-      }));
-    } catch {
-      return [];
-    }
-  };
-  const [company, person] = await Promise.all([
-    p.company ? search(p.company, 'company') : Promise.resolve([]),
-    p.name ? search(`${p.name} ${p.company}`.trim(), 'people') : Promise.resolve([]),
-  ]);
-  return [...company, ...person].filter((f) => f.text).slice(0, 6);
+/** The finding a hook's `source` points at: its URL, its title, or a CRM fact name. */
+export function cited(findings: Finding[], source: string): Finding | null {
+  const s = source.toLowerCase();
+  return (
+    findings.find((f) => f.url && s.includes(f.url.toLowerCase())) ??
+    findings.find((f) => f.title && (s.includes(f.title.toLowerCase()) || f.title.toLowerCase().includes(s))) ??
+    findings.find((f) => f.url && (() => { try { return s.includes(new URL(f.url).hostname.replace(/^www\./, '')); } catch { return false; } })()) ??
+    null
+  );
 }
 
 /** A brief from CRM facts alone. The prospect's name is fine here: this never reaches task instructions. */

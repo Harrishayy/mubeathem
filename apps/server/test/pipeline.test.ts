@@ -1,18 +1,26 @@
-import { CallEvent, rulesReadMoment, type ReadMomentOutput } from '@cue/core';
+import { CallEvent, rulesReadMoment, type ReadMomentOutput, type Suggestion } from '@cue/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CueServer } from '../src/boot';
+import { loadConfig } from '../src/config';
 import { createCall, fakeMubit, post, testServer } from './helpers';
 
 let server: CueServer;
+/** The pre-latency-layer pipeline: one card per turn, written after the model read. */
+const NO_INSTANT = { ...loadConfig({}).latency, instant: false, earlyTrigger: false, standby: 0 };
 afterEach(async () => server && (await server.close()));
 
-const shown = (s: CueServer, id: string) => s.cue.s.store.list(id).flatMap((e) => (e.type === 'suggestion.shown' ? [e.suggestion] : []));
+/** Cards as the rep ends up seeing them: one per id, its latest version (instant cards are refined in place). */
+const shown = (s: CueServer, id: string) => {
+  const byId = new Map<string, Suggestion>();
+  for (const e of s.cue.s.store.list(id)) if (e.type === 'suggestion.shown') byId.set(e.suggestion.id, e.suggestion);
+  return [...byId.values()];
+};
 const skipped = (s: CueServer, id: string) => s.cue.s.store.list(id).flatMap((e) => (e.type === 'suggestion.skipped' ? [e] : []));
 
 describe('live turn pipeline', () => {
-  it('5 prospect turns in 200 ms: only the last produces a card, the rest are skipped as superseded', async () => {
+  it('5 prospect turns in 200 ms: only the last produces a card, the rest are skipped as superseded (instant layer off)', async () => {
     const mubit = fakeMubit({ delayMs: { read_moment: 120, write_line: 80 } });
-    server = testServer({ mubit });
+    server = testServer({ mubit, config: { latency: NO_INSTANT } });
     const id = await createCall(server);
     const texts = ['Hello?', 'Who is this?', "What's this regarding?", 'Hm.', "Sorry, what's this regarding?"];
     for (const text of texts) {
@@ -243,8 +251,8 @@ describe('live turn pipeline', () => {
     expect(skipped(server, id)[0]!.reason).toMatch(/quiet/);
   });
 
-  it('ending the call cancels the in-flight turn', async () => {
-    server = testServer({ mubit: fakeMubit({ delayMs: { read_moment: 200 } }) });
+  it('ending the call cancels the in-flight turn (instant layer off)', async () => {
+    server = testServer({ mubit: fakeMubit({ delayMs: { read_moment: 200 } }), config: { latency: NO_INSTANT } });
     const id = await createCall(server);
     await post(server, `/api/calls/${id}/turns`, { speaker: 'prospect', text: "What's this regarding?" });
     await post(server, `/api/calls/${id}/end`, {});

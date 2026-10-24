@@ -54,7 +54,9 @@ describe('SSE /api/calls/:id/stream', () => {
     await server.cue.idle();
     const res = await server.app.request(`/api/calls/${id}/stream`);
     expect(res.headers.get('content-type')).toContain('text/event-stream');
-    const reading = readFrames(res, (fs) => fs.some((f) => f.event === 'event' && f.data?.includes('suggestion.shown')));
+    // The instant card can land before the model's situation.read (architecture.md §5.3): wait for both.
+    const has = (fs: Frame[], type: string) => fs.some((f) => f.event === 'event' && f.data?.includes(type));
+    const reading = readFrames(res, (fs) => has(fs, 'suggestion.shown') && has(fs, 'situation.read'));
     await new Promise((r) => setTimeout(r, 20));
     await post(server, `/api/calls/${id}/turns`, { speaker: 'prospect', text: "What's this regarding?" });
     const frames = await reading;

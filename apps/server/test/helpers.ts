@@ -2,7 +2,7 @@ import type { CallEvent, TaskId, TaskInput, TaskOutput } from '@cue/core';
 import { findRiskyClaims, rulesReadMoment } from '@cue/core';
 import { boot, type BootOptions, type CueServer } from '../src/boot';
 import type { MubitClient, RunOptions, TaskResult } from '../src/adapters/mubit';
-import type { ServerConfig } from '../src/config';
+import { loadConfig, type ServerConfig } from '../src/config';
 import { rulesProspect } from '../src/pipeline/practice';
 import { SentTracker } from '../src/services/sent';
 
@@ -10,6 +10,8 @@ export type FakeFailure = 'timeout' | 'bad_output' | 'http' | 'hang';
 
 export interface FakeMubitOptions {
   delayMs?: Partial<Record<TaskId, number>>;
+  /** Per-run delay (wins over `delayMs`), e.g. drawn from a measured latency distribution. */
+  delay?: (task: TaskId) => number;
   fail?: Partial<Record<TaskId, FakeFailure>>;
   /** Override an output per task (receives the input). */
   outputs?: { [K in TaskId]?: (input: TaskInput<K>) => TaskOutput<K> };
@@ -79,13 +81,14 @@ export function fakeMubit(opts: FakeMubitOptions = {}): FakeMubit {
     calls,
     count: (task) => (task ? calls.filter((c) => c.task === task).length : calls.length),
     async run<K extends TaskId>(task: K, input: TaskInput<K>, o: RunOptions): Promise<TaskResult<K>> {
+      const delay = opts.delay?.(task) ?? opts.delayMs?.[task] ?? 0;
       const entry = { task, sessionId: o.sessionId, aborted: false, input };
       calls.push(entry);
       sent.mark(o.sessionId, task);
       const failure = opts.fail?.[task];
       try {
         if (failure === 'hang') await sleep(60_000, o.signal);
-        await sleep(opts.delayMs?.[task] ?? 0, o.signal);
+        await sleep(delay, o.signal);
       } catch (e) {
         entry.aborted = true;
         throw e;
@@ -94,7 +97,7 @@ export function fakeMubit(opts: FakeMubitOptions = {}): FakeMubit {
       if (failure === 'bad_output') throw Object.assign(new Error('output failed schema'), { code: 'bad_output', status: 200, retryable: false, requestId: `mreq_bad_${++n}` });
       if (failure === 'http') throw Object.assign(new Error('upstream 500'), { code: 'http', status: 500, retryable: true, requestId: null });
       const make = (opts.outputs?.[task] ?? defaults[task]) as (i: TaskInput<K>) => TaskOutput<K>;
-      return { output: make(input), requestId: `mreq_fake_${++n}`, latencyMs: opts.delayMs?.[task] ?? 1, model: 'gpt-4o-mini', usage: { input: 100, output: 20 }, costUsd: 0.00003, attempts: 1 };
+      return { output: make(input), requestId: `mreq_fake_${++n}`, latencyMs: delay || 1, model: 'gpt-4o-mini', usage: { input: 100, output: 20 }, costUsd: 0.00003, attempts: 1 };
     },
   };
   return client;
@@ -104,7 +107,8 @@ export function testServer(o: { mubit?: MubitClient | null; config?: Partial<Ser
   const mubit = o.mubit === undefined ? fakeMubit() : o.mubit;
   return boot({
     env: o.env ?? {},
-    config: { dbPath: ':memory:', heartbeatMs: 40, ...o.config },
+    // Standby writes are off by default here so call counts stay exact; latency.test.ts turns them on.
+    config: { dbPath: ':memory:', heartbeatMs: 40, latency: { ...loadConfig({}).latency, standby: 0 }, ...o.config },
     mubit,
     ...(mubit && 'sent' in mubit ? { sent: (mubit as FakeMubit).sent } : {}),
     ...(o.fetch ? { fetch: o.fetch } : {}),

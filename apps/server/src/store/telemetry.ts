@@ -1,5 +1,6 @@
 import { TASK_IDS, type TaskId, type TaskStats } from '@cue/core';
 import type { Db } from './db';
+import type { TraceStore } from './traces';
 
 export interface MubitCallRow {
   requestId: string | null;
@@ -17,7 +18,11 @@ export interface MubitCallRow {
 
 /** Durable per-task Mubit telemetry (survives restarts, unlike the client's in-memory counters). */
 export class TelemetryStore {
-  constructor(private db: Db) {}
+  constructor(
+    private db: Db,
+    /** Linked traces get the call and suggestion ids too (store/traces.ts). */
+    private traces: TraceStore | null = null,
+  ) {}
 
   record(r: MubitCallRow): void {
     this.db
@@ -29,6 +34,7 @@ export class TelemetryStore {
   link(requestId: string | null | undefined, callId: string, task: TaskId, suggestionId?: string): void {
     if (!requestId) return;
     this.db.prepare('INSERT INTO mubit_links (request_id, call_id, suggestion_id, task) VALUES (?, ?, ?, ?)').run(requestId, callId, suggestionId ?? null, task);
+    this.traces?.link(requestId, callId, suggestionId ?? null);
   }
 
   links(callId: string): { requestId: string; suggestionId: string | null; task: string }[] {
@@ -77,7 +83,7 @@ export class TelemetryStore {
   }
 }
 
-function percentile(sorted: number[], p: number): number {
+export function percentile(sorted: number[], p: number): number {
   if (!sorted.length) return 0;
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(p * sorted.length) - 1))]!;
 }

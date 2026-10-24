@@ -10,6 +10,7 @@ import {
   type OutcomeRecord,
   type PlaybookLine,
   type PlaybookResponse,
+  type Prospect,
   type StatsResponse,
   type SuggestionActionRequest,
   type TaskId,
@@ -17,10 +18,12 @@ import {
 } from '@cue/core';
 import { buildCallRecord, evidenceFor, newId } from '../adapters/core';
 import { runBrief } from '../pipeline/brief';
+import { research } from '../pipeline/research';
 import { practiceNext, PracticeError, type PracticeReply } from '../pipeline/practice';
 import { RepTurnPipeline } from '../pipeline/rep-turn';
 import { ReviewPipeline } from '../pipeline/review';
 import { TurnPipeline } from '../pipeline/turn';
+import { ContactStore } from '../store/contacts';
 import { TrellusService } from '../trellus';
 import { VERSION } from '../version';
 import { TASK_TIER } from './models';
@@ -45,12 +48,14 @@ export class Cue {
   readonly repTurns: RepTurnPipeline;
   readonly reviews: ReviewPipeline;
   readonly trellus: TrellusService;
+  readonly contacts: ContactStore;
   private background = new Set<Promise<void>>();
 
   constructor(readonly s: Services) {
     this.turns = new TurnPipeline(s);
     this.repTurns = new RepTurnPipeline(s);
     this.reviews = new ReviewPipeline(s);
+    this.contacts = new ContactStore(s.db, s.now);
     this.trellus = new TrellusService(s, (callId, outcome) => this.recordOutcome(callId, outcome));
   }
 
@@ -78,10 +83,35 @@ export class Cue {
 
   createCall(req: CreateCallRequest): CallView {
     const callId = newId('call');
-    this.s.store.append({ type: 'call.started', callId, source: req.source, prospect: req.prospect, rep: req.rep, ...(req.trellusSessionId ? { trellusSessionId: req.trellusSessionId } : {}) });
+    let prospect = req.prospect;
+    if (req.contactId) {
+      const saved = this.contacts.prospect(req.contactId);
+      if (!saved) throw new AppError(404, 'not_found', `No contact ${req.contactId}`);
+      // what the rep typed on the form wins over the saved record, field by field
+      const typed = Object.fromEntries(Object.entries(req.prospect).filter(([k, v]) => k !== 'facts' && typeof v === 'string' && v.trim()));
+      prospect = { ...saved, ...typed, facts: { ...saved.facts, ...req.prospect.facts } };
+    }
+    this.s.store.append({
+      type: 'call.started',
+      callId,
+      source: req.source,
+      prospect,
+      rep: req.rep,
+      ...(req.trellusSessionId ? { trellusSessionId: req.trellusSessionId } : {}),
+      ...(req.contactId ? { contactId: req.contactId } : {}),
+    });
     if (req.practice || req.source === 'practice') this.s.store.setPractice(callId, { mood: req.practice?.mood ?? 'neutral', objections: req.practice?.objections ?? [] });
     this.track(runBrief(this.s, callId));
     return this.requireView(callId);
+  }
+
+  /** Fires pre-call research (cached), so starting the call gets its brief without waiting on the web. */
+  warmResearch(req: { contactId?: string; prospect?: Prospect }): { configured: boolean; providers: string[] } {
+    const prospect = req.contactId ? this.contacts.prospect(req.contactId) : (req.prospect ?? null);
+    if (req.contactId && !prospect) throw new AppError(404, 'not_found', `No contact ${req.contactId}`);
+    const providers = [...(this.s.config.exaApiKey ? ['exa'] : []), ...(this.s.config.valyuApiKey ? ['valyu'] : [])];
+    if (prospect && providers.length) this.track(research(this.s, prospect).then(() => undefined));
+    return { configured: providers.length > 0, providers };
   }
 
   getCall(callId: string): CallView {
@@ -106,9 +136,14 @@ export class Cue {
       via: req.via,
     };
     this.s.store.append({ type: 'turn.added', callId, turn });
+    // Any rep speech locks the card on screen (no refinement swaps under the rep's eyes).
+    if (turn.speaker === 'rep') this.turns.repSpeech(callId);
     if (turn.final) {
       if (turn.speaker === 'prospect') this.track(this.turns.handle(callId, id, receivedAt));
       else this.track(this.repTurns.handle(callId, id, receivedAt));
+    } else if (turn.speaker === 'prospect' && req.id) {
+      // Interims with a stable id can start the turn early (endpointing, architecture.md §5.3).
+      this.turns.interim(callId, id, turn.text);
     }
     return { turnId: id, duplicate: false };
   }
@@ -224,6 +259,7 @@ export class Cue {
       trellus: { configured: t.configured, reachable: t.reachable, lastSyncAt: t.lastSyncAt },
       sapling: { configured: !!this.s.config.saplingUrl },
       exa: { configured: !!this.s.config.exaApiKey },
+      valyu: { configured: !!this.s.config.valyuApiKey },
       store: { path: this.s.config.dbPath, calls: this.s.store.countCalls().total },
     };
   }

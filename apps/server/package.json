@@ -10,7 +10,9 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --exclude 'test/live/**'",
     "seed": "tsx --env-file-if-exists=../../.env src/scripts/seed.ts",
-    "test:live": "MUBIT_LIVE=1 vitest run test/live"
+    "traces:export": "tsx --env-file-if-exists=../../.env src/scripts/traces-export.ts",
+    "test:live": "MUBIT_LIVE=1 vitest run test/live",
+    "latency:sim": "tsx --env-file-if-exists=../../.env src/scripts/latency-sim.ts"
   },
   "dependencies": {
     "@cue/core": "workspace:*",

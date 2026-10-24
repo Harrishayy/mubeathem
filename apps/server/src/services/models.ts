@@ -1,6 +1,7 @@
 import type { TaskId, TaskInput, TaskOutput } from '@cue/core';
-import { asMubitError, type MubitClient } from '../adapters/mubit';
+import { asMubitError, TASKS, type MubitClient } from '../adapters/mubit';
 import type { TelemetryStore } from '../store/telemetry';
+import type { TraceInput, TraceStore } from '../store/traces';
 import type { SentCounter } from './sent';
 
 export type ModelResult<K extends TaskId> =
@@ -27,7 +28,19 @@ export class ModelRunner {
     readonly models: { fast: string; write: string },
     private now: () => number = Date.now,
     private sent: SentCounter | null = null,
+    /** Full trace per call (buffered in memory, flushed off the request path). */
+    private traces: TraceStore | null = null,
   ) {}
+
+  /** Queues a trace. A trace failure must never fail the call it describes. */
+  private trace(t: Omit<TraceInput, 'instructionsVersion'>): void {
+    if (!this.traces) return;
+    try {
+      this.traces.record({ ...t, instructionsVersion: TASKS[t.task]?.version ?? 0 });
+    } catch {
+      /* never let tracing break the pipeline */
+    }
+  }
 
   /** Result of the last `ping()`, or null if never pinged. */
   lastPing: { ok: boolean; at: number } | null = null;
@@ -37,6 +50,20 @@ export class ModelRunner {
     const ok = await this.mubit.ping(AbortSignal.timeout(5000)).catch(() => false);
     this.lastPing = { ok, at: this.now() };
     return ok;
+  }
+
+  private lastWarmAt = 0;
+
+  /**
+   * Opens (or keeps open) `n` connections to Mubit before a live turn needs them: parallel
+   * `GET /models`, no model call, no cost, no trace. Throttled; any real request counts as warm.
+   */
+  warm(n = 2, minGapMs = 3000): void {
+    if (!this.mubit?.ping) return;
+    const t = this.now();
+    if (t - this.lastWarmAt < minGapMs) return;
+    this.lastWarmAt = t;
+    for (let i = 0; i < n; i++) void this.mubit.ping(AbortSignal.timeout(3000)).catch(() => false);
   }
 
   get configured(): boolean {
@@ -52,6 +79,7 @@ export class ModelRunner {
     if (!this.mubit) return { ok: false, code: 'not_configured', message: 'MUBIT_API_KEY is not set', retryable: false, requestId: null, latencyMs: 0, aborted: false };
     if (opts.signal?.aborted) return { ok: false, code: 'aborted', message: 'cancelled', retryable: false, requestId: null, latencyMs: 0, aborted: true };
 
+    this.lastWarmAt = started;
     const sentBefore = this.sent?.count(opts.callId, task) ?? 0;
     const budget = new AbortController();
     const signal = opts.signal ? AbortSignal.any([opts.signal, budget.signal]) : budget.signal;
@@ -84,6 +112,24 @@ export class ModelRunner {
         at: this.now(),
         errorCode: null,
       });
+      this.trace({
+        requestId: res.requestId,
+        task,
+        model: res.model || this.modelFor(task),
+        sessionId: opts.callId,
+        ok: true,
+        errorCode: null,
+        errorMessage: null,
+        latencyMs,
+        attempts: res.attempts ?? 1,
+        inputTokens: res.usage?.input ?? 0,
+        outputTokens: res.usage?.output ?? 0,
+        costUsd: res.costUsd ?? 0,
+        at: this.now(),
+        input,
+        output: res.output,
+        aborted: false,
+      });
       return { ok: true, output: res.output, requestId: res.requestId, latencyMs, model: res.model || this.modelFor(task) };
     } catch (e) {
       const err = asMubitError(e);
@@ -92,10 +138,29 @@ export class ModelRunner {
       const latencyMs = this.now() - started;
       // A cancelled run (superseded turn, speculative draft dropped) is recorded only if it really went out.
       const sentAndAborted = aborted && !!this.sent && this.sent.count(opts.callId, task) > sentBefore;
-      if (sentAndAborted)
-        this.telemetry.record({ requestId: err.requestId, task, model: this.modelFor(task), sessionId: opts.callId, ok: false, latencyMs, inTok: 0, outTok: 0, costUsd: 0, at: this.now(), errorCode: 'aborted' });
-      else if (!aborted && code !== 'not_configured')
-        this.telemetry.record({ requestId: err.requestId, task, model: this.modelFor(task), sessionId: opts.callId, ok: false, latencyMs, inTok: 0, outTok: 0, costUsd: 0, at: this.now(), errorCode: code });
+      const recorded = sentAndAborted ? 'aborted' : !aborted && code !== 'not_configured' ? code : null;
+      if (recorded) {
+        const at = this.now();
+        this.telemetry.record({ requestId: err.requestId, task, model: this.modelFor(task), sessionId: opts.callId, ok: false, latencyMs, inTok: 0, outTok: 0, costUsd: 0, at, errorCode: recorded });
+        this.trace({
+          requestId: err.requestId,
+          task,
+          model: this.modelFor(task),
+          sessionId: opts.callId,
+          ok: false,
+          errorCode: recorded,
+          errorMessage: err.message,
+          latencyMs,
+          attempts: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          costUsd: 0,
+          at,
+          input,
+          output: null,
+          aborted: recorded === 'aborted',
+        });
+      }
       return { ok: false, code, message: err.message, retryable: err.retryable || code === 'timeout', requestId: err.requestId, latencyMs, aborted };
     } finally {
       clearTimeout(timer);

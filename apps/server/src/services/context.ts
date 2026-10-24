@@ -2,6 +2,7 @@ import type { ServerConfig } from '../config';
 import type { EventStore } from '../store/events';
 import type { PlaybookStore } from '../store/playbook';
 import type { TelemetryStore } from '../store/telemetry';
+import type { TraceStore } from '../store/traces';
 import type { Db } from '../store/db';
 import type { ModelRunner } from './models';
 import type { PolicyChecker } from './policy';
@@ -19,6 +20,8 @@ export interface Services {
   store: EventStore;
   playbook: PlaybookStore;
   telemetry: TelemetryStore;
+  /** Full trace of every Mubit call (buffered; never blocks the pipeline). */
+  traces: TraceStore;
   models: ModelRunner;
   policy: PolicyChecker;
   log: Logger;

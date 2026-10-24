@@ -12,6 +12,7 @@ import { openDb } from './store/db';
 import { EventStore } from './store/events';
 import { PlaybookStore } from './store/playbook';
 import { TelemetryStore } from './store/telemetry';
+import { TraceStore } from './store/traces';
 
 export interface BootOptions {
   config?: Partial<ServerConfig>;
@@ -33,6 +34,8 @@ export interface CueServer {
   streams: StreamRegistry;
   /** Starts the Trellus poller and the auto-review sweep. */
   startBackground(): void;
+  /** Writes queued traces now (synchronous; safe in a process `exit` handler). */
+  flushTraces(): void;
   close(): Promise<void>;
 }
 
@@ -45,18 +48,29 @@ export function boot(opts: BootOptions = {}): CueServer {
   const tracker = new SentTracker();
   const mubit = opts.mubit !== undefined ? opts.mubit : mubitConfig.configured ? createMubit(mubitConfig, { fetch: tracker.wrap(fetchImpl), now }) : null;
 
+  const log = opts.log ?? createLogger();
   const db = openDb(config.dbPath);
-  const telemetry = new TelemetryStore(db);
-  const models = new ModelRunner(mubit, telemetry, mubitConfig.models, now, opts.mubit !== undefined ? (opts.sent ?? null) : tracker);
+  const traces = new TraceStore(db, {
+    record: mubitConfig.record,
+    maxBodyBytes: config.traces.maxBodyBytes,
+    flushMs: config.traces.flushMs,
+    flushRows: config.traces.flushRows,
+    onError: (message) => log.error('traces', { message }),
+  });
+  const pruned = traces.prune(config.traces.retentionDays, now());
+  if (pruned) log.info('traces pruned', { rows: pruned, retentionDays: config.traces.retentionDays });
+  const telemetry = new TelemetryStore(db, traces);
+  const models = new ModelRunner(mubit, telemetry, mubitConfig.models, now, opts.mubit !== undefined ? (opts.sent ?? null) : tracker, traces);
   const s: Services = {
     config,
     db,
     store: new EventStore(db, now),
     playbook: new PlaybookStore(db, now),
     telemetry,
+    traces,
     models,
     policy: new PolicyChecker(models, { saplingUrl: config.saplingUrl, budgetMs: config.budgets.checkMs, fetch: fetchImpl }),
-    log: opts.log ?? createLogger(),
+    log,
     now,
     rng: opts.rng ?? Math.random,
     fetch: fetchImpl,
@@ -78,6 +92,9 @@ export function boot(opts: BootOptions = {}): CueServer {
       sweep = setInterval(() => cue.reviews.sweep(), 60_000);
       sweep.unref();
     },
+    flushTraces() {
+      if (!closed) traces.flush();
+    },
     async close() {
       if (closed) return;
       closed = true;
@@ -85,6 +102,7 @@ export function boot(opts: BootOptions = {}): CueServer {
       cue.trellus.stop();
       streams.closeAll();
       await Promise.race([cue.idle(), new Promise((r) => setTimeout(r, 5000).unref())]);
+      traces.close();
       db.close();
     },
   };

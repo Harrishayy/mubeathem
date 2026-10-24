@@ -30,5 +30,7 @@ async function shutdown(signal: string) {
   await server.close();
   process.exit(0);
 }
+// Last chance for buffered traces when something calls process.exit() without a clean close.
+process.on('exit', () => server.flushTraces());
 process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
