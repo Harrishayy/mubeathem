@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.output/
+.wxt/
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+.cue/
+coverage/
+test-results/
+playwright-report/
+.DS_Store
+*.tsbuildinfo
