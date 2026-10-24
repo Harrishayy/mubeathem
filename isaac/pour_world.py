@@ -57,17 +57,22 @@ def _resample(targets, speed):
 
 class PourWorld:
     def __init__(self, dataset, demo=0, robot="robot-A", nuts=3, restitution=None,
-                 video=False, eye=(0.3, 1.2, 1.38), lookat=(-0.06, 0.42, 1.06), device="cuda:0"):
+                 video=False, eye=(0.2, 1.0, 1.32), lookat=(-0.05, 0.44, 1.04), resolution=(1920, 1080),
+                 device="cuda:0"):
         self.robot = robot
         self.nuts = [f"factory_nut_{i}" if i else "factory_nut" for i in range(nuts)]
         self.video = video
-        self.frames, self.frame_times = [], []
+        self.writer = None
+        self.frame_times = []
         self.plan = None
 
         cfg = parse_env_cfg(TASK, device=device, num_envs=1)
         cfg.terminations = {}
         cfg.recorders = {}
-        cfg.viewer.eye, cfg.viewer.lookat = eye, lookat
+        cfg.viewer.eye, cfg.viewer.lookat, cfg.viewer.resolution = eye, lookat, resolution
+        # The simulator renders every render_interval physics steps; recording each of those
+        # renders gives 50 fps, against 20 fps from one frame per control step.
+        self.fps = round(1 / (cfg.sim.dt * cfg.sim.render_interval))
         # The demo's actions command the fingers slightly past the beaker's surface; that is
         # what squeezes it. Their order is the Pink IK action's hand joint order.
         hand_names = list(cfg.actions.gr1_action.hand_joint_names)
@@ -95,6 +100,15 @@ class PourWorld:
                 ))
         self.env = gym.make(TASK, cfg=cfg, render_mode="rgb_array" if video else None).unwrapped
         self.env.reset()
+        if video:
+            self.env.render()  # attaches the viewer camera's annotator
+            render = self.env.sim.render
+
+            def render_and_capture(*args, **kwargs):
+                render(*args, **kwargs)
+                self._capture()
+
+            self.env.sim.render = render_and_capture
 
         handler = HDF5DatasetFileHandler()
         handler.open(dataset)
@@ -182,9 +196,37 @@ class PourWorld:
         for target in targets:
             self._last = target
             self.env.step(torch.as_tensor(target, dtype=torch.float32, device=self.env.device)[None])
-            if self.video:
-                self.frames.append(self.env.render())
-                self.frame_times.append(time.time())
+
+    # --- recording --------------------------------------------------------------
+
+    def start_recording(self, path):
+        """Stream every rendered frame into an MP4 until stop_recording()."""
+        import imageio.v2 as imageio
+
+        self.video_path = Path(path)
+        self.video_path.parent.mkdir(parents=True, exist_ok=True)
+        self.frame_times = []
+        self.writer = imageio.get_writer(self.video_path, fps=self.fps, codec="libx264", quality=None,
+                                         pixelformat="yuv420p", macro_block_size=1,
+                                         ffmpeg_params=["-crf", "18", "-preset", "fast"])
+
+    def stop_recording(self):
+        if self.writer is None:
+            return None
+        self.writer.close()
+        self.writer = None
+        self.video_path.with_suffix(".frames.json").write_text(
+            json.dumps({"fps": self.fps, "times": self.frame_times}))
+        return self.video_path
+
+    def _capture(self):
+        if self.writer is None:
+            return
+        rgb = self.env._rgb_annotator.get_data()
+        if rgb is None or getattr(rgb, "size", 0) == 0:
+            return
+        self.writer.append_data(np.asarray(rgb)[:, :, :3])
+        self.frame_times.append(time.time())
 
     def _pos(self, name):
         obj = self.env.scene[name]
@@ -217,14 +259,3 @@ class PourWorld:
         box = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_]).ComputeWorldBound(prim).ComputeAlignedRange()
         size = box.GetSize()
         return float(min(size[0], size[1]) / 2)
-
-    def save_video(self, path, fps=20):
-        if not self.frames:
-            return None
-        import imageio.v2 as imageio
-
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        imageio.mimwrite(path, self.frames, fps=fps, macro_block_size=1)
-        path.with_suffix(".frames.json").write_text(json.dumps(self.frame_times))
-        return path

@@ -46,6 +46,8 @@ def main():
           f"bowl radius {world.bowl_radius:.3f} m")
     print(world.subject())
     print("Joints the demo starts bent:", world.joint_check())
+    if args.video:
+        world.start_recording(REPO / f"runs/tuning/{args.name}.mp4")
     for height in args.pour_height:
         for tilt in args.tilt:
             for repeat in range(args.repeats):
@@ -64,7 +66,7 @@ def main():
                           f"z {p[2] - bowl[2]:+.3f}")
                 print(f"tilt {tilt:.2f} height {height:4.1f} #{repeat}: {'LANDS' if ok else 'SPILLS'}  {reason}")
     if args.video:
-        print("video:", world.save_video(REPO / f"runs/tuning/{args.name}.mp4"))
+        print("video:", world.stop_recording())
 
 
 if __name__ == "__main__":

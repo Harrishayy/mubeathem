@@ -63,13 +63,13 @@ def main():
         log("take", mode="isaac", demo=args.demo, use_lessons=not args.no_lessons,
             lessons=[] if args.no_lessons else store.lessons)
 
-        world.frames.clear()
-        world.frame_times.clear()
+        if args.video:
+            world.start_recording(takes_dir / f"{take}.mp4")
         model = MubitModel(client, on_call=functools.partial(log, "call", robot=args.robot))
         outcome = run_task(world, model, store, log, args.robot,
                            max_attempts=args.max_attempts, use_lessons=not args.no_lessons)
 
-        video = world.save_video(takes_dir / f"{take}.mp4")
+        video = world.stop_recording()
         events = [json.loads(line) for line in (takes_dir / f"{take}.jsonl").read_text().splitlines()]
         attempts = [e for e in events if e["kind"] == "result"]
         story = " → ".join("lands" if e["success"] else "spills" for e in attempts)
