@@ -8,7 +8,7 @@ export interface MubitConfig {
    * Where live_cue goes: `gemini` through Mubit's Gemini route (`{geminiBaseUrl}/v1beta/models/…:streamGenerateContent`),
    * or `openai` through the Responses API like every other task. Both are streamed.
    */
-  live: { provider: 'gemini' | 'openai'; geminiBaseUrl: string };
+  live: { provider: 'gemini' | 'openai'; geminiBaseUrl: string; /** For reasoning models on the Responses API (`minimal`, `low`, `none`…). */ reasoningEffort: string };
   /** Max calls in flight at once; the starter credit caps calls in flight per project. */
   concurrency: number;
   /** Default deadline per `run`, covering queueing, retries and waits. */
@@ -48,7 +48,7 @@ export function loadMubitConfig(env: Record<string, string | undefined> = proces
       write: env.CUE_MODEL_WRITE?.trim() || DEFAULT_MODELS.write,
       live: env.CUE_LIVE_MODEL?.trim() || (provider === 'openai' ? DEFAULT_MODELS.write : DEFAULT_MODELS.live),
     },
-    live: { provider, geminiBaseUrl: (env.MUBIT_GEMINI_BASE_URL?.trim() || geminiBaseFor(baseUrl)).replace(/\/+$/, '') },
+    live: { provider, reasoningEffort: env.CUE_LIVE_REASONING?.trim() || 'minimal', geminiBaseUrl: (env.MUBIT_GEMINI_BASE_URL?.trim() || geminiBaseFor(baseUrl)).replace(/\/+$/, '') },
     concurrency: positiveInt(env.CUE_MUBIT_CONCURRENCY, 4),
     timeoutMs: positiveInt(env.CUE_MUBIT_TIMEOUT_MS, 12_000),
     record: env.CUE_MUBIT_RECORD?.trim().toLowerCase() === 'metadata' ? 'metadata' : 'full',

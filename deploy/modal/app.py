@@ -36,8 +36,8 @@ PORT = 8787
 DEFAULTS = {
     "CUE_PIPELINE": "live",
     "CUE_AUTO_ACTIVATE": "1",
-    "CUE_LIVE_PROVIDER": "gemini",
-    "CUE_LIVE_MODEL": "gemini-3.8-flash",
+    "CUE_LIVE_PROVIDER": "openai",
+    "CUE_LIVE_MODEL": "gpt-4.1-mini",
     "CUE_LIVE_BUDGET_MS": "4000",
     "CUE_ENDPOINT_PAUSE_MS": "250",
     "CUE_ALLOWED_ORIGINS": "chrome-extension://*,http://localhost:5173",
@@ -88,8 +88,9 @@ def _backup_loop() -> None:
     region="eu-west",
     # Requests enter Modal in Dublin too (fixed when a function is first deployed: to change it, rename the class).
     routing_region="eu-west",
-    cpu=1.0,
-    memory=1024,
+    # The Node server is I/O-bound: half a core keeps the always-on cost to roughly $20-35 a month.
+    cpu=0.5,
+    memory=512,
     min_containers=1,
     max_containers=1,
     scaledown_window=1200,

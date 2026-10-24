@@ -341,6 +341,9 @@ export function createMubit(config: MubitConfig, deps: MubitDeps = {}): MubitCli
     return { res, requestId };
   }
 
+  /** Reasoning models (gpt-5.x, gpt-6.x, o-series) take no temperature; the live path asks them to think as little as possible. */
+  const reasoning = (model: string) => /^(gpt-5|gpt-6|o\d)/.test(model);
+
   /** One streamed attempt over the Responses API. */
   async function openaiStream(task: TaskId, def: TaskDef<TaskId>, model: string, input: string, sessionId: string, signal: AbortSignal, onText: (d: string) => void) {
     const h = headers();
@@ -351,8 +354,8 @@ export function createMubit(config: MubitConfig, deps: MubitDeps = {}): MubitCli
       store: false,
       stream: true,
       prompt_cache_key: sessionId,
-      temperature: def.temperature,
-      max_output_tokens: def.maxOutputTokens,
+      ...(reasoning(model) ? { reasoning: { effort: config.live.reasoningEffort } } : { temperature: def.temperature }),
+      max_output_tokens: def.maxOutputTokens + (reasoning(model) ? 512 : 0),
       text: { format: { type: 'json_schema', name: task, strict: true, schema: schemaFor(def) } },
     });
     const { res, requestId } = await post(task, `${config.baseUrl}/responses`, h, redactHeaders(h), body, signal);
