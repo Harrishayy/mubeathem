@@ -1,0 +1,408 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Trellus Call Data API",
+    "version": "0.3.0",
+    "description": "Customer-facing reporting API starter. These six read endpoints inherit the authenticated user’s permissions. Account-specific responses are described rather than fully modeled. See https://www.trellus.ai/developers/api for complete usage and field definitions."
+  },
+  "servers": [
+    {
+      "url": "https://rpt-2.trellus.ai"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/visible": {
+      "get": {
+        "servers": [
+          {
+            "url": "https://ext.trellus.ai"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "summary": "List the teams, users, groups, and memberships this key can read.",
+        "responses": {
+          "200": {
+            "description": "Readable directory; team is present only with whole-team read access."
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "team_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/bootstrap": {
+      "get": {
+        "servers": [
+          {
+            "url": "https://ext.trellus.ai"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "summary": "Discover the key owner's account context and exact option values.",
+        "responses": {
+          "200": {
+            "description": "Account configuration and filter vocabulary."
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          }
+        }
+      }
+    },
+    "/session-list-v6": {
+      "post": {
+        "summary": "Return the newest matching session rows.",
+        "responses": {
+          "200": {
+            "description": "JSON arrays in select order; started_at is Unix seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rows"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionListRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metric-details-v7": {
+      "post": {
+        "summary": "Return aggregate count/sum rows, optionally grouped.",
+        "responses": {
+          "200": {
+            "description": "JSON arrays in selects order; a group value is prepended when grouped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rows"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetricRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/session": {
+      "get": {
+        "summary": "Return one session selected by the x-session-id header.",
+        "responses": {
+          "200": {
+            "description": "Protobuf by default; x-proto-as-json true returns camelCase proto JSON without wordData."
+          },
+          "401": {
+            "description": "Inactive user, not found, not permissioned, or not on db; inspect the response body."
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-session-id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-proto-as-json",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ]
+      }
+    },
+    "/get-audio-links": {
+      "get": {
+        "servers": [
+          {
+            "url": "https://api.trellus.ai"
+          }
+        ],
+        "security": [
+          {
+            "apiKeyHeader": []
+          }
+        ],
+        "summary": "Return temporary audio URLs for one readable call.",
+        "responses": {
+          "200": {
+            "description": "Object containing session, audio metadata, and audio_links; audio arrays align by index and may be empty."
+          },
+          "default": {
+            "$ref": "#/components/responses/RequestError"
+          }
+        },
+        "parameters": [
+          {
+            "in": "header",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "responses": {
+      "RequestError": {
+        "description": "Read the HTTP status and response text; on 429 honor Retry-After seconds.",
+        "headers": {
+          "Retry-After": {
+            "description": "Delay in seconds on rate-limited responses.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        },
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "apiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "api_key"
+      }
+    },
+    "schemas": {
+      "Rows": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {}
+        }
+      },
+      "Filter": {
+        "type": "object",
+        "required": [
+          "column_name",
+          "operator",
+          "value_safe"
+        ],
+        "properties": {
+          "column_name": {
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "EQ",
+              "NEQ",
+              "GT",
+              "GE",
+              "LT",
+              "LE",
+              "REGEX",
+              "IN",
+              "NIN"
+            ]
+          },
+          "value_safe": {},
+          "reducer": {
+            "enum": [
+              "ANY",
+              "ALL"
+            ]
+          }
+        }
+      },
+      "SessionListRequest": {
+        "type": "object",
+        "required": [
+          "start",
+          "select"
+        ],
+        "properties": {
+          "start": {
+            "type": "integer",
+            "description": "Unix microseconds, inclusive."
+          },
+          "end": {
+            "type": "integer",
+            "description": "Unix microseconds, exclusive; defaults to now."
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "cnf": {
+            "type": "array",
+            "description": "Outer arrays are AND; inner arrays are OR.",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Filter"
+              }
+            }
+          },
+          "select": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 50
+          }
+        }
+      },
+      "MetricRequest": {
+        "type": "object",
+        "required": [
+          "start",
+          "selects"
+        ],
+        "properties": {
+          "start": {
+            "type": "integer",
+            "description": "Unix microseconds, inclusive."
+          },
+          "end": {
+            "type": "integer",
+            "description": "Unix microseconds, exclusive; defaults to now."
+          },
+          "team_id": {
+            "type": "string"
+          },
+          "cnf": {
+            "type": "array",
+            "description": "Filters applied to every aggregate.",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Filter"
+              }
+            }
+          },
+          "selects": {
+            "type": "array",
+            "description": "Count with cnf or sum with column_name; both may be supplied.",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "cnf"
+                  ],
+                  "properties": {
+                    "cnf": {
+                      "type": "array"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "column_name"
+                  ],
+                  "properties": {
+                    "column_name": {
+                      "type": "string"
+                    },
+                    "cnf": {
+                      "type": "array"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "group_by": {
+            "type": "object",
+            "properties": {
+              "column_name": {
+                "type": "string"
+              },
+              "step_size_safe": {
+                "description": "Bin width in the grouped column units; required for float/time grouping."
+              },
+              "step_start_safe": {
+                "description": "Bin origin. Required when step_size_safe is supplied."
+              },
+              "step_modulus_safe": {
+                "description": "Optional repeating period in the grouped column units."
+              }
+            },
+            "required": [
+              "column_name"
+            ],
+            "description": "Use exact grouping for strings, booleans, bytes and enums. Do not supply step parameters for these types. Floating-point and started_at grouping require step_size_safe and step_start_safe. Integer grouping can use exact values or steps. step_size_safe is the bin width; step_start_safe is its origin; optional step_modulus_safe is a repeat period. Values use the grouped column’s units: started_at uses seconds. For stepped groups, the key is floor(((value - origin) modulo period, when supplied) / width). It is a bin index, not a date. Compatibility exception: the current metric-details-v7 endpoint scales a started_at group key by 1,000,000. Divide by 1,000,000 to recover the bin index before converting it to a time range."
+          }
+        }
+      }
+    }
+  },
+  "externalDocs": {
+    "description": "Public Trellus Call Data API documentation",
+    "url": "https://www.trellus.ai/developers/api"
+  }
+}

@@ -1,0 +1,3374 @@
+# Mubit Documentation — full text
+
+> Generated from the same sources as https://docs.mubit.ai/llms.txt. Sections appear in navigation order.
+
+
+
+---
+
+<!-- / -->
+
+# Mubit
+
+> Mubit passes your app's calls on to your model provider and records them. It groups similar calls into tasks and trains adapters, small models each made for one task. Each adapter version is tested against your provider model's answers, and you can compare a passing version with your provider model in Try models.
+
+<!-- Auto-generated from pages/index.mdx — do not edit by hand. -->
+
+Mubit passes your app's calls on to your model provider and records them. It groups similar calls into tasks and trains adapters, small models each made for one task. Each adapter version is tested against your provider model's answers, and you can compare a passing version with your provider model in **Try models**.
+
+Give your client Mubit's base URL and your Mubit key:
+
+#### OpenAI
+
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.mubit.ai/openai/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+```
+
+#### Anthropic
+
+```python
+import os
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="https://api.mubit.ai/anthropic",  # no /v1
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+```
+
+#### Gemini
+
+```python
+import os
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    api_key=os.environ["MUBIT_API_KEY"],
+    http_options=types.HttpOptions(
+        base_url="https://api.mubit.ai/gemini",  # no /v1beta
+    ),
+)
+```
+
+Your model IDs stay the same.
+
+[Send your first call](/quickstart)
+
+## How it works
+
+1. [Connect](/quickstart): give your client Mubit's base URL and your Mubit key.
+2. [See your calls](/guides/requests): each call shows in **Requests**, with its request and reply.
+3. [Find tasks](/guides/tasks-and-sessions): calls with the same model, instructions, tools, tool choice and output format form a task.
+4. [Train and test an adapter](/guides/first-adapter): Mubit tests each adapter version against your provider model's answers, and you can compare a passing version in **Try models**.
+
+[Concepts](/concepts) explains each term.
+
+## Start from
+
+- **[Your app](/quickstart)** — Send one call with the OpenAI, Anthropic or Gemini SDK, or with curl.
+- **[A coding tool](/guides/coding-tools)** — Point Claude Code, Codex, Gemini CLI or Aider at Mubit.
+- **[Past traces](/guides/import-past-calls)** — Import past calls from Langfuse, Braintrust or Pydantic Logfire.
+
+## Good to know
+
+- Calls run on your provider key, or on the starter credit where it's offered. See [Provider keys](/admin/provider-keys).
+- The examples use the host `https://api.mubit.ai`. Use the base URL your console's Connect page shows.
+
+
+---
+
+<!-- /quickstart -->
+
+# Quickstart
+
+> Send one call through Mubit from your terminal, then find its request and reply in Requests.
+
+<!-- Auto-generated from pages/quickstart.mdx — do not edit by hand. -->
+
+Send one call through Mubit and find its request and reply in the console.
+
+**Before you start.** Run the example in a bash or zsh terminal on your computer or a server, not in a browser. You need Python 3.10+, Node.js 22+ or curl, and an inference key for your project. If you can't create keys or choose how calls are paid, ask an admin of your organization.
+
+## 1. Set up in the console
+
+Open [app.mubit.ai](https://app.mubit.ai/) and sign in. Complete the first-time setup if prompted.
+
+On **Get started**, create a Mubit key. It gets the permission **Inference: calls this project**. Copy it when shown, then set it in the terminal where you will run the example:
+
+```bash
+export MUBIT_API_KEY='YOUR_MUBIT_KEY'
+```
+
+Under **Choose how calls are paid**, select **Use the starter credit** if it's offered, or **Add your provider key**. The console names the providers the starter credit covers; for any other provider, add its API key. See [Provider-key setup](/admin/provider-keys).
+
+## 2. Send one call
+
+Choose your provider and language below. The example uses Mubit's base URL and your Mubit key; keep the model ID you want to call. Use the base URL your console's Connect page shows.
+
+> **Note:** **Mubit records request and reply content by default.** Use synthetic data for this example, and keep secrets out of prompts.
+
+#### OpenAI
+
+On the starter credit, use a model it serves, such as `gpt-6-luna`. For other models or options, add your own OpenAI key. See [On the starter credit](/guides/model-ids#on-the-starter-credit) and [Connect with the OpenAI SDK](/guides/connect-openai).
+
+##### Python
+
+Create a virtual environment and install the SDK:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install openai
+```
+
+Save this as `mubit-quickstart.py`:
+
+```python [mubit-quickstart.py]
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.mubit.ai/openai/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+
+response = client.chat.completions.create(
+    model="gpt-6-luna",
+    messages=[
+        {"role": "system", "content": instructions},
+        {"role": "user", "content": "I was charged twice for my October invoice."},
+    ],
+)
+print(response.choices[0].message.content)
+```
+
+Run it:
+
+```bash
+python mubit-quickstart.py
+```
+
+##### TypeScript
+
+Install the SDK and `tsx`, which runs TypeScript files:
+
+```bash
+npm install openai tsx
+```
+
+Save this as `mubit-quickstart.mts`. The `.mts` ending runs it as an ES module, which its top-level `await` needs.
+
+```ts [mubit-quickstart.mts]
+import OpenAI from "openai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new OpenAI({
+  baseURL: "https://api.mubit.ai/openai/v1",
+  apiKey,
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+
+const response = await client.chat.completions.create({
+  model: "gpt-6-luna",
+  messages: [
+    { role: "system", content: instructions },
+    { role: "user", content: "I was charged twice for my October invoice." },
+  ],
+});
+console.log(response.choices[0].message.content);
+```
+
+Run it:
+
+```bash
+npx tsx mubit-quickstart.mts
+```
+
+##### curl
+
+No install needed. Run this in the terminal where you set `MUBIT_API_KEY`:
+
+```bash [Terminal]
+curl https://api.mubit.ai/openai/v1/chat/completions \
+  -H "Authorization: Bearer $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-6-luna",
+    "messages": [
+      {"role": "system", "content": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."},
+      {"role": "user", "content": "I was charged twice for my October invoice."}
+    ]
+  }'
+```
+
+#### Anthropic
+
+On the starter credit, use a model it serves, such as `claude-haiku-4-5`. For other models or options, add your own Anthropic key. See [On the starter credit](/guides/model-ids#on-the-starter-credit) and [Connect with the Anthropic SDK](/guides/connect-anthropic).
+
+##### Python
+
+Create a virtual environment and install the SDK:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install anthropic
+```
+
+Save this as `mubit-quickstart.py`:
+
+```python [mubit-quickstart.py]
+import os
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="https://api.mubit.ai/anthropic",  # no /v1
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+
+message = client.messages.create(
+    model="claude-haiku-4-5",
+    max_tokens=64,
+    system=instructions,
+    messages=[
+        {"role": "user", "content": "I was charged twice for my October invoice."},
+    ],
+)
+print(message.content[0].text)
+```
+
+Run it:
+
+```bash
+python mubit-quickstart.py
+```
+
+##### TypeScript
+
+Install the SDK and `tsx`, which runs TypeScript files:
+
+```bash
+npm install @anthropic-ai/sdk tsx
+```
+
+Save this as `mubit-quickstart.mts`. The `.mts` ending runs it as an ES module, which its top-level `await` needs.
+
+```ts [mubit-quickstart.mts]
+import Anthropic from "@anthropic-ai/sdk";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new Anthropic({
+  baseURL: "https://api.mubit.ai/anthropic", // no /v1
+  apiKey,
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+
+const message = await client.messages.create({
+  model: "claude-haiku-4-5",
+  max_tokens: 64,
+  system: instructions,
+  messages: [
+    { role: "user", content: "I was charged twice for my October invoice." },
+  ],
+});
+for (const block of message.content) {
+  if (block.type === "text") console.log(block.text);
+}
+```
+
+Run it:
+
+```bash
+npx tsx mubit-quickstart.mts
+```
+
+##### curl
+
+No install needed. Run this in the terminal where you set `MUBIT_API_KEY`:
+
+```bash [Terminal]
+curl https://api.mubit.ai/anthropic/v1/messages \
+  -H "x-api-key: $MUBIT_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 64,
+    "system": "Sort the support message into one category: billing, bug, account or other. Reply with the category only.",
+    "messages": [
+      {"role": "user", "content": "I was charged twice for my October invoice."}
+    ]
+  }'
+```
+
+#### Gemini
+
+If the console doesn't list Gemini under the starter credit, add your Gemini key under **Provider keys** first. On the starter credit, use a model it serves, such as `gemini-3.8-flash`. See [On the starter credit](/guides/model-ids#on-the-starter-credit) and [Connect with Gemini](/guides/connect-gemini).
+
+##### Python
+
+Create a virtual environment and install the SDK:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install google-genai
+```
+
+Save this as `mubit-quickstart.py`:
+
+```python [mubit-quickstart.py]
+import os
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    api_key=os.environ["MUBIT_API_KEY"],
+    http_options=types.HttpOptions(
+        base_url="https://api.mubit.ai/gemini",  # no /v1beta
+    ),
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+
+response = client.models.generate_content(
+    model="gemini-3.8-flash",
+    contents="I was charged twice for my October invoice.",
+    config=types.GenerateContentConfig(system_instruction=instructions),
+)
+print(response.text)
+```
+
+Run it:
+
+```bash
+python mubit-quickstart.py
+```
+
+##### TypeScript
+
+Install the SDK and `tsx`, which runs TypeScript files:
+
+```bash
+npm install @google/genai tsx
+```
+
+Save this as `mubit-quickstart.mts`. The `.mts` ending runs it as an ES module, which its top-level `await` needs.
+
+```ts [mubit-quickstart.mts]
+import { GoogleGenAI } from "@google/genai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const ai = new GoogleGenAI({
+  apiKey,
+  httpOptions: { baseUrl: "https://api.mubit.ai/gemini" }, // no /v1beta
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+
+const response = await ai.models.generateContent({
+  model: "gemini-3.8-flash",
+  contents: "I was charged twice for my October invoice.",
+  config: { systemInstruction: instructions },
+});
+console.log(response.text);
+```
+
+Run it:
+
+```bash
+npx tsx mubit-quickstart.mts
+```
+
+##### curl
+
+No install needed. Run this in the terminal where you set `MUBIT_API_KEY`:
+
+```bash [Terminal]
+curl "https://api.mubit.ai/gemini/v1beta/models/gemini-3.8-flash:generateContent" \
+  -H "x-goog-api-key: $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "system_instruction": {"parts": [{"text": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."}]},
+    "contents": [{"parts": [{"text": "I was charged twice for my October invoice."}]}]
+  }'
+```
+
+## 3. Check the result
+
+For this support message, a successful reply should classify it as `billing`; exact output can vary.
+
+In the console, open **Requests** and select your newest call. Check its **Request**, **Reply** and **Served by** details. Only calls made through the configured client go through Mubit.
+
+If the call fails, use its error code to [find the fix](/troubleshooting).
+
+## Next
+
+- **[Create your first adapter](/guides/first-adapter)** — Send examples of one task, follow its training, and compare a passing version with your provider model.
+
+
+---
+
+<!-- /concepts -->
+
+# Concepts
+
+> How Mubit groups calls into tasks and uses kept examples to train and test adapters. Requests, tasks, kept examples, adapters, and the two kinds of key.
+
+<!-- Auto-generated from pages/concepts.mdx — do not edit by hand. -->
+
+Mubit groups similar calls into tasks and uses kept examples to train and test adapters.
+
+Not every call is kept, and not every version passes. Training also depends on the task's limits and eligibility.
+
+### The diagram in words
+
+Mubit groups recorded calls into tasks and selects kept examples. Once enough eligible examples are available and training can run, Mubit trains and tests an adapter version. A passing version can be compared in Try models. If a version is below target, review its results and provide more useful examples.
+
+## Four terms to know
+
+- **Request:** One call your app sends through Mubit. Recorded calls appear in **Requests**.
+- **Task:** A recurring kind of request. Calls with matching model, instructions, tools, tool choice, and output format form a task.
+- **Kept example:** A call Mubit accepts for training or testing. Not every recorded call becomes a kept example.
+- **Adapter:** A small model trained for one task. Each training creates a version, which Mubit tests against the provider model's answers.
+
+Once an adapter version passes its tests, you can compare it with your provider model in **Try models**. Passing a test does not guarantee suitability for every input; review representative examples from your application.
+
+## Two different keys
+
+Your app uses a **Mubit key** to call Mubit. Mubit uses a **provider API key** to call the provider, either through supported starter credit or your configured provider account.
+
+A **project** holds your calls, tasks, adapters, and keys. [Project administration](/admin/projects) is separate from this learning flow.
+
+**Next:** [Create your first adapter](/guides/first-adapter).
+
+For detail: [Tasks and sessions](/guides/tasks-and-sessions) · [Mubit keys](/admin/mubit-keys) · [Provider keys](/admin/provider-keys).
+
+
+---
+
+<!-- /guides/first-adapter -->
+
+# Create your first adapter
+
+> Send examples of one task, follow its training, read each version's test result, and compare a passing version with your provider model in Try models.
+
+<!-- Auto-generated from pages/guides/first-adapter.mdx — do not edit by hand. -->
+
+Send examples of one task, follow its training, and compare a passing adapter version with your provider model.
+
+**Before you start.** Complete the [Quickstart](/quickstart). You need your Mubit key in `MUBIT_API_KEY` and provider access. This example sends 40 calls: they use your provider account or the starter credit, and passing is not guaranteed. Training must be on for your workspace: until it is, the console shows no **Adapters** page. To ask about it, see [Get help](/troubleshooting#get-help).
+
+## 1. Send examples of one task
+
+Use the example below. It varies the support message while keeping the model and instructions the same as in the Quickstart.
+
+Not every call becomes a kept example. By default, a task first trains at 25 kept examples; the count your console shows is the source of truth.
+
+#### OpenAI
+
+##### Python
+
+Create a virtual environment and install the SDK:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install openai
+```
+
+Save this as `mubit-first-adapter.py`:
+
+```python [mubit-first-adapter.py]
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.mubit.ai/openai/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+templates = [
+    "I was charged twice for my {} plan this month.",
+    "The {} dashboard shows an error when I export a report.",
+    "How do I change the email address on my {} account?",
+    "Can I get a refund for the {} plan I cancelled yesterday?",
+    "The {} mobile app closes when I open settings.",
+    "I can't reset the password for my {} account.",
+    "Do you offer the {} plan to charities?",
+    "Where can I download last month's invoice for the {} plan?",
+]
+plans = ["Starter", "Team", "Business", "Enterprise", "Education"]
+
+# 8 messages x 5 plans: 40 calls of one task.
+for template in templates:
+    for plan in plans:
+        response = client.chat.completions.create(
+            model="gpt-6-luna",
+            messages=[
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": template.format(plan)},
+            ],
+        )
+        print(response.choices[0].message.content)
+```
+
+Run it:
+
+```bash
+python mubit-first-adapter.py
+```
+
+##### TypeScript
+
+Install the SDK and `tsx`, which runs TypeScript files:
+
+```bash
+npm install openai tsx
+```
+
+Save this as `mubit-first-adapter.mts`. The `.mts` ending runs it as an ES module, which its top-level `await` needs.
+
+```ts [mubit-first-adapter.mts]
+import OpenAI from "openai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new OpenAI({
+  baseURL: "https://api.mubit.ai/openai/v1",
+  apiKey,
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+const templates = [
+  "I was charged twice for my {} plan this month.",
+  "The {} dashboard shows an error when I export a report.",
+  "How do I change the email address on my {} account?",
+  "Can I get a refund for the {} plan I cancelled yesterday?",
+  "The {} mobile app closes when I open settings.",
+  "I can't reset the password for my {} account.",
+  "Do you offer the {} plan to charities?",
+  "Where can I download last month's invoice for the {} plan?",
+];
+const plans = ["Starter", "Team", "Business", "Enterprise", "Education"];
+
+// 8 messages x 5 plans: 40 calls of one task.
+for (const template of templates) {
+  for (const plan of plans) {
+    const response = await client.chat.completions.create({
+      model: "gpt-6-luna",
+      messages: [
+        { role: "system", content: instructions },
+        { role: "user", content: template.replace("{}", plan) },
+      ],
+    });
+    console.log(response.choices[0].message.content);
+  }
+}
+```
+
+Run it:
+
+```bash
+npx tsx mubit-first-adapter.mts
+```
+
+##### curl
+
+No install needed. Save this as `mubit-first-adapter.sh`. It prints each call's HTTP status.
+
+```bash [mubit-first-adapter.sh]
+templates=(
+  "I was charged twice for my %s plan this month."
+  "The %s dashboard shows an error when I export a report."
+  "How do I change the email address on my %s account?"
+  "Can I get a refund for the %s plan I cancelled yesterday?"
+  "The %s mobile app closes when I open settings."
+  "I can't reset the password for my %s account."
+  "Do you offer the %s plan to charities?"
+  "Where can I download last month's invoice for the %s plan?"
+)
+plans=(Starter Team Business Enterprise Education)
+
+for template in "${templates[@]}"; do
+  for plan in "${plans[@]}"; do
+    message=$(printf "$template" "$plan")
+    curl -sS -o /dev/null -w "%{http_code}\n" \
+      https://api.mubit.ai/openai/v1/chat/completions \
+      -H "Authorization: Bearer $MUBIT_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{"model": "gpt-6-luna", "messages": [
+        {"role": "system", "content": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."},
+        {"role": "user", "content": "'"$message"'"}]}'
+  done
+done
+```
+
+Run it in the terminal where you set `MUBIT_API_KEY`:
+
+```bash
+bash mubit-first-adapter.sh
+```
+
+#### Anthropic
+
+##### Python
+
+Create a virtual environment and install the SDK:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install anthropic
+```
+
+Save this as `mubit-first-adapter.py`:
+
+```python [mubit-first-adapter.py]
+import os
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="https://api.mubit.ai/anthropic",  # no /v1
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+templates = [
+    "I was charged twice for my {} plan this month.",
+    "The {} dashboard shows an error when I export a report.",
+    "How do I change the email address on my {} account?",
+    "Can I get a refund for the {} plan I cancelled yesterday?",
+    "The {} mobile app closes when I open settings.",
+    "I can't reset the password for my {} account.",
+    "Do you offer the {} plan to charities?",
+    "Where can I download last month's invoice for the {} plan?",
+]
+plans = ["Starter", "Team", "Business", "Enterprise", "Education"]
+
+# 8 messages x 5 plans: 40 calls of one task.
+for template in templates:
+    for plan in plans:
+        message = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=64,
+            system=instructions,
+            messages=[{"role": "user", "content": template.format(plan)}],
+        )
+        print(message.content[0].text)
+```
+
+Run it:
+
+```bash
+python mubit-first-adapter.py
+```
+
+##### TypeScript
+
+Install the SDK and `tsx`, which runs TypeScript files:
+
+```bash
+npm install @anthropic-ai/sdk tsx
+```
+
+Save this as `mubit-first-adapter.mts`. The `.mts` ending runs it as an ES module, which its top-level `await` needs.
+
+```ts [mubit-first-adapter.mts]
+import Anthropic from "@anthropic-ai/sdk";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new Anthropic({
+  baseURL: "https://api.mubit.ai/anthropic", // no /v1
+  apiKey,
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+const templates = [
+  "I was charged twice for my {} plan this month.",
+  "The {} dashboard shows an error when I export a report.",
+  "How do I change the email address on my {} account?",
+  "Can I get a refund for the {} plan I cancelled yesterday?",
+  "The {} mobile app closes when I open settings.",
+  "I can't reset the password for my {} account.",
+  "Do you offer the {} plan to charities?",
+  "Where can I download last month's invoice for the {} plan?",
+];
+const plans = ["Starter", "Team", "Business", "Enterprise", "Education"];
+
+// 8 messages x 5 plans: 40 calls of one task.
+for (const template of templates) {
+  for (const plan of plans) {
+    const message = await client.messages.create({
+      model: "claude-haiku-4-5",
+      max_tokens: 64,
+      system: instructions,
+      messages: [{ role: "user", content: template.replace("{}", plan) }],
+    });
+    for (const block of message.content) {
+      if (block.type === "text") console.log(block.text);
+    }
+  }
+}
+```
+
+Run it:
+
+```bash
+npx tsx mubit-first-adapter.mts
+```
+
+##### curl
+
+No install needed. Save this as `mubit-first-adapter.sh`. It prints each call's HTTP status.
+
+```bash [mubit-first-adapter.sh]
+templates=(
+  "I was charged twice for my %s plan this month."
+  "The %s dashboard shows an error when I export a report."
+  "How do I change the email address on my %s account?"
+  "Can I get a refund for the %s plan I cancelled yesterday?"
+  "The %s mobile app closes when I open settings."
+  "I can't reset the password for my %s account."
+  "Do you offer the %s plan to charities?"
+  "Where can I download last month's invoice for the %s plan?"
+)
+plans=(Starter Team Business Enterprise Education)
+
+for template in "${templates[@]}"; do
+  for plan in "${plans[@]}"; do
+    message=$(printf "$template" "$plan")
+    curl -sS -o /dev/null -w "%{http_code}\n" \
+      https://api.mubit.ai/anthropic/v1/messages \
+      -H "x-api-key: $MUBIT_API_KEY" \
+      -H "anthropic-version: 2023-06-01" \
+      -H "content-type: application/json" \
+      -d '{"model": "claude-haiku-4-5", "max_tokens": 64,
+        "system": "Sort the support message into one category: billing, bug, account or other. Reply with the category only.",
+        "messages": [{"role": "user", "content": "'"$message"'"}]}'
+  done
+done
+```
+
+Run it in the terminal where you set `MUBIT_API_KEY`:
+
+```bash
+bash mubit-first-adapter.sh
+```
+
+#### Gemini
+
+If the console doesn't list Gemini under the starter credit, add your Gemini key under **Provider keys** first, as the [Provider keys](/admin/provider-keys) page shows.
+
+##### Python
+
+Create a virtual environment and install the SDK:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install google-genai
+```
+
+Save this as `mubit-first-adapter.py`:
+
+```python [mubit-first-adapter.py]
+import os
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    api_key=os.environ["MUBIT_API_KEY"],
+    http_options=types.HttpOptions(
+        base_url="https://api.mubit.ai/gemini",  # no /v1beta
+    ),
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+templates = [
+    "I was charged twice for my {} plan this month.",
+    "The {} dashboard shows an error when I export a report.",
+    "How do I change the email address on my {} account?",
+    "Can I get a refund for the {} plan I cancelled yesterday?",
+    "The {} mobile app closes when I open settings.",
+    "I can't reset the password for my {} account.",
+    "Do you offer the {} plan to charities?",
+    "Where can I download last month's invoice for the {} plan?",
+]
+plans = ["Starter", "Team", "Business", "Enterprise", "Education"]
+
+# 8 messages x 5 plans: 40 calls of one task.
+for template in templates:
+    for plan in plans:
+        response = client.models.generate_content(
+            model="gemini-3.8-flash",
+            contents=template.format(plan),
+            config=types.GenerateContentConfig(system_instruction=instructions),
+        )
+        print(response.text)
+```
+
+Run it:
+
+```bash
+python mubit-first-adapter.py
+```
+
+##### TypeScript
+
+Install the SDK and `tsx`, which runs TypeScript files:
+
+```bash
+npm install @google/genai tsx
+```
+
+Save this as `mubit-first-adapter.mts`. The `.mts` ending runs it as an ES module, which its top-level `await` needs.
+
+```ts [mubit-first-adapter.mts]
+import { GoogleGenAI } from "@google/genai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const ai = new GoogleGenAI({
+  apiKey,
+  httpOptions: { baseUrl: "https://api.mubit.ai/gemini" }, // no /v1beta
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+const templates = [
+  "I was charged twice for my {} plan this month.",
+  "The {} dashboard shows an error when I export a report.",
+  "How do I change the email address on my {} account?",
+  "Can I get a refund for the {} plan I cancelled yesterday?",
+  "The {} mobile app closes when I open settings.",
+  "I can't reset the password for my {} account.",
+  "Do you offer the {} plan to charities?",
+  "Where can I download last month's invoice for the {} plan?",
+];
+const plans = ["Starter", "Team", "Business", "Enterprise", "Education"];
+
+// 8 messages x 5 plans: 40 calls of one task.
+for (const template of templates) {
+  for (const plan of plans) {
+    const response = await ai.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: template.replace("{}", plan),
+      config: { systemInstruction: instructions },
+    });
+    console.log(response.text);
+  }
+}
+```
+
+Run it:
+
+```bash
+npx tsx mubit-first-adapter.mts
+```
+
+##### curl
+
+No install needed. Save this as `mubit-first-adapter.sh`. It prints each call's HTTP status.
+
+```bash [mubit-first-adapter.sh]
+templates=(
+  "I was charged twice for my %s plan this month."
+  "The %s dashboard shows an error when I export a report."
+  "How do I change the email address on my %s account?"
+  "Can I get a refund for the %s plan I cancelled yesterday?"
+  "The %s mobile app closes when I open settings."
+  "I can't reset the password for my %s account."
+  "Do you offer the %s plan to charities?"
+  "Where can I download last month's invoice for the %s plan?"
+)
+plans=(Starter Team Business Enterprise Education)
+
+for template in "${templates[@]}"; do
+  for plan in "${plans[@]}"; do
+    message=$(printf "$template" "$plan")
+    curl -sS -o /dev/null -w "%{http_code}\n" \
+      "https://api.mubit.ai/gemini/v1beta/models/gemini-3.8-flash:generateContent" \
+      -H "x-goog-api-key: $MUBIT_API_KEY" \
+      -H "content-type: application/json" \
+      -d '{"system_instruction": {"parts": [{"text": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."}]},
+        "contents": [{"parts": [{"text": "'"$message"'"}]}]}'
+  done
+done
+```
+
+Run it in the terminal where you set `MUBIT_API_KEY`:
+
+```bash
+bash mubit-first-adapter.sh
+```
+
+## 2. Follow the task
+
+Open **Tasks** and find the task created from these calls. Its name comes from the first words of the instructions. Watch its status, `Collecting examples` at first, and its kept-example count, such as `12 of 25 examples`.
+
+If it needs more examples, send new messages for the same task. When it has enough and can train, Mubit reviews the examples, trains an adapter version and tests it: the status reads `Reviewing examples`, `Training`, then `Testing`.
+
+If progress stops, open the task and read the reason. [Why a task is waiting or cannot train](#waits-and-recovery) explains waits and failed training.
+
+## 3. Check the result
+
+Open **Adapters**, select the adapter, and open **History**. A `Passed` result makes that version available for comparison. `Below target` means its answers did not meet the required test result.
+
+Read the result details before you decide what to add or change. A test result measures this version on its test cases; it does not guarantee every future answer. [What each test result means](#test-results) lists every result and what to do.
+
+## 4. Compare with your provider
+
+For a passing version, select **Compare with your provider**. **Try models** opens with **Side by side** on. Enter only the message, as your app's users would write it: Try models adds the task's instructions. Then select **Send to both**.
+
+Compare the provider model's reply, on the left, with your adapter's, on the right. Try models marks its calls `not stored · trains nothing`: they don't appear in **Requests** and don't train adapters. The first start of an adapter can take a few minutes.
+
+If no version has passed, go back to [What each test result means](#test-results). If the adapter isn't in Try models, see [Why an adapter is unavailable in Try models](#try-models-unavailable).
+
+To follow your requests, tasks and adapters over time, open **Overview** in the console.
+
+## Results and recovery
+
+### What each test result means
+
+Each version gets one test result: `Passed`, `Below target`, `Malformed tool calls`, `Prompt only` or `Not tested`. Select the adapter, then open **History**. Each version's row shows its test result:
+
+| Result | What it means | What to do |
+| --- | --- | --- |
+| `Passed` | The version answers close enough to your provider model. On **Overview**, the adapter's line reads `v1 passed its tests`. | [Compare it in Try models](#4-compare-with-your-provider). |
+| `Below target` | The version answers less like your provider model than it needs to. The line says by how much, such as `Matched {a}% of your provider model's answers on {n} test cases · needs {need}%`, or `Passed {a}% of {n} required test cases · needs 100%`. | Send more calls of the task. See [After a version that didn't pass](#after-a-version-that-didnt-pass). |
+| `Malformed tool calls` | Some of the version's tool calls were malformed: `{k} of {n} tool calls were malformed · needs 0`. | Send more calls of the task. |
+| `Prompt only` | The base model, the open model the adapter is built on, did as well as the adapter when given the task's prompt. | A prompt-only version can't be tried in Try models. Send more calls of the task for a new version. |
+| `Not tested` | The version has no test result. When Mubit gives a reason, it shows when you point at the result. | Send more calls of the task for a new version. |
+
+While Mubit grades a version, the adapter's line reads `Waiting for grading on {k} test cases`. While the newest version is below its target, the adapter's card reads `Not ready yet`.
+
+### Why a task is waiting or cannot train
+
+#### Waits
+
+A task can wait before it trains. Point at its status on **Tasks** to see the wait, or open the task: its page says it in words.
+
+| Wait | Why | What to do |
+| --- | --- | --- |
+| `Waiting: today's training limit` | Today's training limit is reached. It resets at 00:00 UTC. | Nothing. Training starts after the reset. |
+| `Waiting: the pause between trainings` | Mubit pauses between two trainings. | Nothing. Training starts after the pause. |
+| `Waiting for more examples: {k} of {need}` | The task has too few examples to keep some back as test cases. | Send more calls with new messages. |
+| `Waiting for new examples` | A training failed. Mubit tries again when new examples arrive. It does not retry the same ones. | Send more calls with new messages. |
+
+#### Can't train
+
+When a task's first training fails, its status reads `Can't train`, and the task's page reads `No adapter yet:` and the reason:
+
+| Reason | What to do |
+| --- | --- |
+| `too few examples to train on` | Send more calls with new messages. |
+| `examples too long to train on` | Send calls with shorter requests and answers. |
+| `the training run failed` | Send more calls with new messages. |
+| `the first training stopped` | Send more calls with new messages. |
+
+There is no button that retries a training. After a failed training, Mubit tries again only when new examples arrive, so recovery means sending new calls of the task.
+
+#### After a version that didn't pass
+
+Under a version that didn't pass, the adapter shows what happens next:
+
+- `Next: a new version after {need} new examples`: the task trains a new version once that many new examples arrive. Send more calls of the task.
+- `Next: retraining paused: {reason}`: the reason says why the task doesn't retrain now.
+
+A version whose training failed reads `Training failed`.
+
+### Why an adapter is unavailable in Try models
+
+Try models runs provider models on Mubit's key. Your organization has a number of Try models calls each day: the page shows how many are left, and the count resets at 00:00 UTC.
+
+| What you see | Why | What to do |
+| --- | --- | --- |
+| No **Compare with your provider** on the adapter | No version of the adapter has passed its tests. | Follow the task until a version passes. See [What each test result means](#test-results). |
+| `Not in Try models: prompt only` | The version's result is `Prompt only`: the base model with the task's prompt did as well as the adapter. | Send more calls of the task for a new version. |
+| `Not in Try models yet` | Try models can't run adapters in this workspace yet. | Nothing to do in the console. To ask about it, see [Get help](/troubleshooting#get-help). |
+| `Not in Try models: its base model isn't served here` | Try models doesn't serve the base model this adapter is built on. | Nothing to do in the console. To ask about it, see [Get help](/troubleshooting#get-help). |
+| `Try models is off` | Try models is not switched on for this workspace. | Nothing to do in the console. To ask about it, see [Get help](/troubleshooting#get-help). |
+| `Your organization has used today's Try models calls. Try again after 00:00 UTC.` | Your organization has used its Try models calls for the day. | Wait until 00:00 UTC. |
+| `Try models has reached today's limit for this workspace. Try again after 00:00 UTC.` | The workspace has reached its Try models limit for the day. | Wait until 00:00 UTC. |
+| `Starting your adapter. The first try takes a few minutes. Keep this page open.` | The adapter is starting. | Keep the page open: it sends your message again every 15 s, for up to 20 minutes. |
+| `Your adapter didn't start. Try again later, or choose a provider model.` | The adapter didn't start, or your organization has used its 3 adapter starts for this UTC day. | Try again later, or choose a provider model. |
+
+## Next
+
+- **[Understand tasks and sessions](/guides/tasks-and-sessions)** — What makes a task, and how to group a conversation's calls into one session.
+
+
+---
+
+<!-- /guides/connect-openai -->
+
+# Connect with the OpenAI SDK
+
+> Point the OpenAI SDK at Mubit with a new base URL and your Mubit key, send a call, stream an answer, and find the call in Requests.
+
+<!-- Auto-generated from pages/guides/connect-openai.mdx — do not edit by hand. -->
+
+In an SDK, update where you create your client: give it Mubit's base URL and your Mubit key. With curl, change the URL and the key in its header. Keep your model IDs and the rest of your code.
+
+## Base URL
+
+The base URL is `https://api.mubit.ai/openai/v1`. It ends in `/v1`, as the OpenAI SDK expects.
+
+Use the base URL your console's Connect page shows.
+
+## Key
+
+Pass your Mubit key as the SDK's API key. The SDK sends it in the `Authorization: Bearer` header.
+
+The examples read the key from `MUBIT_API_KEY`. To create a key and set it, follow [step 1 of the Quickstart](/quickstart#1-set-up-in-the-console).
+
+## Send a call
+
+Install the SDK: `pip install openai` for Python, or `npm install openai` for TypeScript.
+
+```python [Python]
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.mubit.ai/openai/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+
+response = client.chat.completions.create(
+    model="gpt-6-luna",
+    messages=[
+        {"role": "system", "content": instructions},
+        {"role": "user", "content": "I was charged twice for my October invoice."},
+    ],
+)
+print(response.choices[0].message.content)
+```
+
+```ts [TypeScript]
+import OpenAI from "openai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new OpenAI({
+  baseURL: "https://api.mubit.ai/openai/v1",
+  apiKey,
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+
+const response = await client.chat.completions.create({
+  model: "gpt-6-luna",
+  messages: [
+    { role: "system", content: instructions },
+    { role: "user", content: "I was charged twice for my October invoice." },
+  ],
+});
+console.log(response.choices[0].message.content);
+```
+
+```bash [curl]
+curl https://api.mubit.ai/openai/v1/chat/completions \
+  -H "Authorization: Bearer $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-6-luna",
+    "messages": [
+      {"role": "system", "content": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."},
+      {"role": "user", "content": "I was charged twice for my October invoice."}
+    ]
+  }'
+```
+
+The TypeScript examples use top-level `await`, so run them as ES modules: save the file as `openai.mts` and run `npx tsx openai.mts`, or add `"type": "module"` to your `package.json`.
+
+Chat Completions and Responses both work through the same base URL.
+
+## Stream the answer
+
+Set `stream` to true. Mubit streams the answer back to your app.
+
+```python [Python]
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.mubit.ai/openai/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+stream = client.chat.completions.create(
+    model="gpt-6-luna",
+    messages=[
+        {"role": "system", "content": "Reply to the support message in two short sentences."},
+        {"role": "user", "content": "I was charged twice for my October invoice."},
+    ],
+    stream=True,
+)
+for chunk in stream:
+    if chunk.choices and chunk.choices[0].delta.content:
+        print(chunk.choices[0].delta.content, end="", flush=True)
+print()
+```
+
+```ts [TypeScript]
+import OpenAI from "openai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new OpenAI({
+  baseURL: "https://api.mubit.ai/openai/v1",
+  apiKey,
+});
+
+const stream = await client.chat.completions.create({
+  model: "gpt-6-luna",
+  messages: [
+    { role: "system", content: "Reply to the support message in two short sentences." },
+    { role: "user", content: "I was charged twice for my October invoice." },
+  ],
+  stream: true,
+});
+for await (const chunk of stream) {
+  process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
+}
+process.stdout.write("\n");
+```
+
+```bash [curl]
+curl -N https://api.mubit.ai/openai/v1/chat/completions \
+  -H "Authorization: Bearer $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-6-luna",
+    "stream": true,
+    "messages": [
+      {"role": "system", "content": "Reply to the support message in two short sentences."},
+      {"role": "user", "content": "I was charged twice for my October invoice."}
+    ]
+  }'
+```
+
+`curl -N` prints each event as it arrives.
+
+## Or set the SDK's environment variables
+
+The OpenAI SDK reads its base URL and key from the environment when your code doesn't pass them. To point an app at Mubit without a code change, set these two variables where it runs:
+
+```bash
+export OPENAI_BASE_URL=https://api.mubit.ai/openai/v1
+export OPENAI_API_KEY="$MUBIT_API_KEY"
+```
+
+## See the call in Requests
+
+1. In the console, open **Requests**.
+2. Find your call at the top. The list is newest first.
+3. Check **Model asked**. It shows the model ID your app sent.
+4. Select the row. The call opens with its **Request** and its **Reply**.
+
+A streamed call shows its whole reply.
+
+## What Mubit forwards and trains on
+
+- **Forwarded:** when Mubit sends a call on to OpenAI, it sends your request with your OpenAI key, or the starter credit's key, in place of your Mubit key. It doesn't pass on cookies, `x-middleware-store` or `x-middleware-record`. On the starter credit, some models, paths and options are refused: see [Starter credit errors](/troubleshooting#starter-credit-errors).
+- **Trained on:** adapters train only on kept examples: the recorded calls Mubit accepts for a task. A call recorded without its request and reply is never a kept example.
+
+## Frameworks and coding tools
+
+[Frameworks](/guides/frameworks) covers the Vercel AI SDK, LangChain and the OpenAI Agents SDK, and [Coding tools](/guides/coding-tools) covers Codex and Aider. Turn the Agents SDK's tracing off first, as Frameworks shows: with it on, the SDK can send your Mubit key to OpenAI.
+
+## If a call fails
+
+The error names its code. [Troubleshooting](/troubleshooting) lists the codes and what to do. Each answer carries the call's ID in the `x-middleware-request-id` header: see [Find a call's request ID](/guides/requests#find-a-calls-request-id).
+
+## Next
+
+- [Keep your model IDs](/guides/model-ids)
+- [Tasks and sessions](/guides/tasks-and-sessions)
+- [Provider keys](/admin/provider-keys)
+
+
+---
+
+<!-- /guides/connect-anthropic -->
+
+# Connect with the Anthropic SDK
+
+> Point the Anthropic SDK at Mubit with a new base URL and your Mubit key, send a call, stream an answer, and find the call in Requests.
+
+<!-- Auto-generated from pages/guides/connect-anthropic.mdx — do not edit by hand. -->
+
+In an SDK, update where you create your client: give it Mubit's base URL and your Mubit key. With curl, change the URL and the key in its header. Keep your model IDs and the rest of your code.
+
+## Base URL
+
+The base URL is `https://api.mubit.ai/anthropic`. Leave `/v1` off the end: the Anthropic SDK adds it.
+
+Use the base URL your console's Connect page shows.
+
+## Key
+
+Pass your Mubit key as the SDK's API key. The SDK sends it in the `x-api-key` header. Mubit also reads it from `Authorization: Bearer`.
+
+The examples read the key from `MUBIT_API_KEY`. To create a key and set it, follow [step 1 of the Quickstart](/quickstart#1-set-up-in-the-console).
+
+> **Note:** Send your Mubit key only. If `ANTHROPIC_AUTH_TOKEN` holds another credential, the Anthropic SDKs can send it beside your key, and Mubit refuses the call with a `401`. Unset it, or set it to your Mubit key.
+
+## Send a call
+
+Install the SDK: `pip install anthropic` for Python, or `npm install @anthropic-ai/sdk` for TypeScript.
+
+```python [Python]
+import os
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="https://api.mubit.ai/anthropic",  # no /v1
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+
+message = client.messages.create(
+    model="claude-haiku-4-5",
+    max_tokens=64,
+    system=instructions,
+    messages=[
+        {"role": "user", "content": "I was charged twice for my October invoice."},
+    ],
+)
+print(message.content[0].text)
+```
+
+```ts [TypeScript]
+import Anthropic from "@anthropic-ai/sdk";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new Anthropic({
+  baseURL: "https://api.mubit.ai/anthropic", // no /v1
+  apiKey,
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+
+const message = await client.messages.create({
+  model: "claude-haiku-4-5",
+  max_tokens: 64,
+  system: instructions,
+  messages: [
+    { role: "user", content: "I was charged twice for my October invoice." },
+  ],
+});
+for (const block of message.content) {
+  if (block.type === "text") console.log(block.text);
+}
+```
+
+```bash [curl]
+curl https://api.mubit.ai/anthropic/v1/messages \
+  -H "x-api-key: $MUBIT_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 64,
+    "system": "Sort the support message into one category: billing, bug, account or other. Reply with the category only.",
+    "messages": [
+      {"role": "user", "content": "I was charged twice for my October invoice."}
+    ]
+  }'
+```
+
+The TypeScript examples use top-level `await`, so run them as ES modules: save the file as `anthropic.mts` and run `npx tsx anthropic.mts`, or add `"type": "module"` to your `package.json`.
+
+## Stream the answer
+
+Use the SDK's `stream` helper, or set `stream` to true. Mubit streams the answer back to your app.
+
+```python [Python]
+import os
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="https://api.mubit.ai/anthropic",  # no /v1
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+with client.messages.stream(
+    model="claude-haiku-4-5",
+    max_tokens=256,
+    system="Reply to the support message in two short sentences.",
+    messages=[
+        {"role": "user", "content": "I was charged twice for my October invoice."},
+    ],
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+print()
+```
+
+```ts [TypeScript]
+import Anthropic from "@anthropic-ai/sdk";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new Anthropic({
+  baseURL: "https://api.mubit.ai/anthropic", // no /v1
+  apiKey,
+});
+
+const stream = client.messages.stream({
+  model: "claude-haiku-4-5",
+  max_tokens: 256,
+  system: "Reply to the support message in two short sentences.",
+  messages: [
+    { role: "user", content: "I was charged twice for my October invoice." },
+  ],
+});
+stream.on("text", (text) => process.stdout.write(text));
+await stream.finalMessage();
+process.stdout.write("\n");
+```
+
+```bash [curl]
+curl -N https://api.mubit.ai/anthropic/v1/messages \
+  -H "x-api-key: $MUBIT_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 256,
+    "stream": true,
+    "system": "Reply to the support message in two short sentences.",
+    "messages": [
+      {"role": "user", "content": "I was charged twice for my October invoice."}
+    ]
+  }'
+```
+
+`curl -N` prints each event as it arrives.
+
+## Or set the SDK's environment variables
+
+The Anthropic SDK reads its base URL and key from the environment when your code doesn't pass them. To point an app at Mubit without a code change, set these two variables where it runs:
+
+```bash
+export ANTHROPIC_BASE_URL=https://api.mubit.ai/anthropic
+export ANTHROPIC_API_KEY="$MUBIT_API_KEY"
+unset ANTHROPIC_AUTH_TOKEN
+```
+
+The SDKs can send `ANTHROPIC_AUTH_TOKEN` beside the key, so the last line unsets it. Another credential left there would make Mubit refuse the call.
+
+## See the call in Requests
+
+1. In the console, open **Requests**.
+2. Find your call at the top. The list is newest first.
+3. Check **Model asked**. It shows the model ID your app sent.
+4. Select the row. The call opens with its **Request** and its **Reply**.
+
+A streamed call shows its whole reply.
+
+## What Mubit forwards and trains on
+
+- **Forwarded:** when Mubit sends a call on to Anthropic, it sends your request with your Anthropic key, or the starter credit's key, in place of your Mubit key. Headers such as `anthropic-version` and `anthropic-beta` go on as you sent them. Cookies, `x-middleware-store` and `x-middleware-record` don't. On the starter credit, some models, paths and options are refused: see [Starter credit errors](/troubleshooting#starter-credit-errors).
+- **Trained on:** adapters train only on kept examples: the recorded calls Mubit accepts for a task. A call recorded without its request and reply is never a kept example.
+
+## Frameworks and coding tools
+
+[Frameworks](/guides/frameworks) covers the Vercel AI SDK and LangChain, and [Coding tools](/guides/coding-tools) covers Claude Code.
+
+## If a call fails
+
+The error names its code. [Troubleshooting](/troubleshooting) lists the codes and what to do. Each answer carries the call's ID in the `x-middleware-request-id` header: see [Find a call's request ID](/guides/requests#find-a-calls-request-id).
+
+## Next
+
+- [Keep your model IDs](/guides/model-ids)
+- [Tasks and sessions](/guides/tasks-and-sessions)
+- [Provider keys](/admin/provider-keys)
+
+
+---
+
+<!-- /guides/connect-gemini -->
+
+# Connect with Gemini
+
+> Point the Google Gen AI SDK at Mubit with a new base URL and your Mubit key, send a call, stream an answer, and find the call in Requests.
+
+<!-- Auto-generated from pages/guides/connect-gemini.mdx — do not edit by hand. -->
+
+In an SDK, update where you create your client: give it Mubit's base URL and your Mubit key. With curl, change the URL and the key in its header. Keep your model IDs and the rest of your code.
+
+> **Note:** If the console doesn't list Gemini under the starter credit, add your Gemini key under **Provider keys** first, as the [Provider keys](/admin/provider-keys) page shows.
+
+## Base URL
+
+The base URL is `https://api.mubit.ai/gemini`. Leave the version path off the end: the SDK adds `/v1beta`.
+
+Use the base URL your console's Connect page shows.
+
+## Key
+
+Pass your Mubit key as the SDK's API key. The SDK sends it in the `x-goog-api-key` header. If you call the API without the SDK, send the key in `x-goog-api-key` too, not in `?key=`.
+
+The examples read the key from `MUBIT_API_KEY`. To create a key and set it, follow [step 1 of the Quickstart](/quickstart#1-set-up-in-the-console).
+
+## Send a call
+
+Install the SDK: `pip install google-genai` for Python, or `npm install @google/genai` for TypeScript.
+
+```python [Python]
+import os
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    api_key=os.environ["MUBIT_API_KEY"],
+    http_options=types.HttpOptions(
+        base_url="https://api.mubit.ai/gemini",  # no /v1beta
+    ),
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+
+response = client.models.generate_content(
+    model="gemini-3.8-flash",
+    contents="I was charged twice for my October invoice.",
+    config=types.GenerateContentConfig(system_instruction=instructions),
+)
+print(response.text)
+```
+
+```ts [TypeScript]
+import { GoogleGenAI } from "@google/genai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const ai = new GoogleGenAI({
+  apiKey,
+  httpOptions: { baseUrl: "https://api.mubit.ai/gemini" }, // no /v1beta
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+
+const response = await ai.models.generateContent({
+  model: "gemini-3.8-flash",
+  contents: "I was charged twice for my October invoice.",
+  config: { systemInstruction: instructions },
+});
+console.log(response.text);
+```
+
+```bash [curl]
+curl "https://api.mubit.ai/gemini/v1beta/models/gemini-3.8-flash:generateContent" \
+  -H "x-goog-api-key: $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "system_instruction": {"parts": [{"text": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."}]},
+    "contents": [{"parts": [{"text": "I was charged twice for my October invoice."}]}]
+  }'
+```
+
+The TypeScript examples use top-level `await`, so run them as ES modules: save the file as `gemini.mts` and run `npx tsx gemini.mts`, or add `"type": "module"` to your `package.json`.
+
+If the call answers `403 provider_key_missing`, your project has no Gemini key yet.
+
+## Stream the answer
+
+Use the SDK's stream method, or call `:streamGenerateContent`. Mubit streams the answer back to your app.
+
+```python [Python]
+import os
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    api_key=os.environ["MUBIT_API_KEY"],
+    http_options=types.HttpOptions(
+        base_url="https://api.mubit.ai/gemini",  # no /v1beta
+    ),
+)
+
+for chunk in client.models.generate_content_stream(
+    model="gemini-3.8-flash",
+    contents="I was charged twice for my October invoice.",
+    config=types.GenerateContentConfig(
+        system_instruction="Reply to the support message in two short sentences.",
+    ),
+):
+    print(chunk.text or "", end="", flush=True)
+print()
+```
+
+```ts [TypeScript]
+import { GoogleGenAI } from "@google/genai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const ai = new GoogleGenAI({
+  apiKey,
+  httpOptions: { baseUrl: "https://api.mubit.ai/gemini" }, // no /v1beta
+});
+
+const stream = await ai.models.generateContentStream({
+  model: "gemini-3.8-flash",
+  contents: "I was charged twice for my October invoice.",
+  config: { systemInstruction: "Reply to the support message in two short sentences." },
+});
+for await (const chunk of stream) {
+  process.stdout.write(chunk.text ?? "");
+}
+process.stdout.write("\n");
+```
+
+```bash [curl]
+curl -N "https://api.mubit.ai/gemini/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse" \
+  -H "x-goog-api-key: $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "system_instruction": {"parts": [{"text": "Reply to the support message in two short sentences."}]},
+    "contents": [{"parts": [{"text": "I was charged twice for my October invoice."}]}]
+  }'
+```
+
+With `?alt=sse`, the answer comes as server-sent events. `curl -N` prints each event as it arrives.
+
+## Or set the SDK's environment variables
+
+The Gemini SDKs read their base URL and key from the environment when your code doesn't pass them. To point an app at Mubit without a code change, run these lines in the shell where the app runs:
+
+```bash
+export GOOGLE_GEMINI_BASE_URL=https://api.mubit.ai/gemini
+export GEMINI_API_KEY="$MUBIT_API_KEY"
+unset GOOGLE_API_KEY
+```
+
+The SDKs use `GOOGLE_API_KEY` before `GEMINI_API_KEY`, so the last line unsets it. A Google key left in the shell would go out in place of your Mubit key.
+
+## See the call in Requests
+
+1. In the console, open **Requests**.
+2. Find your call at the top. The list is newest first.
+3. Check **Model asked**. It shows the model ID from your call.
+4. Select the row. The call opens with its **Request** and its **Reply**.
+
+A streamed call shows its whole reply.
+
+## What Mubit forwards and trains on
+
+- **Forwarded:** when Mubit sends a call on to Gemini, it sends your request with your Gemini key, or the starter credit's key, in place of your Mubit key. It doesn't pass on cookies, `x-middleware-store` or `x-middleware-record`.
+- **Trained on:** adapters train only on kept examples: the recorded calls Mubit accepts for a task. A call recorded without its request and reply is never a kept example.
+
+## Frameworks and coding tools
+
+[Frameworks](/guides/frameworks) covers the Vercel AI SDK, and [Coding tools](/guides/coding-tools) covers Gemini CLI. To call Gemini through the OpenAI SDK, use the base URL `https://api.mubit.ai/gemini/v1beta/openai`. On the starter credit, this base URL gets `403 starter_credit_route`: add your own Gemini key to use it.
+
+## If a call fails
+
+The error names its code. [Troubleshooting](/troubleshooting) lists the codes and what to do. Each answer carries the call's ID in the `x-middleware-request-id` header: see [Find a call's request ID](/guides/requests#find-a-calls-request-id).
+
+## Next
+
+- [Keep your model IDs](/guides/model-ids)
+- [Tasks and sessions](/guides/tasks-and-sessions)
+- [Provider keys](/admin/provider-keys)
+
+
+---
+
+<!-- /guides/connect-http -->
+
+# Connect with plain HTTP
+
+> The paths, keys and headers of the Mubit API for apps that call it without an SDK.
+
+<!-- Auto-generated from pages/guides/connect-http.mdx — do not edit by hand. -->
+
+Mubit takes each provider's own requests. Send the request you send today to Mubit's host, under the provider's prefix, with your Mubit key in place of the provider key.
+
+The [API reference](/reference/api) has all of it in one place, with limits, retries and sizes.
+
+## Host
+
+The host is `https://api.mubit.ai`. Use the base URL your console's Connect page shows.
+
+## Paths
+
+Each provider has a prefix. After it, use the provider's own path.
+
+| Provider | Prefix | Examples |
+| --- | --- | --- |
+| OpenAI | `/openai/v1` | `POST /openai/v1/chat/completions`, `POST /openai/v1/responses`, `POST /openai/v1/embeddings`, `GET /openai/v1/models` |
+| Anthropic | `/anthropic` | `POST /anthropic/v1/messages`, `POST /anthropic/v1/messages/count_tokens`, `GET /anthropic/v1/models` |
+| Gemini | `/gemini` | `POST /gemini/v1beta/models/{model}:generateContent`, `POST /gemini/v1beta/models/{model}:streamGenerateContent?alt=sse`, `GET /gemini/v1beta/models` |
+| OpenAI-compatible services | `/compat/{service}/v1` | `POST /compat/openrouter/v1/chat/completions` |
+
+For OpenAI-compatible services, see [OpenAI-compatible services](/guides/openai-compatible). For the base URL each SDK takes, see [Paths](/reference/api#paths) in the API reference.
+
+A path outside these prefixes gets `404 unknown_route`. Organization and admin endpoints are not available through Mubit: they get `403 admin_path_refused`.
+
+> **Note:** The starter credit serves fewer paths. After the prefix: on Anthropic, `/v1/messages`, `/v1/messages/count_tokens` and `/v1/models`; on OpenAI, `/chat/completions`, `/responses`, `/embeddings` and `/models`; on Gemini, `/{version}/models/{model}:generateContent` and `:streamGenerateContent`, where `{version}` is a version such as `v1beta` or `v1`; on an OpenAI-compatible service, `/chat/completions` and `/models`. Any other path gets `403 starter_credit_route` until you add your own key for that provider. The starter credit covers only the providers the console names.
+
+## Key
+
+Send your Mubit key in the header your provider uses for its key:
+
+| Provider | Header |
+| --- | --- |
+| OpenAI and OpenAI-compatible services | `Authorization: Bearer YOUR_MUBIT_KEY` |
+| Anthropic | `x-api-key: YOUR_MUBIT_KEY`, or `Authorization: Bearer YOUR_MUBIT_KEY` |
+| Gemini | `x-goog-api-key: YOUR_MUBIT_KEY` |
+
+Send one key, and only your Mubit key. Mubit refuses a call that carries a provider key, a sign-in token, or a second, different key, with a `401`. For Gemini, send the key in the header, not in `?key=`.
+
+## Examples
+
+Each example sends one support message and prints the answer with its headers (`-i`).
+
+```bash [OpenAI]
+curl -i https://api.mubit.ai/openai/v1/chat/completions \
+  -H "Authorization: Bearer $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-6-luna",
+    "messages": [
+      {"role": "system", "content": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."},
+      {"role": "user", "content": "The export button on my dashboard shows an error."}
+    ]
+  }'
+```
+
+```bash [Anthropic]
+curl -i https://api.mubit.ai/anthropic/v1/messages \
+  -H "x-api-key: $MUBIT_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "claude-haiku-4-5",
+    "max_tokens": 64,
+    "system": "Sort the support message into one category: billing, bug, account or other. Reply with the category only.",
+    "messages": [
+      {"role": "user", "content": "The export button on my dashboard shows an error."}
+    ]
+  }'
+```
+
+```bash [Gemini]
+curl -i "https://api.mubit.ai/gemini/v1beta/models/gemini-3.8-flash:generateContent" \
+  -H "x-goog-api-key: $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "system_instruction": {"parts": [{"text": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."}]},
+    "contents": [{"parts": [{"text": "The export button on my dashboard shows an error."}]}]
+  }'
+```
+
+The examples read your key from `MUBIT_API_KEY`. To stream, see the page for your provider: [OpenAI](/guides/connect-openai#stream-the-answer), [Anthropic](/guides/connect-anthropic#stream-the-answer) or [Gemini](/guides/connect-gemini#stream-the-answer).
+
+## Headers
+
+Mubit passes most other headers to the provider as you sent them, such as `anthropic-version` and `anthropic-beta`. It doesn't pass on cookies.
+
+Mubit reads these optional headers, and doesn't send them to the provider:
+
+| Header | What it does |
+| --- | --- |
+| `x-middleware-store` | `false` keeps the call's request and answer out of Mubit's record. |
+| `x-middleware-record` | `full`, `metadata` or `off`: how much of the call Mubit keeps. |
+
+Every answer carries the header `x-middleware-request-id`: the call's ID in Mubit. [Response headers](/reference/api#response-headers) lists the headers Mubit sends back.
+
+## What Mubit forwards and trains on
+
+- **Forwarded:** when Mubit sends a call on to a provider, it sends your request with that provider's key, or the starter credit's key, in place of your Mubit key. Other headers go on as [Headers](#headers) lists. On the starter credit, some models, paths and options are refused: see [Starter credit errors](/troubleshooting#starter-credit-errors).
+- **Trained on:** adapters train only on kept examples: the recorded calls Mubit accepts for a task. A call recorded without its request and reply is never a kept example.
+
+## Answers and errors
+
+Mubit passes your provider's answers back to your app, its errors included.
+
+Mubit's own errors use your provider's error format. Their `type` is `middleware_gateway_error`, and they name a `code`, such as `missing_key` or `unknown_route`. In Gemini's format, both are in the error's `ErrorInfo` detail: the code is its `reason`, and the type is in its `metadata`. For example, a call to OpenAI's path with no key gets:
+
+```json
+{"error":{"code":"missing_key","message":"No API key was provided. Send your Mubit key where the provider's SDK sends its API key.","param":null,"request_id":"mreq_…","type":"middleware_gateway_error"}}
+```
+
+The [API reference](/reference/api#errors) shows the format for each provider, and [Troubleshooting](/troubleshooting#mubits-errors) lists the codes and what to do.
+
+
+---
+
+<!-- /guides/openai-compatible -->
+
+# OpenAI-compatible services
+
+> Call OpenRouter, Groq, Together or Mistral through Mubit with the OpenAI SDK, using your own key for the service or the starter credit where the console lists it.
+
+<!-- Auto-generated from pages/guides/openai-compatible.mdx — do not edit by hand. -->
+
+Mubit takes calls for four services that speak the OpenAI API: OpenRouter, Groq, Together and Mistral. Use the OpenAI SDK, or plain HTTP, with the service's base URL under Mubit.
+
+## Before you start
+
+Add your key for the service, unless the console lists that service among the providers the starter credit covers.
+
+1. In the sidebar, under **Workspace**, open **Provider keys**.
+2. Select **Add key**.
+3. Under **Provider**, choose **OpenAI-compatible**.
+4. Under **Service**, choose the service.
+5. Paste the service's key in **API key**.
+6. Select **Check and save**.
+
+## Base URL
+
+Each service has its own base URL. The service's name is part of the path, and the base URL ends in `/v1`.
+
+| Service | Base URL |
+| --- | --- |
+| OpenRouter | `https://api.mubit.ai/compat/openrouter/v1` |
+| Groq | `https://api.mubit.ai/compat/groq/v1` |
+| Together | `https://api.mubit.ai/compat/together/v1` |
+| Mistral | `https://api.mubit.ai/compat/mistral/v1` |
+
+Use the base URL your console's Connect page shows. It shows these on its **OpenAI-compatible** line: choose the service under **Service**.
+
+## Send a call
+
+Pass your Mubit key as the API key. The examples use OpenRouter and read the key from `MUBIT_API_KEY`. Replace `MODEL_ID` with a model ID of the service, as the service names it.
+
+```python [Python]
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.mubit.ai/compat/openrouter/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+
+response = client.chat.completions.create(
+    model="MODEL_ID",
+    messages=[
+        {"role": "system", "content": instructions},
+        {"role": "user", "content": "I was charged twice for my October invoice."},
+    ],
+)
+print(response.choices[0].message.content)
+```
+
+```ts [TypeScript]
+import OpenAI from "openai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new OpenAI({
+  baseURL: "https://api.mubit.ai/compat/openrouter/v1",
+  apiKey,
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+
+const response = await client.chat.completions.create({
+  model: "MODEL_ID",
+  messages: [
+    { role: "system", content: instructions },
+    { role: "user", content: "I was charged twice for my October invoice." },
+  ],
+});
+console.log(response.choices[0].message.content);
+```
+
+```bash [curl]
+curl https://api.mubit.ai/compat/openrouter/v1/chat/completions \
+  -H "Authorization: Bearer $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "MODEL_ID",
+    "messages": [
+      {"role": "system", "content": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."},
+      {"role": "user", "content": "I was charged twice for my October invoice."}
+    ]
+  }'
+```
+
+The TypeScript example uses top-level `await`, so run it as an ES module: save the file as `compat.mts` and run `npx tsx compat.mts`, or add `"type": "module"` to your `package.json`.
+
+For another service, change `openrouter` in the base URL to `groq`, `together` or `mistral`.
+
+## What these base URLs serve
+
+These paths: `POST /chat/completions`, `POST /embeddings`, `GET /models` and `GET /models/{id}`. Any other path or method gets `404 unknown_route`. A service name that isn't in the table gets `404 unknown_provider`, and the message lists the services.
+
+If you have no key saved for the service and the starter credit doesn't cover it, the call gets `403 provider_key_missing`.
+
+## See the call in Requests
+
+1. In the console, open **Requests**.
+2. Find your call at the top. The list is newest first.
+3. Check **Model asked**. It shows the model ID your app sent.
+
+## What Mubit forwards and trains on
+
+- **Forwarded:** when Mubit sends a call on to the service, it sends your request with your key for that service, or the starter credit's key where the console lists that service under the starter credit, in place of your Mubit key. It doesn't pass on cookies, `x-middleware-store` or `x-middleware-record`.
+- **Trained on:** adapters train only on kept examples: the recorded calls Mubit accepts for a task. A call recorded without its request and reply is never a kept example.
+
+## Frameworks and coding tools
+
+[Coding tools](/guides/coding-tools#aider) shows Aider with a service's base URL.
+
+## If a call fails
+
+The error names its code. [Troubleshooting](/troubleshooting) lists the codes and what to do.
+
+
+---
+
+<!-- /guides/frameworks -->
+
+# Frameworks
+
+> Point the Vercel AI SDK, LangChain and the OpenAI Agents SDK at Mubit with Mubit's base URL and your Mubit key.
+
+<!-- Auto-generated from pages/guides/frameworks.mdx — do not edit by hand. -->
+
+Each framework on this page speaks the OpenAI, Anthropic or Gemini API. To point one at Mubit, give it Mubit's base URL for that provider and your Mubit key. Keep your model IDs and the rest of your code.
+
+Use the base URL your console's Connect page shows.
+
+The examples read the key from `MUBIT_API_KEY`. To create a key and set it, follow [step 1 of the Quickstart](/quickstart#1-set-up-in-the-console).
+
+## Vercel AI SDK
+
+Install the SDK and the provider packages you use: `npm install ai @ai-sdk/openai @ai-sdk/anthropic @ai-sdk/google`.
+
+Each provider package takes a `baseURL`. The AI SDK expects the version path at the end of each one, Anthropic's and Gemini's included:
+
+| Provider | `baseURL` |
+| --- | --- |
+| OpenAI | `https://api.mubit.ai/openai/v1` |
+| Anthropic | `https://api.mubit.ai/anthropic/v1` |
+| Gemini | `https://api.mubit.ai/gemini/v1beta` |
+
+### OpenAI
+
+```ts
+import { createOpenAI } from "@ai-sdk/openai";
+import { generateText } from "ai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const openai = createOpenAI({
+  baseURL: "https://api.mubit.ai/openai/v1",
+  apiKey,
+});
+
+const { text } = await generateText({
+  model: openai("gpt-6-luna"),
+  system:
+    "Sort the support message into one category: " +
+    "billing, bug, account or other. Reply with the category only.",
+  prompt: "I was charged twice for my October invoice.",
+});
+console.log(text);
+```
+
+`openai("…")` calls the Responses API. For Chat Completions, use `openai.chat("…")`. Both work through the same base URL.
+
+### Anthropic
+
+```ts
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { generateText } from "ai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const anthropic = createAnthropic({
+  baseURL: "https://api.mubit.ai/anthropic/v1",
+  apiKey,
+});
+
+const { text } = await generateText({
+  model: anthropic("claude-haiku-4-5"),
+  system:
+    "Sort the support message into one category: " +
+    "billing, bug, account or other. Reply with the category only.",
+  prompt: "I was charged twice for my October invoice.",
+});
+console.log(text);
+```
+
+### Gemini
+
+> **Note:** If the console doesn't list Gemini under the starter credit, add your Gemini key under **Provider keys** first, as the [Provider keys](/admin/provider-keys) page shows.
+
+```ts
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { generateText } from "ai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const google = createGoogleGenerativeAI({
+  baseURL: "https://api.mubit.ai/gemini/v1beta",
+  apiKey,
+});
+
+const { text } = await generateText({
+  model: google("gemini-3.8-flash"),
+  system:
+    "Sort the support message into one category: " +
+    "billing, bug, account or other. Reply with the category only.",
+  prompt: "I was charged twice for my October invoice.",
+});
+console.log(text);
+```
+
+The examples use top-level `await`, so run them as ES modules: give the file an `.mts` name, for example `vercel-openai.mts`, and run `npx tsx vercel-openai.mts`, or add `"type": "module"` to your `package.json`.
+
+Tested with `ai` 7.0.148, `@ai-sdk/openai` 4.0.99, `@ai-sdk/anthropic` 4.0.85 and `@ai-sdk/google` 4.0.102.
+
+## LangChain
+
+Install the packages you use: `pip install langchain-openai langchain-anthropic` for Python, or `npm install @langchain/openai @langchain/anthropic @langchain/core` for TypeScript.
+
+### ChatOpenAI
+
+Give `ChatOpenAI` the OpenAI base URL, which ends in `/v1`. In Python it's `base_url`; in TypeScript it goes under `configuration`.
+
+```python [Python]
+import os
+from langchain_openai import ChatOpenAI
+
+llm = ChatOpenAI(
+    model="gpt-6-luna",
+    base_url="https://api.mubit.ai/openai/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+reply = llm.invoke([
+    ("system", "Sort the support message into one category: "
+               "billing, bug, account or other. Reply with the category only."),
+    ("human", "I was charged twice for my October invoice."),
+])
+print(reply.content)
+```
+
+```ts [TypeScript]
+import { ChatOpenAI } from "@langchain/openai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const llm = new ChatOpenAI({
+  model: "gpt-6-luna",
+  apiKey,
+  configuration: { baseURL: "https://api.mubit.ai/openai/v1" },
+});
+
+const reply = await llm.invoke([
+  [
+    "system",
+    "Sort the support message into one category: " +
+      "billing, bug, account or other. Reply with the category only.",
+  ],
+  ["human", "I was charged twice for my October invoice."],
+]);
+console.log(reply.content);
+```
+
+### ChatAnthropic
+
+Give `ChatAnthropic` the Anthropic base URL. Leave `/v1` off the end: the Anthropic SDK underneath adds it. In Python it's `base_url`; in TypeScript it's `anthropicApiUrl`.
+
+> **Note:** Send your Mubit key only. If `ANTHROPIC_AUTH_TOKEN` holds another credential, the TypeScript `ChatAnthropic` sends it beside your key, and Mubit refuses the call with a `401`. Unset it, or set it to your Mubit key.
+
+```python [Python]
+import os
+from langchain_anthropic import ChatAnthropic
+
+llm = ChatAnthropic(
+    model="claude-haiku-4-5",
+    base_url="https://api.mubit.ai/anthropic",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+reply = llm.invoke([
+    ("system", "Sort the support message into one category: "
+               "billing, bug, account or other. Reply with the category only."),
+    ("human", "I was charged twice for my October invoice."),
+])
+print(reply.content)
+```
+
+```ts [TypeScript]
+import { ChatAnthropic } from "@langchain/anthropic";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const llm = new ChatAnthropic({
+  model: "claude-haiku-4-5",
+  apiKey,
+  anthropicApiUrl: "https://api.mubit.ai/anthropic",
+});
+
+const reply = await llm.invoke([
+  [
+    "system",
+    "Sort the support message into one category: " +
+      "billing, bug, account or other. Reply with the category only.",
+  ],
+  ["human", "I was charged twice for my October invoice."],
+]);
+console.log(reply.content);
+```
+
+LangChain also reads the SDKs' environment variables. With `OPENAI_BASE_URL` and `OPENAI_API_KEY` set as [the OpenAI page](/guides/connect-openai#or-set-the-sdks-environment-variables) shows, or `ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` as [the Anthropic page](/guides/connect-anthropic#or-set-the-sdks-environment-variables) shows, leave out the base URL and the key.
+
+Run the TypeScript examples as ES modules, as for the AI SDK above.
+
+Tested with `langchain-openai` 1.7.2 and `langchain-anthropic` 1.7.6 for Python, and `@langchain/openai` 1.6.3, `@langchain/anthropic` 1.5.13 and `@langchain/core` 1.2.20 for TypeScript.
+
+## OpenAI Agents SDK
+
+> **Warning:** Turn the SDK's tracing off before anything else. With tracing on, the SDK uploads each run's trace, prompts and replies included, to OpenAI directly. The Python SDK signs it with the key of the client you give it, which is your Mubit key. The TypeScript SDK uses `OPENAI_API_KEY`, which holds your Mubit key if you set it as [the OpenAI page](/guides/connect-openai#or-set-the-sdks-environment-variables) shows. Each example below turns tracing off in its first lines.
+
+Install the SDK: `pip install openai-agents` for Python, or `npm install @openai/agents openai zod` for TypeScript.
+
+Give the SDK an OpenAI client with the OpenAI base URL and your Mubit key, and make it the default client:
+
+```python [Python]
+import os
+from openai import AsyncOpenAI
+from agents import Agent, Runner, set_default_openai_client, set_tracing_disabled
+
+# Before anything else: with tracing on, the SDK sends your Mubit key to OpenAI.
+set_tracing_disabled(True)
+
+set_default_openai_client(
+    AsyncOpenAI(
+        base_url="https://api.mubit.ai/openai/v1",
+        api_key=os.environ["MUBIT_API_KEY"],
+    )
+)
+
+agent = Agent(
+    name="Support triage",
+    instructions="Sort the support message into one category: "
+                 "billing, bug, account or other. Reply with the category only.",
+    model="gpt-6-luna",
+)
+
+result = Runner.run_sync(agent, "I was charged twice for my October invoice.")
+print(result.final_output)
+```
+
+```ts [TypeScript]
+import OpenAI from "openai";
+import { Agent, run, setDefaultOpenAIClient, setTracingDisabled } from "@openai/agents";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+// Before anything else: with tracing on, the SDK uploads traces to OpenAI directly.
+setTracingDisabled(true);
+
+setDefaultOpenAIClient(
+  new OpenAI({
+    baseURL: "https://api.mubit.ai/openai/v1",
+    apiKey,
+  }),
+);
+
+const agent = new Agent({
+  name: "Support triage",
+  instructions:
+    "Sort the support message into one category: " +
+    "billing, bug, account or other. Reply with the category only.",
+  model: "gpt-6-luna",
+});
+
+const result = await run(agent, "I was charged twice for my October invoice.");
+console.log(result.finalOutput);
+```
+
+The SDK calls the Responses API. Mubit takes it on the same base URL. Run the TypeScript example as an ES module, as for the AI SDK above.
+
+Tested with `openai-agents` 0.24.0 and `openai` 3.36.0 for Python, and `@openai/agents` 0.21.0 and `openai` 7.41.0 for TypeScript.
+
+## See the calls in Requests
+
+Each call shows in **Requests** like any other: open it in the console and find the call at the top. **Model asked** shows the model ID your app sent.
+
+## If a call fails
+
+The error names its code. [Troubleshooting](/troubleshooting) lists the codes and what to do.
+
+## Next
+
+- [Coding tools](/guides/coding-tools)
+- [Keep your model IDs](/guides/model-ids)
+- [Tasks and sessions](/guides/tasks-and-sessions)
+
+
+---
+
+<!-- /guides/claude-code -->
+
+# Use Claude Code with Mubit
+
+> Send Claude Code's calls through Mubit. Add your Anthropic key and create a Mubit key in the console, set five environment variables, and check the first call in Requests.
+
+<!-- Auto-generated from pages/guides/claude-code.mdx — do not edit by hand. -->
+
+Claude Code reads its base URL and its key from environment variables. Point both at Mubit, and Claude Code's calls go through Mubit with your Mubit key.
+
+A Claude Pro or Max sign-in can't be used: Mubit refuses sign-in tokens with a `401`. The settings below make Claude Code send your Mubit key instead.
+
+## 1. Set up in the console
+
+Open the Mubit console at [app.mubit.ai](https://app.mubit.ai/) and sign in. If you can't add or create keys, ask an admin of your organization.
+
+1. Open **Provider keys** and add your Anthropic API key, as [Provider keys](/admin/provider-keys#add-a-key) shows. Claude Code's calls run on your own Anthropic key. The starter credit doesn't cover Claude Code, because it refuses some of its features, such as web search.
+2. Open **Connect**, go to **Mubit key**, and select **Create key**. Copy the key: it starts with `mbt_`, and it's shown only once.
+
+## 2. Set up your computer
+
+On macOS or Linux, add these lines to `~/.zshrc`, or to `~/.bashrc` if you use bash. Then open a new terminal.
+
+```bash
+export MUBIT_API_KEY='YOUR_MUBIT_KEY'
+export ANTHROPIC_BASE_URL=https://api.mubit.ai/anthropic
+export ANTHROPIC_AUTH_TOKEN="$MUBIT_API_KEY"
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5
+```
+
+- `MUBIT_API_KEY` holds your Mubit key.
+- `ANTHROPIC_BASE_URL` is Mubit's Anthropic base URL. Use the base URL your console's Connect page shows. Leave `/v1` off the end: Claude Code adds it.
+- `ANTHROPIC_AUTH_TOKEN` holds your Mubit key. Claude Code sends it in the `Authorization: Bearer` header.
+- `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` turns off Claude Code's telemetry, error reports and automatic updates.
+- `ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5` makes Claude Code's small background tasks use Haiku 4.5. Without it, with `ANTHROPIC_AUTH_TOKEN` set, they use your main model.
+
+Use `ANTHROPIC_AUTH_TOKEN`, not `ANTHROPIC_API_KEY`. With `ANTHROPIC_API_KEY`, Claude Code sends the key in a background check to `api.anthropic.com`.
+
+> **Warning:** If `ANTHROPIC_API_KEY` holds anything but your Mubit key, Claude Code sends it beside your key, and Mubit refuses the call with a `401`. Run `unset ANTHROPIC_API_KEY`, and don't set it in `~/.zshrc` or `~/.bashrc`. If your Claude Code settings file sets it under `env`, remove it there too.
+
+### Keep the key in the Keychain (macOS)
+
+To keep the key out of `~/.zshrc`, store it in the Keychain and read it from there.
+
+Store the key. With `-w` last, the command asks for the key, so the key never sits on a command line or in your shell history:
+
+```bash
+security add-generic-password -a "$USER" -s mubit-api-key -w
+```
+
+Then, in `~/.zshrc`, replace the `MUBIT_API_KEY` line with this one:
+
+```bash
+export MUBIT_API_KEY=$(security find-generic-password -s mubit-api-key -w)
+```
+
+## 3. Check it works
+
+In a new terminal, run:
+
+```bash
+claude -p "Reply with exactly: pong"
+```
+
+It prints `pong`. The call then shows in the console under your project's **Requests**. After that, run `claude` as usual.
+
+## Choose a model
+
+Start Claude Code with `claude --model claude-opus-5-5`, or choose a model with `/model` inside it. Mubit passes the model ID on unchanged.
+
+Tested with Claude Code 2.1.306.
+
+## If a call fails
+
+The error names its code. [Troubleshooting](/troubleshooting) lists the codes and what to do.
+
+
+---
+
+<!-- /guides/coding-tools -->
+
+# Coding tools
+
+> Point Claude Code, Codex, Gemini CLI and Aider at Mubit with Mubit's base URL and your Mubit key.
+
+<!-- Auto-generated from pages/guides/coding-tools.mdx — do not edit by hand. -->
+
+Each tool on this page reads its base URL and its key from its settings or from environment variables. Point both at Mubit, and the tool's calls go through Mubit with your Mubit key.
+
+Use the base URL your console's Connect page shows.
+
+The examples read the key from `MUBIT_API_KEY`. To create a key and set it, follow [step 1 of the Quickstart](/quickstart#1-set-up-in-the-console).
+
+> **Warning:** Send your Mubit key. Subscription sign-ins (Claude Pro or Max, ChatGPT) can't be used: Mubit refuses sign-in tokens with a `401`, and never stores them. The settings below make each tool send your Mubit key instead of a sign-in.
+
+## Claude Code
+
+Claude Code reads Mubit's base URL and your Mubit key from environment variables. [Use Claude Code with Mubit](/guides/claude-code) shows the whole set-up: your Anthropic key under **Provider keys**, a Mubit key, the variables to set, and a first call to check it works.
+
+## Codex
+
+> **Warning:** A ChatGPT sign-in can't be used: Mubit refuses sign-in tokens, including ChatGPT and Codex logins. The provider below makes Codex send the key in `MUBIT_API_KEY` instead.
+
+Add a provider for Mubit to `~/.codex/config.toml`, and make it the default. Put the first two lines at the top of the file, before any `[section]`:
+
+```toml
+model = "gpt-6-luna"
+model_provider = "mubit"
+
+[model_providers.mubit]
+name = "Mubit"
+base_url = "https://api.mubit.ai/openai/v1"
+env_key = "MUBIT_API_KEY"
+wire_api = "responses"
+requires_openai_auth = false
+```
+
+- `base_url` is the OpenAI base URL, which ends in `/v1`.
+- `env_key` names the environment variable that holds your Mubit key.
+- `wire_api = "responses"`: Codex calls the Responses API, which Mubit takes on the same base URL.
+- `requires_openai_auth = false`: Codex doesn't ask for an OpenAI sign-in for this provider.
+
+Then start Codex with `codex` in a shell where `MUBIT_API_KEY` is set.
+
+Codex also connects to OpenAI and GitHub directly, for example for its own metrics and update checks. Those connections don't go through Mubit.
+
+Tested with Codex 0.163.0.
+
+## Gemini CLI
+
+> **Note:** If the console doesn't list Gemini under the starter credit, add your Gemini key under **Provider keys** first, as the [Provider keys](/admin/provider-keys) page shows. On the starter credit, token counting gets `403 starter_credit_route` and Google Search gets `400 starter_credit_tools`.
+
+> **Warning:** A Google sign-in can't be used: Mubit refuses Google OAuth tokens. Choose the Gemini API key sign-in, as below.
+
+In `~/.gemini/settings.json`, choose the Gemini API key sign-in. It's the **Use Gemini API Key** choice of Gemini CLI's sign-in menu:
+
+```json
+{
+  "security": {
+    "auth": {
+      "selectedType": "gemini-api-key"
+    }
+  }
+}
+```
+
+Then set these in the shell where you start Gemini CLI, and start it:
+
+```bash
+export GOOGLE_GEMINI_BASE_URL=https://api.mubit.ai/gemini
+export GEMINI_API_KEY="$MUBIT_API_KEY"
+gemini
+```
+
+`GOOGLE_GEMINI_BASE_URL` is the Gemini base URL. Leave the version path off the end.
+
+Gemini CLI also makes short calls of its own around your prompt, for example to pick a model for it. They show in **Requests** too.
+
+Gemini CLI also sends usage statistics to Google directly. To turn them off, add `"privacy": { "usageStatisticsEnabled": false }` to `~/.gemini/settings.json`.
+
+Tested with Gemini CLI 0.65.0.
+
+## Aider
+
+Aider calls Mubit as an OpenAI-compatible API. Set these in the shell where you start Aider, then start it with your model ID after `openai/`:
+
+```bash
+export OPENAI_API_BASE=https://api.mubit.ai/openai/v1
+export OPENAI_API_KEY="$MUBIT_API_KEY"
+aider --model openai/gpt-6-luna
+```
+
+The `openai/` prefix tells Aider to call the API at `OPENAI_API_BASE`. Mubit gets the model ID without the prefix.
+
+To use an OpenAI-compatible service such as OpenRouter, set `OPENAI_API_BASE` to the service's base URL from [OpenAI-compatible services](/guides/openai-compatible#base-url), and put the service's model ID after `openai/`.
+
+If Aider warns that it doesn't know the model's context window or costs, it still sends the call.
+
+Aider loads `.env` files from your home folder, repo root and current folder, and their values win over the shell's. Check that none sets `OPENAI_API_BASE` or `OPENAI_API_KEY`.
+
+Tested with Aider 0.86.2.
+
+## Check the set-up
+
+Start the tool and send one prompt. Then open **Requests** in the console: the call is at the top, and **Model asked** shows the model ID the tool sent.
+
+## If a call fails
+
+The error names its code. [Troubleshooting](/troubleshooting) lists the codes and what to do.
+
+## Next
+
+- [Frameworks](/guides/frameworks)
+- [Keep your model IDs](/guides/model-ids)
+- [Provider keys](/admin/provider-keys)
+
+
+---
+
+<!-- /guides/requests -->
+
+# Find calls in Requests
+
+> Find a call in the console's Requests page, filter the list, read a call's details and its session, and see why a call isn't listed.
+
+<!-- Auto-generated from pages/guides/requests.mdx — do not edit by hand. -->
+
+**Requests** lists your project's calls, newest first. Open it from the console's sidebar.
+
+Mubit passes each call on and returns the reply. It records the request and reply by default, and Requests shows what served each call.
+
+### The diagram in words
+
+Your app sends a request to Mubit. Mubit passes it on to your model provider, and the reply returns through Mubit to your app. Mubit records the request and reply by default and shows recorded calls in Requests, where **Served by** shows what served each call.
+
+## Filter the list
+
+The row above the list holds the filters:
+
+- the range: `Last 24 hours`, `Last 7 days` or `Last 30 days`;
+- **Task**: `All tasks`, or one of your tasks by name;
+- **Served by**: who answered each call; `Anyone` lists them all;
+- **Errors only**: the calls that got a status of 400 or above;
+- **Session**: type a session ID and press Enter to list that session's calls;
+- **Clear**: turns off every filter but the range.
+
+The filters live in the page's address, so a reload or a shared link keeps them.
+
+**Errors only** reads the calls already loaded, and the line under the filters says how many of them failed. Select **Load more** to read further.
+
+The chart above the list counts the range's `Calls`, `Errors` or `Response time`. It follows the range and the task only; the other filters narrow the list.
+
+## The list
+
+Each row is one call, with its `Time`, `Task`, `Model asked`, `Served by`, `Response` time, `Status` and `Rating`. A call that no task holds yet shows `—` under `Task`.
+
+**Load more**, under the list, reads older calls.
+
+## Read a call's details
+
+Select a row. The call opens in a panel on the right. Its head is the task's name, or `Request` while no task holds it, with the call's time and the model asked. The panel shows:
+
+- **Status**: the HTTP status and what it was, such as `200 · answered` or `400 · provider error`;
+- **Response**: the call's time from start to end;
+- **Tokens**: the tokens in and out;
+- **Request**: the last user message of the call;
+- **Reply**: the answer's text;
+- **Where the time went**: how the call's time divides between Mubit and the model that answered;
+- **Rate this reply**: `Good` or `Bad`;
+- **Details**: the call's **Request** and **Session** IDs, each with a copy button.
+
+**Open as a page** opens the call on a page of its own. **Close** or Escape closes the panel.
+
+## A call's session
+
+**Details** shows the call's **Session**. **Requests in this session**, on the call's page, lists the calls that share it. You can also type the session ID in the **Session** filter.
+
+[Tasks and sessions](/guides/tasks-and-sessions#group-a-conversations-calls-into-a-session) shows how Mubit gives each call a session, and how to name one yourself.
+
+## Find a call's request ID
+
+Every answer from Mubit carries the call's request ID in the `x-middleware-request-id` header: a success, a stream, your provider's error, and Mubit's own error. Mubit's own errors also carry it in their body. It starts with `mreq_`. Quote it when you ask for help with a call.
+
+To read it:
+
+```python [Python]
+raw = client.chat.completions.with_raw_response.create(
+    model="gpt-6-luna",
+    messages=[{"role": "user", "content": "Reply with the word ok."}],
+)
+print("request id:", raw.headers.get("x-middleware-request-id"))
+response = raw.parse()
+```
+
+```ts [TypeScript]
+const { data, response } = await client.chat.completions
+  .create({
+    model: "gpt-6-luna",
+    messages: [{ role: "user", content: "Reply with the word ok." }],
+  })
+  .withResponse();
+console.log("request id:", response.headers.get("x-middleware-request-id"));
+```
+
+```bash [curl]
+curl -i https://api.mubit.ai/openai/v1/chat/completions \
+  -H "Authorization: Bearer $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{"model": "gpt-6-luna", "messages": [{"role": "user", "content": "Reply with the word ok."}]}'
+```
+
+The Python and TypeScript examples use the client from [Connect OpenAI](/guides/connect-openai). In curl, `-i` prints the answer's headers. The header works the same way on Anthropic, Gemini and the OpenAI-compatible services.
+
+> **Note:** The **Request** ID under **Details** is the console's own ID for the call. It is not the request ID your app gets in `x-middleware-request-id`.
+
+## Why a call isn't listed
+
+- **You just sent it.** Reload **Requests**.
+- **It's older than the range.** Choose a longer range.
+- **Mubit refused it before calling your provider.** A call refused for its key, its path or a missing provider key leaves no record. Look up its code in [Troubleshooting](/troubleshooting).
+- **It sent `x-middleware-store: false`, or `x-middleware-record` set to `metadata` or `off`.** Mubit keeps no request or answer for such a call, and never lists it.
+- **It asked for a list of models.** Model lists don't show on **Requests**.
+
+
+---
+
+<!-- /guides/tasks-and-sessions -->
+
+# Tasks and sessions
+
+> How Mubit groups your calls into tasks, and how to group a conversation's calls into one session.
+
+<!-- Auto-generated from pages/guides/tasks-and-sessions.mdx — do not edit by hand. -->
+
+Mubit finds tasks in your calls by itself. This page shows what decides a call's task, and how to tell Mubit which calls belong to one conversation.
+
+## What makes a task
+
+Calls form one task when they share all of these:
+
+- their instructions;
+- their tools;
+- their tool choice;
+- their output format;
+- their model.
+
+The rest of the call doesn't count: the messages after the instructions, and settings such as `temperature` or `max_tokens`. For the model, see [Keep your model IDs](/guides/model-ids).
+
+The instructions are the system prompt: `system` on Anthropic; the `system` and `developer` messages on OpenAI Chat Completions; `instructions` and the `system` and `developer` input items on OpenAI Responses; `systemInstruction` on Gemini.
+
+**Tasks** shows each task under a short name made from the first words of its instructions.
+
+Mubit reads the instructions with a few allowances, so one kind of call keeps one task:
+
+- Runs of spaces and line breaks count as one space.
+- Numbers, dates, times and IDs don't split a task.
+- Other words that change from call to call do: a customer's name in the instructions makes one task per name.
+
+> **Tip:** Put the text that changes per call, such as a name, in the user message, not in the instructions.
+
+## Group a conversation's calls into a session
+
+A session is the calls of one conversation. Mubit sets a task's test cases aside by session.
+
+Mubit gives each call a session. It takes the first of these that the call has:
+
+1. `metadata.thread_id`
+2. `metadata.session_id`
+3. `metadata.conversation_id`
+4. On Anthropic, `metadata.user_id`
+5. On OpenAI Responses, `prompt_cache_key`
+
+A call with none of these gets a session from the start of its conversation: its instructions and its first user message. When each call sends the conversation so far, its later turns repeat them, so its calls share a session without any field. If your app sends only the new message, for example with Responses' `previous_response_id`, send `metadata.session_id`.
+
+Which field to send:
+
+| Provider | Field |
+| --- | --- |
+| OpenAI | `metadata.session_id`, or `metadata.thread_id` or `metadata.conversation_id` |
+| Anthropic | `metadata.user_id`, the one `metadata` field Anthropic takes |
+| Gemini | None: Mubit uses the start of the conversation |
+
+On Anthropic, if your app already sends `metadata.user_id` as an ID for your end user, all of that user's conversations become one session.
+
+Mubit trims each value. A value longer than 200 characters is kept as a hash.
+
+## Example
+
+This call names its session `ticket-1042`:
+
+```python [Python]
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.mubit.ai/openai/v1",
+    api_key=os.environ["MUBIT_API_KEY"],
+)
+
+instructions = (
+    "Sort the support message into one category: "
+    "billing, bug, account or other. Reply with the category only."
+)
+
+response = client.chat.completions.create(
+    model="gpt-6-luna",
+    messages=[
+        {"role": "system", "content": instructions},
+        {"role": "user", "content": "I cannot sign in since I changed my email address."},
+    ],
+    metadata={"session_id": "ticket-1042"},
+)
+print(response.choices[0].message.content)
+```
+
+```ts [TypeScript]
+import OpenAI from "openai";
+
+const apiKey = process.env.MUBIT_API_KEY;
+if (!apiKey) throw new Error("MUBIT_API_KEY is not set");
+
+const client = new OpenAI({
+  baseURL: "https://api.mubit.ai/openai/v1",
+  apiKey,
+});
+
+const instructions =
+  "Sort the support message into one category: " +
+  "billing, bug, account or other. Reply with the category only.";
+
+const response = await client.chat.completions.create({
+  model: "gpt-6-luna",
+  messages: [
+    { role: "system", content: instructions },
+    { role: "user", content: "I cannot sign in since I changed my email address." },
+  ],
+  metadata: { session_id: "ticket-1042" },
+});
+console.log(response.choices[0].message.content);
+```
+
+```bash [curl]
+curl https://api.mubit.ai/openai/v1/chat/completions \
+  -H "Authorization: Bearer $MUBIT_API_KEY" \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "gpt-6-luna",
+    "metadata": {"session_id": "ticket-1042"},
+    "messages": [
+      {"role": "system", "content": "Sort the support message into one category: billing, bug, account or other. Reply with the category only."},
+      {"role": "user", "content": "I cannot sign in since I changed my email address."}
+    ]
+  }'
+```
+
+The TypeScript example uses top-level `await`, so run it as an ES module: save the file as `tasks.mts` and run `npx tsx tasks.mts`, or add `"type": "module"` to your `package.json`.
+
+## See a call's session
+
+1. In the console, open **Requests**.
+2. Select the call's row.
+3. Open **Details**. **Session** shows the call's session.
+
+To list one session's calls, enter its ID in the **Session** filter on **Requests**. See [Find calls in Requests](/guides/requests#a-calls-session).
+
+## If a call fails
+
+The error names its code. [Troubleshooting](/troubleshooting) lists the codes and what to do.
+
+
+---
+
+<!-- /guides/model-ids -->
+
+# Keep your model IDs
+
+> Your app keeps the model IDs it sends today. What Mubit does with them, how they shape tasks, and what the starter credit serves.
+
+<!-- Auto-generated from pages/guides/model-ids.mdx — do not edit by hand. -->
+
+You don't change the model IDs in your code. Send the IDs you send today, such as `gpt-6-luna`, `claude-haiku-4-5` or `gemini-3.8-flash`.
+
+## What Mubit does with a model ID
+
+- **It passes the ID on.** When Mubit sends a call to your provider, it sends your model ID as your app wrote it.
+- **It records the ID.** In **Requests**, **Model asked** shows the model ID of each call.
+- **It counts the model in the task.** Calls form one task when they share their instructions, tools, tool choice, output format and model. So the same instructions sent to two different models make two tasks.
+
+Mubit reads the model without its date or snapshot suffix, and without `-latest`. For example, `claude-haiku-4-5-20251001` and `claude-haiku-4-5` count as one model, and so do `gpt-5.5-2026-04-23` and `gpt-5.5`.
+
+On Gemini, the model ID is in the path, as in `/v1beta/models/gemini-3.8-flash:generateContent`. Mubit reads it from there.
+
+## On the starter credit
+
+The starter credit serves a set list of models for each provider it covers. A call that names another model gets `400 starter_credit_model`, and the message lists the models it serves. A dated ID works only when that list names it.
+
+With your own provider key, you can use any model your provider account can use. See [Provider keys](/admin/provider-keys).
+
+## What you can't do with a model ID
+
+There is no Mubit model ID: you can't send a call to an adapter by naming it as the model. To try an adapter, compare it in **Try models**: see [Compare with your provider](/guides/first-adapter#4-compare-with-your-provider).
+
+
+---
+
+<!-- /guides/import-past-calls -->
+
+# Import past calls
+
+> Import past model calls from Langfuse, Braintrust or Pydantic Logfire with a read-only key, so Mubit can find tasks in them.
+
+<!-- Auto-generated from pages/guides/import-past-calls.mdx — do not edit by hand. -->
+
+If your app's calls are already in an observability tool, you can import them. Mubit treats imported calls like the calls your app sends: it finds tasks in them. The import reads from Langfuse, Braintrust or Pydantic Logfire with a read-only key.
+
+Only an admin of your organization can import calls. A member sees `An admin of your organization imports calls.`
+
+## Before you start
+
+Create a read-only key in your tool:
+
+| Tool | Key to create |
+| --- | --- |
+| Langfuse | A project API key with the Viewer permission |
+| Braintrust | A service token in the Viewers group |
+| Pydantic Logfire | A read token |
+
+For Langfuse, paste the key in the form the field's placeholder shows: `pk-lf-...:sk-lf-...`.
+
+## Start an import
+
+1. In the console's sidebar, open **Import past calls**.
+2. Under **Source**, choose your tool: **Langfuse**, **Braintrust** or **Pydantic Logfire**.
+3. Choose the host your tool's account is on, such as your Langfuse host.
+4. Paste your read-only key in **Read-only key**.
+5. To test the key first, select **Check key**. A working key shows `Accepted`, with the newest call and the models it found.
+6. Under **Window**, choose how far back to read: **7 days**, **14 days** or **30 days**.
+7. Select the box that starts `I may share these calls with Mubit.`
+8. To keep the key for the next import, select **Keep the key for later imports**.
+9. Select **Start import**.
+
+## What the import reads
+
+- The calls in the window you chose.
+- Only the calls from before your project's first call through Mubit. The page says `Cut at the project's first live call.`
+- Mubit sends your tool read requests only. A request outside the tool's read-only list is stopped, and the import fails.
+
+Your project runs one import at a time. To start another, wait for the first to end, or cancel it.
+
+## Follow the import
+
+The page shows the newest import with its state: `Queued`, `Running`, `Paused`, `Done`, `Failed` or `Cancelled`. While it runs, a line counts the calls read, imported and skipped, and the tasks found. The page updates by itself.
+
+- To stop an import, select **Cancel**.
+- A `Paused` import says why it paused. When your tool limits the rate, the page says when the import resumes.
+- A `Failed` import says why it failed.
+
+When the import is done, the page shows how many calls it imported into how many tasks. Open **Tasks** to see them.
+
+## The key
+
+After you save the key, the page shows only `••••` and its last 4 characters.
+
+When an import ends, Mubit deletes the key, unless you chose **Keep the key for later imports**. The last line says which: `The key was deleted.` or `The key was kept.`
+
+
+---
+
+<!-- /admin/projects -->
+
+# Projects
+
+> Your workspace's one project, what it holds, and how an admin renames it.
+
+<!-- Auto-generated from pages/admin/projects.mdx — do not edit by hand. -->
+
+## Your project
+
+Your workspace belongs to your organization, and it has one project. Mubit makes the project when your workspace is set up. The project holds your app's calls, keys and tasks.
+
+You can't add a second project or delete this one. The console offers neither.
+
+Your Mubit keys work for this project only.
+
+## Rename the project
+
+An admin can rename the project:
+
+1. In the sidebar, under **Workspace**, open **Projects**.
+2. On the project's row, open the menu.
+3. Select **Rename…**.
+4. Enter the new name in **Project name**: 1 to 100 characters.
+5. Select **Save**.
+
+**Get started** has a **Rename** button too, in its head.
+
+[Members and roles](/admin/members) lists what else only admins can do.
+
+
+---
+
+<!-- /admin/members -->
+
+# Members and roles
+
+> The two roles in your organization, what only admins can do, what a member sees instead, that the console can't add, change or remove people, and when the console signs you out.
+
+<!-- Auto-generated from pages/admin/members.mdx — do not edit by hand. -->
+
+Each person in your organization is an `Admin` or a `Member`. The account menu, at the foot of the sidebar, shows your role.
+
+## What only admins can do
+
+- create, rotate and revoke Mubit keys, under **Mubit keys**;
+- add, rotate and delete provider keys, under **Provider keys**;
+- import past calls, under **Import past calls**;
+- change **Settings**, in the project's sidebar under **Set up**. **Settings** shows there once training is on for your workspace;
+- rename the project.
+
+## What members can do
+
+Members can do the rest. For example, they can read **Requests**, **Tasks**, **Adapters** and **Settings**, use **Try models**, and open **Connect**.
+
+Where a page has an admin's action, a member sees a line in its place, such as `Ask an admin of {org} for a key. Admins create, rotate and revoke keys.` on **Mubit keys**, with your organization's name.
+
+When a member tries an admin's action, the console says `Only an admin of {org} can do this.` On **Settings**, a member reads `Only admins of {org} can change settings.`
+
+## Add people, change a role or remove someone
+
+The console has no controls to invite a person, change someone's role or remove a member. Not even an admin can make these changes in the console.
+
+To make one of these changes, ask for help, as [Get help](/troubleshooting#get-help) shows.
+
+## Sign-out after inactivity
+
+After 15 minutes without a key press, a click, a touch or a scroll in any of the console's tabs, the console signs you out. The sign-in screen then reads `Signed out after 15 minutes without activity.` Sign in again to go on.
+
+The console remembers your last activity across page loads: opened again more than 15 minutes later, it signs you out at once.
+
+
+---
+
+<!-- /admin/mubit-keys -->
+
+# Mubit keys
+
+> Create, rotate and revoke the Mubit keys your apps send, choose between inference and read-only keys, replace a key without stopping your app, and read the key list.
+
+<!-- Auto-generated from pages/admin/mubit-keys.mdx — do not edit by hand. -->
+
+Your app sends a Mubit key in place of a provider key. Each key works for your project only.
+
+Only an admin creates, rotates and revokes keys. A member sees `Ask an admin of {org} for a key. Admins create, rotate and revoke keys.` in place of the buttons.
+
+## Create a key
+
+1. In the sidebar, open **Mubit keys**.
+2. Select **Create key**.
+3. Enter a **Name**, such as the name of your app.
+4. Leave **Permission** at **Inference: calls this project**.
+5. Select **Create key**.
+6. Copy the key. The console says `Copy this key now. It won't be shown again.`
+
+## Inference and read-only keys
+
+A key has one of two permissions. You choose it when you create the key.
+
+- **Inference: calls this project**: for apps that send calls. Your app needs this one.
+- **Read only: reads its records**: reads this project's records. Calls sent with it are refused with `403 key_permission`.
+
+## The key list
+
+Each row shows a key's:
+
+- **Name**;
+- **Key**: its first characters and a mask, never the whole key;
+- **Permission**: `Inference` or `Read only`;
+- **Created**;
+- **Expires**: the date the key stops working, or `never`;
+- **Last used**: `never`, or up to about 90 seconds behind the key's last call;
+- **Status**: `Active`, `Revoked` or `Expired`.
+
+Before a key's **Expires** date, replace it, as [Replace a key without stopping your app](#replace-a-key-without-stopping-your-app) shows.
+
+## Rotate a key
+
+Rotating gives a key a new secret. The key keeps its name and its permission, and its lifetime starts again from now.
+
+Rotating leaves no time to switch over. Mubit stops accepting the old secret within about 30 seconds, and the dialog says how soon. An app that still sends the old secret then gets `401 invalid_key`. To change the key of an app that is running, follow [Replace a key without stopping your app](#replace-a-key-without-stopping-your-app) instead.
+
+1. On the key's row, open the menu.
+2. Select **Rotate…**. The dialog `Rotate {name}?` opens and says how soon the old secret stops working.
+3. Select **Rotate key**.
+4. Copy the new secret. It is shown once.
+5. Put the new secret in your app.
+
+You can rotate an active or an expired key. A revoked key can't be rotated: create a new key instead.
+
+## Replace a key without stopping your app
+
+Rotating stops the old secret within seconds. For an app that is running, use a second key:
+
+1. [Create a key](#create-a-key) with the same permission.
+2. Put the new key in your app, and deploy it.
+3. Check that the app's calls work with the new key. Its **Last used** shows a time within about 90 seconds of its first call.
+4. [Revoke](#revoke-a-key) the old key.
+
+## Revoke a key
+
+1. On the key's row, open the menu.
+2. Select **Revoke…**. The dialog `Revoke {name}?` opens.
+3. Select **Revoke key**.
+
+The key's status reads `Revoked`. The line under the list says how soon Mubit refuses a revoked key: `A revoked key is refused within a minute.` After that, calls with the key get `401 invalid_key`.
+
+> **Note:** The console can't turn a revoked key back on or rotate it. To call again, create a new key and put it in your app.
+
+
+---
+
+<!-- /admin/provider-keys -->
+
+# Provider keys
+
+> Add your own Anthropic, OpenAI, Gemini or OpenAI-compatible service key in the console, so Mubit calls the provider on your own account.
+
+<!-- Auto-generated from pages/admin/provider-keys.mdx — do not edit by hand. -->
+
+Your app sends Mubit your Mubit key. Mubit then calls the provider with your provider key, so the calls are on your own provider account.
+
+You add provider keys in the console, under **Provider keys**. Your app's code doesn't change.
+
+## Which providers need a key
+
+The starter credit covers some providers, and the console names them: **Get started**, for example, reads `Calls to {providers} use the starter credit until you add a key.`
+
+| Provider | Without your own key |
+| --- | --- |
+| A provider the starter credit covers | Calls use the starter credit while it lasts. |
+| A provider it doesn't cover | Calls get `403 provider_key_missing`. |
+
+Once you add your own key for a provider, its calls use your key.
+
+Some options, such as hosted web search, file search and stored prompts, are not available on the starter credit. The error says which, and your own key removes the limit. See [Starter credit errors](/troubleshooting#starter-credit-errors).
+
+## Add a key
+
+Only an admin of your organization can add, rotate or delete provider keys. A member sees `Ask an admin of {org} to add or change keys.`, with your organization's name.
+
+1. In the sidebar, under **Workspace**, open **Provider keys**.
+2. Select **Add key**. The dialog **Add a provider key** opens.
+3. Choose the **Provider**: **Anthropic**, **OpenAI**, **Gemini** or **OpenAI-compatible**.
+4. For **OpenAI-compatible**, choose the **Service**: **OpenRouter**, **Groq**, **Together** or **Mistral**.
+5. Paste the key in **API key**.
+6. To name the key, enter a **Label (optional)**.
+7. Select **Check and save**.
+
+Mubit checks the key with the provider before it saves anything. A good key shows `Valid`. A refused key shows `Refused`, and nothing is saved.
+
+Each provider takes one key. A provider that has one is off in the **Provider** menu, with `It has a key already.` To change the key, rotate it.
+
+### The key must be an API key
+
+Paste an API key, not a sign-in token. Subscription sign-ins, such as Claude Pro or Max and ChatGPT, can't be used: the dialog answers `Not an API key`. A Mubit key there gets `Mubit key`, and another provider's key gets `Wrong provider`.
+
+## What the page shows
+
+Mubit stores each key encrypted. After saving, only its last 4 characters show.
+
+Each key's row shows details such as its provider, its last 4 characters and its fingerprint: `fp` and a short hash of the key. Each call's record keeps the fingerprint of the key it used.
+
+While the starter credit covers a provider you have no key for, a box at the top reads **Starter credit** with `Available`. Once the credit is used up, it reads `Used up`: add your own key to keep calling that provider.
+
+## Rotate a key
+
+1. On the key's row, select **Rotate**.
+2. Paste the new key in **New API key**.
+3. Select **Check and replace**.
+
+Mubit checks the new key, then calls the provider with it. Revoke the old key at the provider afterwards.
+
+## Delete a key
+
+1. On the key's row, open the menu next to **Rotate**.
+2. Select **Delete…**.
+3. Type the key's name, as the dialog asks.
+4. Select **Delete key**.
+
+Mubit stops calling the provider with that key. Deleting it here doesn't revoke it at the provider: revoke it there too.
+
+
+---
+
+<!-- /reference/api -->
+
+# API reference
+
+> The Mubit API in one place. Base URL, keys, paths per provider, the headers Mubit reads and sends, model IDs, streaming, limits, retries, sizes and the error format.
+
+<!-- Auto-generated from pages/reference/api.mdx — do not edit by hand. -->
+
+Mubit takes each provider's own API. Your app sends the requests it sends today to Mubit's base URL, under the provider's prefix, with a Mubit key in place of the provider key. Mubit records each call.
+
+## Base URL
+
+```
+https://api.mubit.ai
+```
+
+Use the base URL your console's Connect page shows.
+
+Call Mubit from your server, not from a browser. The API answers no CORS preflight request, so a browser refuses to send the call.
+
+## Keys
+
+Send your Mubit key in the header your provider's SDK uses for its own key. A Mubit key starts with `mbt_`.
+
+| Provider | Header |
+| --- | --- |
+| OpenAI and OpenAI-compatible services | `Authorization: Bearer YOUR_MUBIT_KEY` |
+| Anthropic | `x-api-key: YOUR_MUBIT_KEY`, or `Authorization: Bearer YOUR_MUBIT_KEY` |
+| Gemini | `x-goog-api-key: YOUR_MUBIT_KEY` |
+
+Send one key, and only your Mubit key. Mubit refuses a call with a `401` when it carries:
+
+- no key (`missing_key`);
+- a key that is wrong, revoked or malformed, or two different Mubit keys (`invalid_key`);
+- a provider's API key, a sign-in token, or another credential beside your Mubit key (see [Key errors](/troubleshooting#key-errors));
+- your Mubit key somewhere else in the request, such as another header or the path (`middleware_key_refused`).
+
+For Gemini, send the key in the header, not in `?key=`.
+
+Your provider keys stay in the console. Add them under **Provider keys**, as the [Provider keys](/admin/provider-keys) page shows.
+
+## Paths
+
+Each provider has a prefix. After it, use the provider's own path.
+
+| Provider | Prefix | Examples |
+| --- | --- | --- |
+| OpenAI | `/openai/v1` | `POST /openai/v1/chat/completions`, `POST /openai/v1/responses`, `POST /openai/v1/embeddings`, `GET /openai/v1/models` |
+| Anthropic | `/anthropic` | `POST /anthropic/v1/messages`, `POST /anthropic/v1/messages/count_tokens`, `GET /anthropic/v1/models` |
+| Gemini | `/gemini` | `POST /gemini/v1beta/models/{model}:generateContent`, `POST /gemini/v1beta/models/{model}:streamGenerateContent?alt=sse`, `GET /gemini/v1beta/models` |
+| OpenAI-compatible services | `/compat/{service}/v1` | `POST /compat/openrouter/v1/chat/completions` |
+
+So the base URL for an SDK is:
+
+| SDK | Base URL |
+| --- | --- |
+| OpenAI | `https://api.mubit.ai/openai/v1` |
+| Anthropic | `https://api.mubit.ai/anthropic` |
+| Gemini (google-genai) | `https://api.mubit.ai/gemini` |
+| OpenAI SDK on Gemini | `https://api.mubit.ai/gemini/v1beta/openai` |
+| OpenAI SDK on an OpenAI-compatible service | `https://api.mubit.ai/compat/{service}/v1` |
+
+### OpenAI-compatible services
+
+`{service}` is `openrouter`, `groq`, `together` or `mistral`. Under `/compat/{service}/v1`, Mubit serves `POST /chat/completions`, `POST /embeddings`, `GET /models` and `GET /models/{id}`. These services need your own key, unless the console lists the service under the starter credit. See [OpenAI-compatible services](/guides/openai-compatible).
+
+### Paths Mubit refuses
+
+| Answer | When |
+| --- | --- |
+| `404 unknown_route` | The path is outside the prefixes above, or a `/compat` path or method that isn't listed. |
+| `404 unknown_provider` | The `{service}` in a `/compat` path isn't one of the four. The message lists them. |
+| `403 admin_path_refused` | An organization or admin endpoint of the provider. Call the provider directly for those. |
+| `400 invalid_path` | The path has a `.` or `..` segment, a `;`, a control character, or an escape that decodes again. |
+
+On the starter credit, fewer paths work. After the prefix: on Anthropic, `POST /v1/messages`, `POST /v1/messages/count_tokens` and `GET /v1/models`; on OpenAI, `POST /chat/completions`, `POST /responses`, `POST /embeddings` and `GET /models`; on Gemini, `POST /{version}/models/{model}:generateContent` and `:streamGenerateContent`, where `{version}` is a version such as `v1beta` or `v1`; on an OpenAI-compatible service, `POST /chat/completions` and `GET /models`. Any other path gets `403 starter_credit_route` until you add your own key for that provider. A provider the starter credit doesn't cover always needs your own key; the console names the providers it covers. See the [starter credit's errors](/troubleshooting#starter-credit-errors).
+
+## Request headers Mubit reads
+
+Mubit reads these optional headers, and doesn't send them to your provider:
+
+| Header | Values | What it does |
+| --- | --- | --- |
+| `x-middleware-store` | `false`, `0`, `off` or `no` | Mubit keeps a record of the call without its request and answer. |
+| `x-middleware-record` | `full`, `metadata` or `off` | How much of the call Mubit keeps. `metadata` is the same as `x-middleware-store: false`; `off` also drops the call's task fingerprint. |
+
+A header can lower what Mubit keeps of a call, never raise it. When a call sends several values, the lowest one counts.
+
+Mubit passes most other headers to the provider as you sent them, such as `anthropic-version` and `anthropic-beta`. In particular:
+
+- it never sends a header that starts with `x-middleware-` to your provider;
+- it takes out your Mubit key, and sends your provider key or the starter credit's key in its place;
+- it doesn't pass on cookies, in either direction;
+- it doesn't pass on forwarding headers, such as `forwarded`, `x-forwarded-for`, `x-real-ip` and `via`.
+
+## Response headers
+
+| Header | On | What it says |
+| --- | --- | --- |
+| `x-middleware-request-id` | Every answer: a success, a stream, your provider's error, Mubit's own error | The call's ID in Mubit: `mreq_` and 32 hex digits. IDs sort by time. |
+| `x-should-retry` | Mubit's errors that a retry won't fix, such as the key errors | `false`. |
+| `retry-after` | Mubit's `429` and `503` errors | Seconds to wait before you try again. |
+
+Your provider's own headers, such as its `request-id` or `x-request-id`, pass unchanged beside them.
+
+Quote the `x-middleware-request-id` when you ask for help with a call. [Find a call's request ID](/guides/requests#find-a-calls-request-id) shows how to read it in Python, TypeScript and curl.
+
+## Model IDs
+
+Send the model IDs you send today. When Mubit sends a call to your provider, it sends your model ID as your app wrote it, and records it. On Gemini, the model ID is in the path.
+
+There is no Mubit model ID. On the starter credit, a call must name a model the starter credit serves: another model gets `400 starter_credit_model`, and the message lists the models. See [Keep your model IDs](/guides/model-ids).
+
+## Streaming
+
+Stream as you do with your provider: set `stream` to true on OpenAI, OpenAI-compatible services and Anthropic, or call `streamGenerateContent?alt=sse` on Gemini. Mubit passes the stream to your app as it arrives.
+
+Each provider page shows an example: [OpenAI](/guides/connect-openai#stream-the-answer), [Anthropic](/guides/connect-anthropic#stream-the-answer), [Gemini](/guides/connect-gemini#stream-the-answer).
+
+## Limits
+
+Mubit's limits today:
+
+| Limit | Value | What happens |
+| --- | --- | --- |
+| Connect to the provider | 10 s | Mubit tries once more on a new connection. If that fails too, the call gets `502 upstream_unreachable`, and nothing was sent. |
+| First byte | 610 s | From the start of your request to the provider's status and headers. Past it, the call gets `504 upstream_timeout`. |
+| Silence | 15 minutes | The longest time no part of the answer goes to your app, because the provider is quiet or your app stopped reading. Past it, Mubit closes the connection. |
+| Total | 60 minutes | The longest a call can run, from the start of the request to the last byte of the answer. Past it, Mubit closes the connection. |
+
+When Mubit closes a stream at a limit, the connection breaks. Mubit adds nothing to the stream.
+
+The OpenAI and Anthropic SDKs wait 600 s by default, so their own timeout usually ends a wait for the first byte before Mubit's does.
+
+## Retries
+
+Mubit retries a call once, and only when the first try failed before any byte of the request was sent: the connection to the provider couldn't be made. It never retries a call once the request has started, because the provider may already have it, and a second send could be billed twice.
+
+Your SDK owns retries. Mubit's errors tell it what to do: `x-should-retry: false` on errors a retry won't fix, and `retry-after` on `429` and `503`.
+
+## Sizes
+
+On the starter credit, Mubit checks each request body before it sends the call. The body must:
+
+- be at most 8 MiB, or the call gets `413 starter_credit_body`;
+- arrive whole within 60 s, or the call gets `408 starter_credit_body`;
+- be sent as plain JSON, with no content encoding, and be one JSON object, or the call gets `400 starter_credit_body`.
+
+With your own provider key, Mubit doesn't make these checks.
+
+Today, Mubit records up to 32 MiB of a request, and the first 4 MiB and the last 256 KiB of an answer. A bigger call still goes through whole. Only Mubit's record of it is cut.
+
+## Errors
+
+Mubit passes your provider's answers back to your app, its errors included.
+
+Mubit's own errors use your provider's error format, so your SDK reads them as it reads the provider's. Each one has the type `middleware_gateway_error`, a `code`, a message, and the call's request ID. The one exception is a call sent to the console's address: it gets `503 no_provider_configured`, with the type `middleware_error`. [Troubleshooting](/troubleshooting#mubits-errors) lists every code and what to do.
+
+The format depends on the path:
+
+| Path | Format |
+| --- | --- |
+| `/openai/…`, `/compat/…`, `/gemini/v1beta/openai/…`, and every other path, such as one that gets `404 unknown_route` | OpenAI's |
+| `/anthropic/…` | Anthropic's |
+| `/gemini/…`, except its OpenAI-compatible endpoint | Gemini's |
+
+```json [OpenAI]
+{
+  "error": {
+    "message": "No API key was provided. Send your Mubit key where the provider's SDK sends its API key.",
+    "type": "middleware_gateway_error",
+    "param": null,
+    "code": "missing_key",
+    "request_id": "mreq_…"
+  }
+}
+```
+
+```json [Anthropic]
+{
+  "type": "error",
+  "error": {
+    "type": "middleware_gateway_error",
+    "message": "No API key was provided. Send your Mubit key where the provider's SDK sends its API key.",
+    "code": "missing_key"
+  },
+  "request_id": "mreq_…"
+}
+```
+
+```json [Gemini]
+{
+  "error": {
+    "code": 401,
+    "message": "No API key was provided. Send your Mubit key where the provider's SDK sends its API key.",
+    "status": "UNAUTHENTICATED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "missing_key",
+        "domain": "middleware.now",
+        "metadata": { "type": "middleware_gateway_error" }
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.RequestInfo",
+        "requestId": "mreq_…"
+      }
+    ]
+  }
+}
+```
+
+In Gemini's format, the HTTP status is the error's `code`, and Mubit's code is the `reason` of its `ErrorInfo` detail.
+
+> **Note:** An error whose type is `middleware_gateway_error` or `middleware_error` came from Mubit. An error without either, on an answer that carries `x-middleware-request-id`, came from your provider as it sent it. An answer without that header didn't come through Mubit's API: check the base URL and try again.
+
+
+---
+
+<!-- /troubleshooting -->
+
+# Troubleshooting
+
+> Common problems by what you see, every error code Mubit sends and what to do about it, provider problems that make a call fail, request IDs, and how to ask for help.
+
+<!-- Auto-generated from pages/troubleshooting.mdx — do not edit by hand. -->
+
+Start from what you see. Every error from Mubit names a `code`: find it under [Mubit's errors](#mubits-errors).
+
+## Common problems
+
+### The call gets a 401, such as `missing_key` or `invalid_key`
+
+Mubit refused the call's key. The error's code says why:
+
+- `missing_key`: the call carries no key. If your code reads `MUBIT_API_KEY`, set it in the shell that runs the code.
+- `invalid_key`: copy the key again, or create a new one. Check the base URL against your console's **Connect** page.
+- A code that ends in `_refused`: the call carries something other than your Mubit key, such as a provider key or a sign-in token, or your Mubit key in the wrong place. With the Anthropic SDKs, check `ANTHROPIC_AUTH_TOKEN`: unset it, or set it to your Mubit key. With Claude Code, unset `ANTHROPIC_API_KEY` instead (see [Coding tools](/guides/coding-tools#claude-code)).
+- No `middleware_gateway_error` in the error: your provider refused the provider key saved for this project. An admin checks it under **Provider keys**.
+
+Sign-ins to Claude Pro or Max, ChatGPT or Codex can't be used. Use a Mubit key. See [Key errors](#key-errors).
+
+### The call gets a 403, such as `provider_key_missing`
+
+If the error's type is `middleware_gateway_error`, Mubit refused the call. Its code says why:
+
+- `provider_key_missing`: this project has no key for that provider. A provider the starter credit doesn't cover always needs your own key; the console names the providers it covers. An admin adds it under **Provider keys**, as [Add a key](/admin/provider-keys#add-a-key) shows.
+- `key_permission`: the key is read-only. Use an **Inference** key.
+- `key_scope`: the key isn't tied to one project. Use a key created in the project the calls are for.
+- `starter_credit_route`: the starter credit doesn't serve that path. Add your own key for the provider.
+- `admin_path_refused`: the path is an organization or admin endpoint. Call your provider directly for those.
+
+Without `middleware_gateway_error`, your provider refused it: see [Your provider's errors](#your-providers-errors). See also [Provider key errors](#provider-key-errors) and [Key errors](#key-errors).
+
+### My call isn't in Requests
+
+- **The call didn't go through Mubit.** Check that your client uses Mubit's base URL. An answer from Mubit carries the header `x-middleware-request-id`.
+- **The call asked Mubit not to keep it.** A call sent with `x-middleware-store: false`, or with `x-middleware-record: metadata` or `off`, doesn't show in **Requests**.
+- **Mubit refused it before calling your provider.** A call refused for its key, its path or a missing provider key leaves no record, so it isn't in **Requests**. Read the error your app got. See [Why a call isn't listed](/guides/requests#why-a-call-isnt-listed).
+
+### A call from a browser fails
+
+Mubit's API answers no CORS preflight request, so a browser refuses to send the call. Call Mubit from your server. That also keeps your key off your users' devices.
+
+### A long call or stream stops
+
+Mubit has [time limits](/reference/api#limits): 610 s for the provider to start its answer, 15 minutes with no part of the answer going to your app, and 60 minutes in all.
+
+- `504 upstream_timeout`: the provider didn't start its answer within 610 s. For long answers, stream: a stream starts as soon as the provider starts writing. Your SDK's own timeout (600 s by default for OpenAI and Anthropic) usually ends the wait first: raise it, or stream.
+- A stream that breaks off: it went 15 minutes without sending anything, or ran for 60 minutes. Make sure your app keeps reading the stream.
+
+### The call gets a 502, 503 or 504
+
+- `503` with the type `middleware_gateway_error`: wait the seconds in `retry-after`, then try again. Nothing was sent to your provider. A `503` with the type `middleware_error` is [`no_provider_configured`](#path-errors). Any other `503` is your provider's.
+- `502 upstream_unreachable`: Mubit couldn't connect to your provider. Nothing was sent. Try again shortly.
+- `502 upstream_failed`: the connection broke after the request started. Your provider may have the request, so Mubit doesn't send it again. Try again if a second call is safe for your app.
+- `504 upstream_timeout`: see [A long call or stream stops](#a-long-call-or-stream-stops).
+
+### Calls on the starter credit are refused
+
+The starter credit serves a set list of models, paths and options. Each refusal names what it doesn't serve: change the call as the message says, or add your own key for the provider under **Provider keys**. See [Starter credit errors](#starter-credit-errors).
+
+### My SDK retries a call Mubit refused
+
+Mubit sends `x-should-retry: false` on errors a retry won't fix, and `retry-after` on `429` and `503`. SDKs that read these headers stop or wait. Your SDK owns retries: Mubit itself retries only a call it couldn't send at all. See [Retries](/reference/api#retries).
+
+### A task doesn't train, or an adapter isn't in Try models
+
+Open the task in **Tasks**, or the adapter in **Adapters**, and read its status. [Create your first adapter](/guides/first-adapter) explains each one and what to do:
+
+- [What each test result means](/guides/first-adapter#test-results): `Passed`, `Below target`, `Malformed tool calls`, `Prompt only` and `Not tested`.
+- [Why a task is waiting or cannot train](/guides/first-adapter#waits-and-recovery): the daily training limit, the pause between trainings, and too few or too long examples.
+- [Why an adapter is unavailable in Try models](/guides/first-adapter#try-models-unavailable): the console's messages, such as `Not in Try models: prompt only`, and what each one means.
+
+## Mubit's errors
+
+Mubit's own errors use your provider's error format. Their `type` is `middleware_gateway_error`, and they name a `code` and the call's request ID. The one exception is `no_provider_configured`, under [Path errors](#path-errors): its type is `middleware_error`. The [API reference](/reference/api#errors) shows the format for each provider.
+
+In the messages, `{provider}` is the provider's name, such as `OpenAI` or `Anthropic`. `{upstream}` is the provider's name, or `this workspace's gateway`. An ellipsis (…) marks text left out here.
+
+### Key errors
+
+| Code | Status | Message | What to do |
+| --- | --- | --- | --- |
+| `missing_key` | 401 | No API key was provided. Send your Mubit key where the provider's SDK sends its API key. | Pass your Mubit key to the client, or set `MUBIT_API_KEY` in the shell that runs your code. |
+| `invalid_key` | 401 | Incorrect API key provided. | The key is wrong, revoked or malformed, or the call carries two different Mubit keys. Copy the key again, or create a new one under **Mubit keys**. Check the base URL against your console's **Connect** page. |
+| `wrong_region` | 401 | Names the base URL to send the call to. | Use the base URL your console's Connect page shows. |
+| `key_expired` | 401 | This API key expired at `{time}`. Create a new key or rotate this one. | Create a new key, or ask an admin to rotate this one under **Mubit keys**. |
+| `key_permission` | 403 | This key's permission can't call a provider. Use an inference key of this project. | The key is read-only. An admin creates an **Inference** key under **Mubit keys**. |
+| `key_scope` | 403 | This key is not tied to one project. Use an inference key created for one project. | Use a key created in the project the calls are for. |
+| `provider_key_refused` | 401 | This is a provider API key, not a Mubit key. Send your Mubit key where your SDK sends its API key, and add the provider key under Provider keys in the console. | Send your Mubit key. Add the provider key under **Provider keys**. |
+| `subscription_token_refused` | 401 | This is a Claude subscription sign-in token (from a Claude login or claude setup-token), not a Mubit key. … | Claude Pro and Max sign-ins can't be used. Send your Mubit key. |
+| `jwt_refused` | 401 | This is a sign-in token (a JWT), not a Mubit key. … | Sign-ins such as ChatGPT and Codex logins can't be used. Send your Mubit key. |
+| `oauth_token_refused` | 401 | This is a Google OAuth token, not a Mubit key. Send your Mubit key where your SDK sends its API key. | Send your Mubit key in place of the Google sign-in. |
+| `extra_credential_refused` | 401 | This request carries a credential that is not a Mubit key beside your Mubit key. Send only the Mubit key. | Remove the other credential. With the Anthropic SDKs, unset `ANTHROPIC_AUTH_TOKEN`, or set it to your Mubit key. With Claude Code, unset `ANTHROPIC_API_KEY` instead (see [Coding tools](/guides/coding-tools#claude-code)). |
+| `middleware_key_refused` | 401 | This request carries a Mubit key outside the places the gateway reads keys from. Send your Mubit key where your SDK sends its API key, and only there. | Send the key only in the [key header](/reference/api#keys) for your provider. |
+| `engine_unavailable` | 503 | The gateway could not check this key just now. Try again shortly. | Wait the seconds in `retry-after`, then try again. |
+
+### Provider key errors
+
+| Code | Status | Message | What to do |
+| --- | --- | --- | --- |
+| `provider_key_missing` | 403 | This project has no `{provider}` key. Add one under Provider keys in the console. | Add the provider's key under **Provider keys**, as the [Provider keys](/admin/provider-keys#add-a-key) page shows. |
+| `provider_region_unavailable` | 403 | … Delete the key and add it again under Provider keys in the console. | Delete the provider's key under **Provider keys**, then add it again. |
+| `key_store_unavailable` | 503 | The gateway could not read this project's provider key just now. Try again shortly. | Wait the seconds in `retry-after`, then try again. |
+
+### Starter credit errors
+
+These come only on calls the starter credit pays for.
+
+| Code | Status | Message | What to do |
+| --- | --- | --- | --- |
+| `starter_credit_used_up` | 402 | The starter credit on … `{provider}` key is used up. Add your own `{provider}` key under Provider keys in the console … | Add your own key for that provider under **Provider keys**. Your calls use it from then on. |
+| `starter_credit_model` | 400 | The starter credit serves these `{provider}` models on this route: … Name one of them as the model, or add your own `{provider}` key under Provider keys in the console to use another. | Use a model the message lists, or add your own key. |
+| `starter_credit_route` | 403 | This route is not available on the starter credit. Add your own `{provider}` key under Provider keys in the console to use it. | The starter credit serves fewer paths; [Paths Mubit refuses](/reference/api#paths-mubit-refuses) lists them. Add your own key for other paths. |
+| `starter_credit_tools` | 400 | Tools billed apart from tokens (hosted web search, file search, code execution, image generation, hosted MCP), tool versions the starter credit does not list, and background mode are not available on the starter credit. … | Leave those tools and background mode out, or add your own key. |
+| `starter_credit_option` | 400 | Names one option the starter credit doesn't serve, and how to leave it out. | Change the call as the message says, or add your own key. |
+| `starter_credit_body` | 413, 408 or 400 | The request body … Add your own `{provider}` key under Provider keys in the console to send it as it is. | Change the body as the message says, or add your own key. Limits: 8 MiB, whole within 60 s, plain JSON. See [Sizes](/reference/api#sizes). |
+| `starter_credit_key_refused` | 502 | `{provider}` refused the starter credit's key, so this call was not served. Add your own `{provider}` key under Provider keys in the console to go on. | Add your own key for that provider. |
+| `starter_credit_busy` | 429 | This project already has `{n}` calls in flight on the starter credit, its limit at once. Try again shortly, or add your own key under Provider keys in the console. | Wait the seconds in `retry-after`, or send fewer calls at once. |
+| `starter_credit_unavailable` | 503 | The gateway could not use this project's starter credit just now. Try again shortly. | Wait the seconds in `retry-after`, then try again. |
+
+### Path errors
+
+| Code | Status | Message | What to do |
+| --- | --- | --- | --- |
+| `unknown_route` | 404 | Unknown route. … | Use a path under one of the [provider prefixes](/reference/api#paths). |
+| `unknown_provider` | 404 | Unknown provider. The OpenAI-compatible providers this gateway serves at `/compat/<provider>/v1` are: … | Put one of the services the message lists in the `/compat` path. |
+| `admin_path_refused` | 403 | Organization and admin endpoints are not available through this gateway. Call the provider directly. | Call your provider directly for organization and admin endpoints. |
+| `invalid_path` | 400 | The request path has a `.` or `..` segment, a `;`, a control character, or an escape that decodes again. | Send the path your provider documents, as it is. |
+| `no_provider_configured` | 503 | Says that this address makes no provider calls. Its type is `middleware_error`. | The call went to the console's address. Use the base URL your console's Connect page shows. |
+
+### Connection and capacity errors
+
+| Code | Status | Message | What to do |
+| --- | --- | --- | --- |
+| `upstream_unreachable` | 502 | Could not connect to `{upstream}`. Nothing was sent. Try again shortly. | Try again shortly. |
+| `upstream_failed` | 502 | The connection to `{upstream}` failed before it answered. | Your provider may have the request. Try again if a second call is safe for your app. |
+| `upstream_redirect` | 502 | `{upstream}` answered with a redirect (HTTP `{status}`). … | Check the path against your provider's API. Mubit doesn't follow redirects, so a retry gets the same answer. |
+| `upstream_timeout` | 504 | No answer from `{upstream}` within `{seconds}` s. | The provider didn't start its answer in time. For long answers, stream. |
+| `gateway_overloaded` | 503 | This gateway is at its connection limit. Nothing was sent. Try again shortly. | Wait the seconds in `retry-after`, then try again. |
+| `gateway_draining` | 503 | This gateway instance is shutting down. Nothing was sent. Try again. | Try again. Nothing was sent. |
+
+## Your provider's errors
+
+Mubit passes your provider's answers back to your app, its errors included.
+
+An error whose type is `middleware_gateway_error` or `middleware_error` came from Mubit. An error without either, on an answer that carries `x-middleware-request-id`, came from your provider as it sent it. An answer without that header didn't come through Mubit's API: check the base URL and try again.
+
+Your provider's message says why. The usual causes:
+
+| Status | What it means | What to do |
+| --- | --- | --- |
+| 401 or 403 | Your provider refused the key. | An admin checks the provider's key under **Provider keys**. |
+| 429 | Your provider account's limit was reached. | Check the limits on your provider account. |
+| 400 | Your provider refused the request. | Read its message: it says why. |
+| 404 | The model or path wasn't found. | Check the model ID, then send the call again. |
+| 5xx | Your provider had a problem. | Try again shortly. |
+
+| Problem | What to do |
+| --- | --- |
+| Your Gemini calls fail, and your Gemini key is on the free tier. | Google doesn't serve its free tier in some countries. Use a paid-tier Gemini key. |
+
+## Find a call's request ID
+
+Each answer carries the call's ID in the `x-middleware-request-id` header. Mubit's own errors also carry it in their body. It starts with `mreq_`.
+
+[Requests](/guides/requests#find-a-calls-request-id) shows how to read the header in Python, TypeScript and curl.
+
+**Requests** shows its own ID for each call, under **Details**. It is not the request ID: see [Find a call's request ID](/guides/requests#find-a-calls-request-id).
+
+## Get help
+
+When you ask for help with a call, include:
+
+- the call's request ID, from `x-middleware-request-id`;
+- when you sent it, with your time zone;
+- the status, the error's code and its message;
+- the base URL and path, and the SDK you use, with its version.
+
+Never send your Mubit key or a provider key.

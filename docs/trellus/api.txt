@@ -1,0 +1,2066 @@
+
+-->
+Trellus Call Data API documentation
+Skip to content
+Product
+Parallel dialer
+Power and parallel dialing inside supported sales platforms
+Virtual Salesfloor
+Run call blocks together with live listening and team coaching
+AI sales roleplay
+Rehearse openers and objection handling before your next call block
+Call Analytics
+Review conversations and team performance
+LinkedIn inbox
+Organize your LinkedIn conversations and follow-ups
+Real-time call coaching
+Give reps live guidance for objections and talking points
+Solutions
+By industry
+B2B SaaS
+Outbound call blocks and SDR-to-AE handoffs
+Recruiting & staffing
+Client development and hiring-manager follow-up
+Sales agencies
+Campaign context and clearer client handoffs
+Insurance
+Quote follow-up, renewals, and the next conversation
+Real estate
+Inquiries, callbacks, and clearer handoffs
+White-label dialing
+Your brand, powered by Trellus calling
+Explore solutions
+Find the workflow for your team
+By team
+Sales teams
+Calling, coaching, and conversation insights
+Support teams
+Explore Trellus for your support workflow
+Founders
+Keep your LinkedIn conversations organized
+Integrations
+Most used
+HubSpot
+Google Sheets
+Outreach
+Apollo
+Salesloft
+Gong Engage
+Salesforce
+GoHighLevel
+Close
+Attio
+All 28 integrations 
+Custom CRM? Use the API
+Resources
+Video guides
+See your platform and calling workflow in action
+API & developer docs
+Connect call data to the tools you build
+MCP for AI assistants
+Connect an assistant to the call data your account can read
+Frequently asked questions
+Setup, plans, calling, and team workflows
+Learning Center
+Practical guidance for better calling
+Blog
+Ideas and guides for sales teams
+Customer stories
+Hear from the teams using Trellus
+Pricing
+Book a demo
+Sign in
+Developers
+/
+Call Data API
+Public documentation
+Call Data API
+Read call records, transcripts and outcomes. Build reports with counts, duration totals and breakdowns, then retrieve the details or audio for a selected call.
+Quickstart
+Call Data API
+MCP guide
+Calling Lists API
+On this page
+Authentication and readable scope
+Make your first request
+Six reporting endpoints
+Request parameters and date units
+Filters and nested fields
+Read response rows and transcripts
+Counts, sums and breakdowns
+Complete field reference
+Rate limits and complete exports
+Errors and troubleshooting
+OpenAPI and coding-assistant prompt
+Need help with your connection?
+Contact Trellus support
+Authentication and readable scope
+Use the API key belonging to your Trellus user. In Trellus, open Settings → Integrations → API (the Call Data API page) to copy your own key. Keep it in a server-side environment variable named TRELLUS_API_KEY.
+The key inherits the user’s existing permissions. It is not a separately restricted read-only credential. Verify the readable users with /visible; team_id never grants access.
+Do not place API keys in browser code, query strings, analytics, logs, public repositories or prompts. Contact support to replace an exposed key.
+This documentation is public. Requests to customer data require authentication and retain your existing Trellus permissions. For an AI assistant that connects through browser sign-in, use the 
+MCP setup guide
+.
+Which authentication header to send
+API host
+Headers
+ext.trellus.ai
+api_key: $TRELLUS_API_KEY
+rpt-2.trellus.ai
+Authorization: Bearer $TRELLUS_API_KEY
+api.trellus.ai/get-audio-links
+api_key: $TRELLUS_API_KEY
+ and 
+session_id: SESSION_ID
+Make your first request
+Call /visible first. A 200 response proves the key works and shows the users readable in the requested team.
+Call /bootstrap only when you need the full account configuration or exact option strings for filters.
+Use metric-details-v7 for totals and breakdowns; use session-list-v6 for rows and transcript snippets.
+After choosing one session_id, use /session for complete detail or /get-audio-links for temporary audio URLs.
+Verify readable users
+Copy 
+curl https://ext.trellus.ai/visible \
+  -H "api_key: $TRELLUS_API_KEY"
+The directory includes readable users, a user ID to email mapping, groups and memberships. 
+team
+ appears only when the user can read the whole team. Its absence does not mean authentication failed.
+Example directory response
+Copy 
+{
+  "team": { "team_id": "...", "team": "..." },
+  "users": [{ "user_id": "...", "user_name": "..." }],
+  "user_id_to_email": { "...": "rep@example.com" },
+  "groups": [],
+  "memberships": []
+}
+Start with a bounded date window and a short list of columns. The example below requests October 1–7, 2026 in UTC. Use the 
+request builder
+ to choose your own dates. Examples on this page never send requests or ask you to enter a key.
+List calls and transcript turns
+Copy 
+curl https://rpt-2.trellus.ai/session-list-v6 \
+  -H "Authorization: Bearer $TRELLUS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start": 1790812800000000,
+    "end": 1791417600000000,
+    "cnf": [
+      [{ "column_name": "conversation_type", "operator": "EQ", "value_safe": 1 }]
+    ],
+    "limit": 50,
+    "select": ["session_id", "started_at", "customer_address", "customer_data.name", "customer_data.title", "customer_data.company_name", "turn_data.texts", "turn_data.is_customers", "turn_data.starts"]
+  }'
+Six reporting endpoints
+Use the directory to resolve people, reporting endpoints to answer questions, and detail endpoints for one selected call.
+GET
+Visible directory
+https://ext.trellus.ai/visible
+Start here. Returns the team, users, emails, groups, and memberships this key can see.
+Authentication:
+ api_key header
+Optionally send a 
+team_id
+ header to select a team you are permitted to read. Match 
+users[].user_id
+ to 
+resource_id
+ in call rows. Memberships connect 
+user_group_id
+ and 
+member_id
+; 
+member_is_group
+ identifies group members.
+Visible directory request
+Copy 
+curl https://ext.trellus.ai/visible \
+  -H "api_key: $TRELLUS_API_KEY"
+GET
+Bootstrap
+https://ext.trellus.ai/bootstrap
+Load the complete account context and exact disposition, sentiment, and purpose values.
+Authentication:
+ api_key header
+This returns the key owner’s account configuration and filter vocabulary. It is not a call list. Use it for exact configured disposition, sentiment and purpose strings instead of guessing labels.
+Bootstrap request
+Copy 
+curl https://ext.trellus.ai/bootstrap \
+  -H "api_key: $TRELLUS_API_KEY"
+POST
+List calls and transcripts
+https://rpt-2.trellus.ai/session-list-v6
+Return recent matching session rows and optional transcript columns. Maximum 1,000 rows.
+Authentication:
+ Bearer token
+Send 
+start
+ and 
+select
+ in a JSON body. Results are positional row arrays, newest first, with a default limit of 50 and a maximum of 1,000.
+List calls and transcripts request
+Copy 
+curl https://rpt-2.trellus.ai/session-list-v6 \
+  -H "Authorization: Bearer $TRELLUS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start": 1790812800000000,
+    "end": 1791417600000000,
+    "cnf": [
+      [{ "column_name": "conversation_type", "operator": "EQ", "value_safe": 1 }]
+    ],
+    "limit": 50,
+    "select": ["session_id", "started_at", "customer_address", "customer_data.name", "customer_data.title", "customer_data.company_name", "turn_data.texts", "turn_data.is_customers", "turn_data.starts"]
+  }'
+POST
+Count calls and sum durations
+https://rpt-2.trellus.ai/metric-details-v7
+Calculate counts and numeric sums, optionally filtered or grouped by a reporting column.
+Authentication:
+ Bearer token
+Send 
+start
+ and 
+selects
+ in a JSON body. Each select returns a count or sum. A 
+group_by
+ value becomes the first cell in each row.
+Count calls and sum durations request
+Copy 
+curl https://rpt-2.trellus.ai/metric-details-v7 \
+  -H "Authorization: Bearer $TRELLUS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start": 1790812800000000,
+    "end": 1791417600000000,
+    "selects": [
+      { "cnf": [] },
+      { "column_name": "duration" },
+      { "cnf": [[{ "column_name": "dial_metric.live_duration", "operator": "GE", "value_safe": 30 }]] }
+    ],
+    "cnf": [[{ "column_name": "conversation_type", "operator": "EQ", "value_safe": 1 }]],
+    "group_by": { "column_name": "user_log.disposition" }
+  }'
+GET
+Read one call
+https://rpt-2.trellus.ai/session
+Fetch one complete session after session-list returns the session_id you want to inspect.
+Authentication:
+ Bearer token + x-session-id
+Send the exact list-row ID in the 
+x-session-id
+ header. A query parameter or JSON body is not used. Add 
+x-proto-as-json: true
+ for camelCase JSON; otherwise the response is binary protobuf. JSON omits 
+wordData
+.
+Read one call request
+Copy 
+curl https://rpt-2.trellus.ai/session \
+  -H "Authorization: Bearer $TRELLUS_API_KEY" \
+  -H "x-session-id: SESSION_ID" \
+  -H "x-proto-as-json: true"
+GET
+Audio links
+https://api.trellus.ai/get-audio-links
+Return temporary download URLs for one readable call. Generate them only when needed.
+Authentication:
+ api_key + session_id headers
+The response is 
+{ session, audio, audio_links }
+: one session object and two arrays aligned by index. URLs expire after one hour. Beyond recording retention, audio arrays may be empty. Within retention, a non-call session returns 400.
+Audio links request
+Copy 
+curl https://api.trellus.ai/get-audio-links \
+  -H "api_key: $TRELLUS_API_KEY" \
+  -H "session_id: SESSION_ID"
+Request parameters and date units
+List and metrics requests use 
+Content-Type: application/json
+. Put parameters in the POST body.
+List and metrics request parameters
+Parameter
+Type / requirement
+Meaning
+start
+integer
+Required
+Inclusive UTC range start in Unix microseconds. Use Date.parse(ISO_WITH_TIMEZONE) * 1000 in JavaScript.
+end
+integer
+Optional
+Exclusive UTC range end in Unix microseconds. Defaults to now.
+team_id
+string
+Optional
+One permitted team per request; defaults to the key owner’s team. This does not expand access.
+cnf
+Filter[][]
+Optional
+AND of OR filter groups. Defaults to []. Do not use an empty inner group.
+select
+string[]
+Required for lists
+Exact reporting column paths. Response cell i corresponds to select[i].
+limit
+integer
+Optional for lists
+Default 50; minimum 1 and maximum 1000. A row cap, not a page size with a continuation token.
+selects
+Aggregate[]
+Required for metrics
+Ordered count or sum definitions. Each select can include cnf, column_name, or both. Empty {} is invalid.
+group_by
+object
+Optional for metrics
+Reporting column_name. Prepends the group value to each result row.
+Two timestamp units:
+ request 
+start
+ and 
+end
+ are Unix microseconds. Returned 
+started_at
+ and values in a 
+started_at
+ filter are Unix seconds. Duration and transcript offsets are also seconds. The date range includes its start and excludes its end.
+Convert UTC dates and list timestamps
+Copy 
+const start = Date.parse("2026-10-01T00:00:00Z") * 1000;
+const end = Date.parse("2026-10-08T00:00:00Z") * 1000;
+// A returned list started_at value uses seconds:
+const startedAt = new Date(started_at * 1000);
+Filters and nested fields
+cnf
+ is an AND list of OR groups: every outer group must match, and at least one condition inside each group must match. An empty outer list adds no extra filter. Avoid empty inner groups.
+Each condition needs 
+column_name
+, 
+operator
+ and 
+value_safe
+. Use actual booleans, numbers or strings. 
+IN
+ and 
+NIN
+ take arrays. Recognized enum fields accept their names or numeric values; byte values use base64. 
+user_log.source
+ is a numeric field for list results and filters: use the documented numeric codes, not their explanatory labels.
+Calls from two reps, with an outcome or 30 live seconds
+Copy 
+{
+  "cnf": [
+    [
+      {
+        "column_name": "conversation_type",
+        "operator": "EQ",
+        "value_safe": 1
+      }
+    ],
+    [
+      {
+        "column_name": "resource_id",
+        "operator": "IN",
+        "value_safe": [
+          "REP_ID_ONE",
+          "REP_ID_TWO"
+        ]
+      }
+    ],
+    [
+      {
+        "column_name": "user_log.disposition",
+        "operator": "EQ",
+        "value_safe": "YOUR_INTERESTED_OPTION"
+      },
+      {
+        "column_name": "dial_metric.live_duration",
+        "operator": "GE",
+        "value_safe": 30
+      }
+    ]
+  ]
+}
+Supported filter operators
+Operator
+Meaning
+EQ
+Equal to the typed value.
+NEQ
+Not equal to the typed value.
+GT
+Greater than.
+GE
+Greater than or equal to.
+LT
+Less than.
+LE
+Less than or equal to.
+IN
+One of the values in the value_safe array.
+NIN
+Not in the value_safe array.
+REGEX
+Search a string with the backend regular-expression engine; look-around and backreferences are not supported.
+Arrays and custom fields
+Select an array as a whole, use a concrete path such as 
+agents.[0].agent_id
+, or project members with 
+agents.[*].agent_id
+. A filter containing 
+[*]
+ requires 
+reducer: "ANY"
+ or 
+reducer: "ALL"
+. Do not add a reducer to a filter without 
+[*]
+; select projections do not use reducers.
+customer_data.custom_fields
+ is JSON text in list results. Parse it before reading keys. Captured keys vary by account and source; there is no guaranteed standard contact email column.
+Copy common filter recipes
+Replace sample rep IDs and outcome labels with the values returned by 
+/visible
+ and 
+/bootstrap
+. 
+agent_joined: false
+ alone is not a universal definition of a missed call: combine it with call type and inbound filters for that analysis.
+Inbound calls
+Copy 
+[{ "column_name": "dial_metric.is_inbound", "operator": "EQ", "value_safe": true }]
+Longer calls
+Copy 
+[{ "column_name": "duration", "operator": "GE", "value_safe": 300 }]
+Human connected examples
+Copy 
+[{ "column_name": "dial_metric.live_duration", "operator": "GE", "value_safe": 30 }]
+No agent joined
+Copy 
+[{ "column_name": "agent_joined", "operator": "EQ", "value_safe": false }]
+Specific rep/resource
+Copy 
+[{ "column_name": "resource_id", "operator": "EQ", "value_safe": "USER_ID" }]
+Resolved user name
+Copy 
+[{ "column_name": "resource_id", "operator": "EQ", "value_safe": "USER_ID_FROM_BOOTSTRAP" }]
+Disposition
+Copy 
+[{ "column_name": "user_log.disposition", "operator": "IN", "value_safe": ["Interested", "Demo booked"] }]
+Purpose
+Copy 
+[{ "column_name": "user_log.purpose", "operator": "EQ", "value_safe": "Follow up" }]
+Read response rows and transcripts
+List responses are JSON arrays of positional rows. Each cell follows the request’s select order. [] is a successful query with no matching readable rows.
+Top-level request start and end use Unix microseconds. List started_at and started_at filter values use Unix seconds. Durations and transcript offsets are seconds.
+Combine turn_data.texts, turn_data.is_customers and turn_data.starts by index. true identifies customer speech; false identifies agent speech.
+/session JSON uses camelCase keys and enum names; byte fields are base64. Default-valued fields may be omitted, and wordData is omitted. Without x-proto-as-json: true, the endpoint returns protobuf.
+/get-audio-links returns one session object plus aligned audio and audio_links arrays. The URLs expire after one hour. Retention can leave both arrays empty.
+Unset proto values can appear as 0, false, empty strings or empty arrays. They do not prove an event was measured. Detection flags are signals, not verified outcomes.
+Map list rows, transcript turns and grouped metrics
+Copy 
+// Example only: select = ["session_id", "started_at", "customer_data.name"]
+// Response: [["CALL_ID", 1791849600, "Example contact"]]
+const calls = rows.map(row => Object.fromEntries(
+  select.map((column, index) => [column, row[index]])
+));
+const startedAt = calls[0] ? new Date(calls[0].started_at * 1000) : null;
+// Transcript columns are aligned arrays:
+const turns = texts.map((text, index) => ({
+  text,
+  speaker: isCustomers[index] ? "customer" : "agent",
+  startSeconds: starts[index]
+}));
+// /session with x-proto-as-json: true uses different JSON spelling:
+// { "sessionId": "CALL_ID", "customerData": { "name": "Example contact" },
+//   "turnData": { "texts": ["Hello"], "isCustomers": [true], "starts": [0] } }
+// Default-valued proto fields may be omitted. wordData is omitted.
+// Grouped metrics: selects = [{"cnf": []}, {"column_name": "duration"}]
+// Example response: [["Interested", 12, 840]]
+// Read as: disposition, count, summed duration in seconds.
+Common fields and their exact paths
+What you need
+Column
+How to use it
+Call ID
+session_id
+Copy the exact string into the x-session-id header for /session.
+Call time
+started_at
+Unix seconds in list rows. Convert with new Date(value * 1000).
+Customer phone/address
+customer_address
+For phone calls, the customer address; phone is not a column name.
+Rep ID
+resource_id
+Match to users[].user_id from /visible.
+Contact name
+customer_data.name
+Use this instead of prospect_name or name.
+Contact title
+customer_data.title
+Use this instead of title.
+Company
+customer_data.company_name
+Use this instead of company.
+Company website
+customer_data.company_url
+May be empty when not enriched.
+Contact email / custom data
+customer_data.custom_fields
+No standard email column. Custom fields are JSON text; inspect available keys rather than assuming email exists.
+Transcript text
+turn_data.texts
+Array of utterances, not one transcript string.
+Transcript speaker
+turn_data.is_customers
+Aligned with texts: true = customer, false = agent.
+Transcript timing
+turn_data.starts
+Aligned with texts; seconds from the start of the session.
+Call duration
+duration
+Seconds. dial_metric.live_duration measures the live portion.
+Saved outcome
+user_log.disposition
+Use /bootstrap for your exact configured option strings.
+Counts, sums and breakdowns
+Use 
+metric-details-v7
+ for totals across a date range. This avoids treating the limited rows from a list request as a total.
+Counts and duration totals by disposition
+Copy 
+curl https://rpt-2.trellus.ai/metric-details-v7 \
+  -H "Authorization: Bearer $TRELLUS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "start": 1790812800000000,
+    "end": 1791417600000000,
+    "selects": [
+      { "cnf": [] },
+      { "column_name": "duration" },
+      { "cnf": [[{ "column_name": "dial_metric.live_duration", "operator": "GE", "value_safe": 30 }]] }
+    ],
+    "cnf": [[{ "column_name": "conversation_type", "operator": "EQ", "value_safe": 1 }]],
+    "group_by": { "column_name": "user_log.disposition" }
+  }'
+Choose aggregations and groups
+Copy 
+metric-details-v7 uses the reporting column paths from session-list-v6.
+Each item in selects produces one numeric result cell:
+- { "cnf": [] } counts every session in the time window.
+- { "cnf": [[filter]] } counts sessions matching that filter.
+- { "column_name": "duration" } sums a numeric or boolean column.
+- A select may contain both column_name and cnf to sum only matching sessions.
+group_by adds a group value as the first cell in every row:
+- { "column_name": "resource_id" } gives one row per rep/resource.
+- { "column_name": "user_log.disposition" } gives one row per disposition.
+- { "column_name": "dial_metric.is_inbound" } separates inbound and non-inbound calls.
+The remaining cells stay in the same order as selects. Use /visible to map resource_id values to user names. Use /bootstrap to discover exact disposition strings.
+Each aggregation’s filters are additional to the top-level 
+cnf
+. A sum can use a numeric or boolean column; summing a boolean counts true values. An empty aggregation object is invalid.
+Group numeric values into bins
+Use exact grouping for strings, booleans, bytes and enums. Do not supply step parameters for these types.
+Floating-point and started_at grouping require step_size_safe and step_start_safe. Integer grouping can use exact values or steps.
+step_size_safe is the bin width; step_start_safe is its origin; optional step_modulus_safe is a repeat period. Values use the grouped column’s units: started_at uses seconds.
+For stepped groups, the key is floor(((value - origin) modulo period, when supplied) / width). It is a bin index, not a date.
+Compatibility exception: the current metric-details-v7 endpoint scales a started_at group key by 1,000,000. Divide by 1,000,000 to recover the bin index before converting it to a time range.
+Confirm the key and readable scope
+Call /visible first. It returns the readable directory for one team, including user and group IDs. The team field appears only with whole-team read access.
+Find real connected-call examples
+Use session-list-v6 with conversation_type = 1 and dial_metric.live_duration >= 30. Do not require SIP 200 by default, because processed calls can come from non-Trellus telephony. Include transcript columns when snippets are enough.
+Answer aggregate questions
+Use metric-details-v7 for counts, numeric sums, and categorical breakdowns. It accepts the same reporting column paths used by session-list-v6. Only fetch session rows when the user asks which calls caused the metric or wants transcript evidence.
+Resolve a rep or option name
+Use /visible to resolve user names to resource_id values. Use /bootstrap when you also need exact user_log.disposition, user_log.sentiment, or user_log.purpose strings.
+Get up to 1000 rows per request
+Pass limit in the session-list-v6 JSON body. Use limit: 1000 for bulk pulls, then narrow by rep, disposition, date, call type, or duration. For broader history, split windows that reach the limit and merge rows by session_id; a capped response is not a complete export.
+Download audio for one call
+Choose a readable call from session-list, then call /get-audio-links with its session_id header. The returned links expire after one hour; request them only when you are ready to play or download the audio.
+Complete field reference
+150 selectable fields and 17 documented array members, with types, definitions and enum values. These are reporting paths, not arbitrary CRM property names. List paths use snake_case; single-session JSON uses camelCase.
+Member paths written with 
+.[].
+ explain the contents of an object array. They are not literal query paths: select the parent array or use 
+.[0].
+ / 
+.[*].
+. Recognized enum columns and projections return names; values inside whole object arrays may remain numeric. 
+user_log.source
+ returns a numeric code and requires numeric filter values.
+Search fields
+167 documented fields and members
+Call identity and timing 
+(20)
+Call identity and timing fields
+Field / type
+Definition and values
+session_id
+string
+Unique session identifier. Use the exact returned string in the x-session-id header for detail or session_id header for audio.
+team_id
+string
+Team owning this session; selecting a team does not grant permission to read it.
+started_at
+uint32
+Session start as Unix seconds. List/metric request start and end instead use Unix microseconds.
+conversation_type
+enum
+Kind of conversation; CONVERSATION_TYPE_CALL (1) identifies calls.
+CONVERSATION_TYPE_UNKNOWN = 0
+; 
+CONVERSATION_TYPE_CALL = 1
+; 
+CONVERSATION_TYPE_MESSAGING = 2
+; 
+CONVERSATION_TYPE_CHAT = 3
+customer_address
+string
+Customer address; a phone number for phone calls. There is no phone alias.
+agent_address
+string
+Agent-side address associated with the session; not a user identifier.
+address_type
+enum
+Address category, such as phone, email or web.
+ADDRESS_TYPE_UNKNOWN = 0
+; 
+ADDRESS_TYPE_PHONE = 1
+; 
+ADDRESS_TYPE_EMAIL = 2
+; 
+ADDRESS_TYPE_WEB = 3
+; 
+ADDRESS_TYPE_AGENT = 4
+resource_id
+string
+Resource/user associated with this session. For rep reports, resolve against /visible users[].user_id.
+provisioning_team_id
+string
+Provisioning/partner team identifier, when present; not the team_id to assume for report access.
+is_provisional
+bool
+True while the stored session snapshot is provisional rather than finalized.
+customer_joined
+bool
+Whether the customer channel joined. This can include automated answering; it does not prove a human conversation.
+customer_joined_at
+float
+Customer join offset in seconds from session start; zero can be unset.
+agent_joined
+bool
+Whether an agent connection joined, including a user, voice bot or bridged number. Not a human-only answer flag.
+agent_joined_at
+float
+Legacy aggregate agent join offset in seconds; may remain unset. Prefer agents[].joined_at for participant timing.
+duration
+float
+Total session duration in seconds, including ringing/queue time. Use dial_metric.live_duration for the live portion.
+customer_words
+int32
+Backend customer word-count statistic for eligible turns; approximate, not an exact transcript token count.
+agent_words
+int32
+Backend agent word-count statistic for eligible turns; approximate, not an exact transcript token count.
+end_reason
+enum
+Recorded reason the session ended; unknown can mean it was not populated.
+END_REASON_UNKNOWN = 0
+; 
+END_REASON_DISCONNECTED = 1
+; 
+END_REASON_IDLE = 2
+; 
+END_REASON_EXPIRED = 3
+; 
+END_REASON_CUSTOMER_NOT_JOINED = 10
+; 
+END_REASON_CUSTOMER_LEFT = 11
+; 
+END_REASON_USER_BRIDGE_FAILURE = 20
+; 
+END_REASON_BOT_DECISION = 21
+; 
+END_REASON_ENDPOINT = 22
+; 
+END_REASON_HANGUP_INSTRUCTION = 23
+; 
+END_REASON_AGENTS_NOT_JOINED = 24
+; 
+END_REASON_AGENTS_LEFT = 25
+customer_turn_duration
+float
+Sum of eligible customer transcript-turn durations in seconds. Outbound dial turns before the live portion are excluded.
+agent_turn_duration
+float
+Sum of eligible agent transcript-turn durations in seconds. Outbound dial turns before the live portion are excluded.
+Participants 
+(5)
+Participants fields
+Field / type
+Definition and values
+agents
+object[]
+Joined agent connections; may include users, bots and numbers. See member definitions below.
+agents.[].agent_id
+string
+Identifier of this connected participant; interpret together with agent_type rather than assuming every ID is a rep user ID.
+agents.[].agent_type
+enum
+Participant kind (user, voice bot or number, among the schema enum values).
+AGENT_TYPE_UNKNOWN = 0
+; 
+AGENT_TYPE_USER = 1
+; 
+AGENT_TYPE_NUMBER = 2
+; 
+AGENT_TYPE_VOICE_BOT = 3
+agents.[].joined_at
+float
+Participant join offset in seconds from session start.
+agents.[].left_at
+float
+Participant leave offset in seconds from session start; session end is used if no earlier leave time is recorded.
+Recording and retention 
+(12)
+Recording and retention fields
+Field / type
+Definition and values
+privacy.customer_recorded
+bool
+Customer audio recording policy flag; does not guarantee a retained file is currently downloadable.
+privacy.agent_recorded
+bool
+Agent audio recording policy flag; does not guarantee a retained file is currently downloadable.
+privacy.customer_transcript_persisted
+bool
+Whether customer transcript persistence is permitted.
+privacy.agent_transcript_persisted
+bool
+Whether agent transcript persistence is permitted.
+privacy.customer_transcribed
+bool
+Whether customer streaming transcription is enabled.
+privacy.agent_transcribed
+bool
+Whether agent streaming transcription is enabled.
+privacy.is_zdr
+bool
+Zero data retention mode; persisted transcript content is suppressed and cost data may remain.
+privacy.transcribe_may_log
+bool
+Whether transcription logging is permitted by the account policy. Does not indicate recording availability.
+audio_files
+object[]
+Stored recording-file metadata, not playable URLs. Request temporary download links from /get-audio-links.
+audio_files.[].uploaded_key
+string
+Recording reference, not a download URL. Use /get-audio-links to request temporary audio download URLs.
+audio_files.[].audio_file_type
+enum
+Recording channel/file category.
+AUDIO_FILE_TYPE_UNKNOWN = 0
+; 
+AUDIO_FILE_TYPE_CUSTOMER = 1
+; 
+AUDIO_FILE_TYPE_AGENT = 2
+; 
+AUDIO_FILE_TYPE_COMMINGLED = 3
+audio_files.[].start
+float
+Recording start offset in seconds from session start.
+Transcripts and audio timing 
+(13)
+Transcripts and audio timing fields
+Field / type
+Definition and values
+word_data.starts
+float[]
+Word start offsets in seconds from session start; aligned with ends, words and is_customers.
+word_data.ends
+float[]
+Word end offsets in seconds from session start; aligned with starts, words and is_customers.
+word_data.words
+string[]
+Individual recognized words. /session JSON intentionally clears wordData; use turn_data for a transcript.
+word_data.is_customers
+bool[]
+Word speakers: true = customer, false = agent; aligned with words.
+word_data.known_ats
+float[]
+Offsets in seconds from session origin when words became known to the live processor; diagnostic latency data, not wall-clock timestamps.
+sound_data.tone_starts
+float[]
+Detected tone start offsets in seconds from session start; pair with tone_ends by index.
+sound_data.tone_ends
+float[]
+Detected tone end offsets in seconds from session start; pair with tone_starts by index.
+sound_data.music_starts
+float[]
+Detected music start offsets in seconds from session start; pair with music_ends by index.
+sound_data.music_ends
+float[]
+Detected music end offsets in seconds from session start; pair with music_starts by index.
+turn_data.starts
+float[]
+Utterance start offsets in seconds from session start; aligned by index with ends, texts and is_customers.
+turn_data.ends
+float[]
+Utterance end offsets in seconds from session start; aligned by index with starts, texts and is_customers.
+turn_data.texts
+string[]
+Array of utterance strings, not one transcript string. Content may be empty or redacted by transcription/retention settings.
+turn_data.is_customers
+bool[]
+Utterance speakers: true = customer, false = agent; aligned by index with texts, starts and ends.
+Platform and additional context 
+(9)
+Platform and additional context fields
+Field / type
+Definition and values
+state
+JSON text
+Session evaluation/context state as JSON text in list rows. Keys vary; inspect rather than inventing a fixed schema.
+platform
+enum
+Integration/platform where the session originated.
+PLATFORM_UNKNOWN = 0
+; 
+PLATFORM_SALESFORCE = 1
+; 
+PLATFORM_HUBSPOT = 2
+; 
+PLATFORM_LINKEDIN = 3
+; 
+PLATFORM_ZOOMINFO = 4
+; 
+PLATFORM_APOLLO = 5
+; 
+PLATFORM_WEB = 31
+; 
+PLATFORM_GOOGLE_SHEETS = 41
+; 
+PLATFORM_TRELLUS_DIALER = 42
+; 
+PLATFORM_TRELLUS_VCC = 43
+; 
+PLATFORM_TRELLUS_VCC_XREF = 44
+; 
+PLATFORM_GHL = 50
+; 
+PLATFORM_SALESLOFT = 51
+; 
+PLATFORM_OUTREACH = 52
+; 
+PLATFORM_AMPLEMARKET = 53
+; 
+PLATFORM_UNIFY = 54
+; 
+PLATFORM_ZOHO = 55
+; 
+PLATFORM_PIPEDRIVE = 56
+; 
+PLATFORM_FRESHWORKS = 57
+; 
+PLATFORM_KOMMO = 58
+; 
+PLATFORM_BITRIX = 59
+; 
+PLATFORM_CLOSE = 60
+; 
+PLATFORM_ATTIO = 61
+; 
+PLATFORM_LAWRULER = 62
+; 
+PLATFORM_AGENTLOCATOR = 63
+; 
+PLATFORM_CLAY = 64
+; 
+PLATFORM_COMMONROOM = 65
+; 
+PLATFORM_RINGCENTRAL = 66
+; 
+PLATFORM_AIRCALL = 67
+; 
+PLATFORM_DIALPAD = 68
+; 
+PLATFORM_OPENPHONE = 69
+; 
+PLATFORM_CLOUDTALK = 70
+; 
+PLATFORM_GONG_ENGAGE = 71
+; 
+PLATFORM_NEXTIVA = 72
+; 
+PLATFORM_ZOOM = 73
+; 
+PLATFORM_SKYPE = 74
+; 
+PLATFORM_FIVENINE = 75
+; 
+PLATFORM_ORUM = 76
+; 
+PLATFORM_OUTREACH_RINGCENTRAL = 77
+; 
+PLATFORM_PHONEBURNER = 78
+; 
+PLATFORM_SALESFINITY = 79
+; 
+PLATFORM_CONNECT_AND_SELL = 80
+; 
+PLATFORM_MONSTER_CONNECT = 81
+; 
+PLATFORM_ALOWARE = 82
+; 
+PLATFORM_OUTPLAY = 83
+; 
+PLATFORM_KONCERT = 84
+; 
+PLATFORM_ONEPGR = 85
+; 
+PLATFORM_NOOKS = 86
+; 
+PLATFORM_CONVOSO = 87
+; 
+PLATFORM_FRONTSPIN = 88
+; 
+PLATFORM_SELLX = 89
+; 
+PLATFORM_EIGHT_BY_EIGHT = 90
+; 
+PLATFORM_CALLRAIL = 91
+; 
+PLATFORM_VICIDIAL = 92
+; 
+PLATFORM_TWOXCONNECT = 93
+; 
+PLATFORM_CALLTOOLS = 94
+; 
+PLATFORM_AVISO = 95
+; 
+PLATFORM_VANILLASOFT = 96
+; 
+PLATFORM_LEMLIST = 97
+; 
+PLATFORM_DIALEDIN = 98
+; 
+PLATFORM_GLENCOCO = 99
+; 
+PLATFORM_GENESYS = 100
+; 
+PLATFORM_ELTO = 101
+; 
+PLATFORM_BLOOBIRDS = 102
+; 
+PLATFORM_INSURED_MINE = 103
+; 
+PLATFORM_REVENUE_VESSEL = 104
+; 
+PLATFORM_OFFERD = 105
+; 
+PLATFORM_XDRHUB = 106
+; 
+PLATFORM_FREEDOMCRM = 107
+; 
+PLATFORM_TWENTYCRM = 108
+; 
+PLATFORM_APEX_ORGANIZATIONS = 109
+; 
+PLATFORM_SMARTLEAD = 110
+base_path
+string
+Opaque call context metadata. Do not construct API URLs from this value.
+client_version
+string
+Originating client/extension version when captured.
+phone_type
+string
+Phone-type metadata supplied by the originating client. No fixed vocabulary is defined here.
+telephony_customer_call_id
+string
+Telephony provider identifier for the customer call leg; distinct from session_id.
+alternate_address
+string
+Alternate customer address supplied on dial creation, when available.
+predicted_pickup
+float
+Optional model pickup probability, clipped to (0, 1] when supplied. Zero/default means no populated prediction, not a measured pickup outcome.
+custom_metrics
+JSON text
+Deprecated custom metrics as JSON text. Prefer supported named metrics; do not assume stable custom keys.
+Dialing and connection metrics 
+(24)
+Dialing and connection metrics fields
+Field / type
+Definition and values
+dial_metric.sip_code
+int32
+Telephony SIP response/status code, when recorded. Zero can mean no code was captured.
+dial_metric.is_connected
+bool
+Whether the customer channel connected; automated voicemail/menu connections can also satisfy this.
+dial_metric.is_dial
+bool
+Whether the session was created through the dial flow; use is_inbound separately for direction.
+dial_metric.ringing_at
+float
+Ringing start offset in seconds from session start; zero can be unset.
+dial_metric.telephony
+enum
+Telephony category recorded for the session, represented by the listed enum values.
+TELEPHONY_UNKNOWN = 0
+; 
+TELEPHONY_TWILIO = 1
+; 
+TELEPHONY_BANDWIDTH = 2
+dial_metric.connected_duration
+float
+Customer connected-channel duration in seconds; does not by itself measure human talk time.
+dial_metric.is_live
+bool
+Whether outbound-call analysis identified a live portion. Inbound processing may populate live_duration without this flag.
+dial_metric.live_duration
+float
+Live portion duration in seconds, measured from detected live start for analyzed outbound calls; inbound calls use customer-channel duration.
+dial_metric.live_open_ended_at
+float
+Offset in seconds where the detected opening live utterance ended; diagnostic bridge timing.
+dial_metric.live_open_known_at
+float
+Offset in seconds when the processor first recognized the live opening; diagnostic detection timing.
+dial_metric.live_open_is_bridged
+bool
+Whether an agent bridge time was found for the detected live opening.
+dial_metric.live_open_delay_to_bridge
+float
+Non-negative seconds between detected live-opening end and agent bridge; meaningful with live_open_is_bridged.
+dial_metric.live_stated_at
+float
+Detected live-opening start offset in seconds from session start; zero can be unset.
+dial_metric.has_voicemail
+bool
+Whether call analysis detected voicemail, including a full mailbox.
+dial_metric.has_screen
+bool
+Whether call analysis detected a call-screening prompt.
+dial_metric.has_menu
+bool
+Whether call analysis detected an automated menu.
+dial_metric.left_voicemail
+bool
+Backend inference/known-provider signal that voicemail was left; not proof of a retained recording.
+dial_metric.left_screen
+bool
+Backend inference that screening was passed or agent speech was provided after the screening prompt.
+dial_metric.is_inbound
+bool
+True for inbound calls; false for outbound/default. Combine with conversation_type for call reports.
+dial_metric.is_trellus_telephony
+bool
+Whether the call uses Trellus telephony rather than an external/copilot bridge.
+dial_metric.is_autodial
+bool
+Single-line autodial indicator; current creation path sets true when configured parallel_lines is 1.
+dial_metric.parallel_lines
+int32
+Configured simultaneous dial-line count; a configuration value, not the number of connected participants.
+dial_metric.is_bridge_user_first
+bool
+Stored user-first bridge-strategy flag. Do not infer actual participant order from this flag; use connection timing.
+dial_metric.is_timeout
+bool
+Whether the dial ended through a no-answer timeout.
+Quality signals 
+(9)
+Quality signals fields
+Field / type
+Definition and values
+quality_metric.said_do_not_call
+bool
+Detected do-not-call expression. A signal, not an independently verified legal/compliance determination.
+quality_metric.said_not_audible
+bool
+Customer speech matched a cannot-hear/not-audible expression.
+quality_metric.said_angry
+bool
+Customer or agent speech matched profanity/anger expressions.
+quality_metric.said_spam
+bool
+Detected statement that the phone number shows as spam.
+quality_metric.said_scam
+bool
+Customer speech matched an accusation of a scam/fraud.
+quality_metric.said_risky_numbers
+bool
+Speech mentioned sensitive financial/identity numbers, such as SSN or credit card numbers.
+quality_metric.said_risky_credentials
+bool
+Speech matched sharing/requesting credentials or account/password information.
+quality_metric.said_risky_payment
+bool
+Speech matched offering/requesting a money transfer/payment.
+quality_metric.said_representative
+bool
+Customer speech requested a representative, agent or operator.
+Sales signals 
+(26)
+Sales signals fields
+Field / type
+Definition and values
+sales_metric.has_prospect
+bool
+Detected prospect participation. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_gatekeeper
+bool
+Detected gatekeeper participation. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_deny
+bool
+Detected denial/rejection objection. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_wrong_person
+bool
+Detected wrong-person objection. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_not_decision_maker
+bool
+Detected lack-of-decision-authority objection. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_not_relevant
+bool
+Detected not-relevant objection. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_not_now
+bool
+Detected bad-time/not-now objection. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_no_call
+bool
+Detected objection to calls. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_no_email
+bool
+Detected objection to email. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_no_meeting
+bool
+Detected objection to a meeting. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_no_need
+bool
+Detected no-need objection. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_no_budget
+bool
+Detected no-budget objection. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_obj_using_competitors
+bool
+Detected existing use of competitors. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_ask_referral
+bool
+Detected request for a referral. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_ask_business
+bool
+Detected question about the prospect business. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_ask_responsibilities
+bool
+Detected question about responsibilities. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_offer_meeting
+bool
+Detected offer of a meeting. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_offer_call
+bool
+Detected offer of a follow-up call. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_offer_email
+bool
+Detected offer of a follow-up email. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_meeting_confirm
+bool
+Detected confirmation of a meeting; not a calendar booking ID. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_call_confirm
+bool
+Detected confirmation of a follow-up call. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_email_confirm
+bool
+Detected confirmation of follow-up email. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_referral_provided
+bool
+Detected provision of a referral. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.has_product_interest
+bool
+Detected product interest. Evaluation signal; false/default is not proof the event could not occur.
+sales_metric.stage
+string
+Deprecated sales-stage string. Prefer current user_log outcomes.
+sales_metric.trellus_disposition
+string
+Deprecated Trellus disposition string. Prefer user_log.disposition.
+Recorded usage estimates 
+(9)
+Recorded usage estimates fields
+Field / type
+Definition and values
+cost.twilio_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+cost.bandwidth_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+cost.assembly_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+cost.deepgram_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+cost.cartesia_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+cost.eleven_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+cost.openai_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+cost.google_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+cost.anthropic_cost
+float
+Recorded usage estimate in USD, when populated. This is not the customer invoice or a guaranteed complete billing total.
+Prior activity 
+(3)
+Prior activity fields
+Field / type
+Definition and values
+prior_activity.num_sessions
+int32
+Prior team sessions for the same customer address, excluding the current session when the snapshot was initialized.
+prior_activity.days_since_first
+int32
+Rounded days between this session start and the first prior team session for this customer address.
+prior_activity.num_out_dials
+int32
+Prior outbound dials for this customer address within the team.
+Conversation metrics 
+(6)
+Conversation metrics fields
+Field / type
+Definition and values
+call_metric.customer_talk_duration
+float
+Eligible customer transcript-turn duration in seconds; turns before detected live start are excluded.
+call_metric.agent_talk_duration
+float
+Eligible agent transcript-turn duration in seconds; turns before detected live start are excluded.
+call_metric.customer_tempo
+float
+Customer words per second over eligible utterances containing at least three words; multiply by 60 for words per minute.
+call_metric.agent_tempo
+float
+Agent words per second over eligible utterances containing at least three words; multiply by 60 for words per minute.
+call_metric.customer_dropped_duration
+float
+Customer audio loss/overwrite duration estimate in seconds; not a dropped-call count.
+call_metric.agent_dropped_duration
+float
+Agent audio loss/overwrite duration estimate in seconds; not a dropped-call count.
+Contact and company data 
+(23)
+Contact and company data fields
+Field / type
+Definition and values
+customer_data.name
+string
+Captured/enriched contact name; may be empty. Use instead of prospect_name.
+customer_data.title
+string
+Captured/enriched contact job title; may be empty.
+customer_data.occupation
+string
+Captured/enriched contact occupation; vocabulary depends on the source.
+customer_data.seniority
+string
+Captured/enriched contact seniority; vocabulary depends on the source.
+customer_data.company_name
+string
+Captured/enriched company name; may be empty. Use instead of company.
+customer_data.company_url
+string
+Captured/enriched company website URL; may be empty.
+customer_data.company_industry
+string[]
+Captured/enriched industry labels as an array of strings.
+customer_data.person_xrefs
+object[]
+External person/contact identifiers and URLs, associated with their source platform.
+customer_data.person_xrefs.[].platform
+enum
+Source integration platform.
+PLATFORM_UNKNOWN = 0
+; 
+PLATFORM_SALESFORCE = 1
+; 
+PLATFORM_HUBSPOT = 2
+; 
+PLATFORM_LINKEDIN = 3
+; 
+PLATFORM_ZOOMINFO = 4
+; 
+PLATFORM_APOLLO = 5
+; 
+PLATFORM_WEB = 31
+; 
+PLATFORM_GOOGLE_SHEETS = 41
+; 
+PLATFORM_TRELLUS_DIALER = 42
+; 
+PLATFORM_TRELLUS_VCC = 43
+; 
+PLATFORM_TRELLUS_VCC_XREF = 44
+; 
+PLATFORM_GHL = 50
+; 
+PLATFORM_SALESLOFT = 51
+; 
+PLATFORM_OUTREACH = 52
+; 
+PLATFORM_AMPLEMARKET = 53
+; 
+PLATFORM_UNIFY = 54
+; 
+PLATFORM_ZOHO = 55
+; 
+PLATFORM_PIPEDRIVE = 56
+; 
+PLATFORM_FRESHWORKS = 57
+; 
+PLATFORM_KOMMO = 58
+; 
+PLATFORM_BITRIX = 59
+; 
+PLATFORM_CLOSE = 60
+; 
+PLATFORM_ATTIO = 61
+; 
+PLATFORM_LAWRULER = 62
+; 
+PLATFORM_AGENTLOCATOR = 63
+; 
+PLATFORM_CLAY = 64
+; 
+PLATFORM_COMMONROOM = 65
+; 
+PLATFORM_RINGCENTRAL = 66
+; 
+PLATFORM_AIRCALL = 67
+; 
+PLATFORM_DIALPAD = 68
+; 
+PLATFORM_OPENPHONE = 69
+; 
+PLATFORM_CLOUDTALK = 70
+; 
+PLATFORM_GONG_ENGAGE = 71
+; 
+PLATFORM_NEXTIVA = 72
+; 
+PLATFORM_ZOOM = 73
+; 
+PLATFORM_SKYPE = 74
+; 
+PLATFORM_FIVENINE = 75
+; 
+PLATFORM_ORUM = 76
+; 
+PLATFORM_OUTREACH_RINGCENTRAL = 77
+; 
+PLATFORM_PHONEBURNER = 78
+; 
+PLATFORM_SALESFINITY = 79
+; 
+PLATFORM_CONNECT_AND_SELL = 80
+; 
+PLATFORM_MONSTER_CONNECT = 81
+; 
+PLATFORM_ALOWARE = 82
+; 
+PLATFORM_OUTPLAY = 83
+; 
+PLATFORM_KONCERT = 84
+; 
+PLATFORM_ONEPGR = 85
+; 
+PLATFORM_NOOKS = 86
+; 
+PLATFORM_CONVOSO = 87
+; 
+PLATFORM_FRONTSPIN = 88
+; 
+PLATFORM_SELLX = 89
+; 
+PLATFORM_EIGHT_BY_EIGHT = 90
+; 
+PLATFORM_CALLRAIL = 91
+; 
+PLATFORM_VICIDIAL = 92
+; 
+PLATFORM_TWOXCONNECT = 93
+; 
+PLATFORM_CALLTOOLS = 94
+; 
+PLATFORM_AVISO = 95
+; 
+PLATFORM_VANILLASOFT = 96
+; 
+PLATFORM_LEMLIST = 97
+; 
+PLATFORM_DIALEDIN = 98
+; 
+PLATFORM_GLENCOCO = 99
+; 
+PLATFORM_GENESYS = 100
+; 
+PLATFORM_ELTO = 101
+; 
+PLATFORM_BLOOBIRDS = 102
+; 
+PLATFORM_INSURED_MINE = 103
+; 
+PLATFORM_REVENUE_VESSEL = 104
+; 
+PLATFORM_OFFERD = 105
+; 
+PLATFORM_XDRHUB = 106
+; 
+PLATFORM_FREEDOMCRM = 107
+; 
+PLATFORM_TWENTYCRM = 108
+; 
+PLATFORM_APEX_ORGANIZATIONS = 109
+; 
+PLATFORM_SMARTLEAD = 110
+customer_data.person_xrefs.[].person_id
+string
+External contact/person record ID.
+customer_data.person_xrefs.[].person_url
+string
+External contact/person record URL.
+customer_data.person_xrefs.[].company_id
+string
+External company record ID associated with this person.
+customer_data.company_xrefs
+object[]
+External company identifiers and URLs, associated with their source platform.
+customer_data.company_xrefs.[].platform
+enum
+Source integration platform.
+PLATFORM_UNKNOWN = 0
+; 
+PLATFORM_SALESFORCE = 1
+; 
+PLATFORM_HUBSPOT = 2
+; 
+PLATFORM_LINKEDIN = 3
+; 
+PLATFORM_ZOOMINFO = 4
+; 
+PLATFORM_APOLLO = 5
+; 
+PLATFORM_WEB = 31
+; 
+PLATFORM_GOOGLE_SHEETS = 41
+; 
+PLATFORM_TRELLUS_DIALER = 42
+; 
+PLATFORM_TRELLUS_VCC = 43
+; 
+PLATFORM_TRELLUS_VCC_XREF = 44
+; 
+PLATFORM_GHL = 50
+; 
+PLATFORM_SALESLOFT = 51
+; 
+PLATFORM_OUTREACH = 52
+; 
+PLATFORM_AMPLEMARKET = 53
+; 
+PLATFORM_UNIFY = 54
+; 
+PLATFORM_ZOHO = 55
+; 
+PLATFORM_PIPEDRIVE = 56
+; 
+PLATFORM_FRESHWORKS = 57
+; 
+PLATFORM_KOMMO = 58
+; 
+PLATFORM_BITRIX = 59
+; 
+PLATFORM_CLOSE = 60
+; 
+PLATFORM_ATTIO = 61
+; 
+PLATFORM_LAWRULER = 62
+; 
+PLATFORM_AGENTLOCATOR = 63
+; 
+PLATFORM_CLAY = 64
+; 
+PLATFORM_COMMONROOM = 65
+; 
+PLATFORM_RINGCENTRAL = 66
+; 
+PLATFORM_AIRCALL = 67
+; 
+PLATFORM_DIALPAD = 68
+; 
+PLATFORM_OPENPHONE = 69
+; 
+PLATFORM_CLOUDTALK = 70
+; 
+PLATFORM_GONG_ENGAGE = 71
+; 
+PLATFORM_NEXTIVA = 72
+; 
+PLATFORM_ZOOM = 73
+; 
+PLATFORM_SKYPE = 74
+; 
+PLATFORM_FIVENINE = 75
+; 
+PLATFORM_ORUM = 76
+; 
+PLATFORM_OUTREACH_RINGCENTRAL = 77
+; 
+PLATFORM_PHONEBURNER = 78
+; 
+PLATFORM_SALESFINITY = 79
+; 
+PLATFORM_CONNECT_AND_SELL = 80
+; 
+PLATFORM_MONSTER_CONNECT = 81
+; 
+PLATFORM_ALOWARE = 82
+; 
+PLATFORM_OUTPLAY = 83
+; 
+PLATFORM_KONCERT = 84
+; 
+PLATFORM_ONEPGR = 85
+; 
+PLATFORM_NOOKS = 86
+; 
+PLATFORM_CONVOSO = 87
+; 
+PLATFORM_FRONTSPIN = 88
+; 
+PLATFORM_SELLX = 89
+; 
+PLATFORM_EIGHT_BY_EIGHT = 90
+; 
+PLATFORM_CALLRAIL = 91
+; 
+PLATFORM_VICIDIAL = 92
+; 
+PLATFORM_TWOXCONNECT = 93
+; 
+PLATFORM_CALLTOOLS = 94
+; 
+PLATFORM_AVISO = 95
+; 
+PLATFORM_VANILLASOFT = 96
+; 
+PLATFORM_LEMLIST = 97
+; 
+PLATFORM_DIALEDIN = 98
+; 
+PLATFORM_GLENCOCO = 99
+; 
+PLATFORM_GENESYS = 100
+; 
+PLATFORM_ELTO = 101
+; 
+PLATFORM_BLOOBIRDS = 102
+; 
+PLATFORM_INSURED_MINE = 103
+; 
+PLATFORM_REVENUE_VESSEL = 104
+; 
+PLATFORM_OFFERD = 105
+; 
+PLATFORM_XDRHUB = 106
+; 
+PLATFORM_FREEDOMCRM = 107
+; 
+PLATFORM_TWENTYCRM = 108
+; 
+PLATFORM_APEX_ORGANIZATIONS = 109
+; 
+PLATFORM_SMARTLEAD = 110
+customer_data.company_xrefs.[].company_id
+string
+External company record ID.
+customer_data.company_xrefs.[].company_url
+string
+External company record URL.
+customer_data.cadence_xrefs
+object[]
+External cadence/sequence references; source-specific type and value.
+customer_data.cadence_xrefs.[].platform
+enum
+Source integration platform.
+PLATFORM_UNKNOWN = 0
+; 
+PLATFORM_SALESFORCE = 1
+; 
+PLATFORM_HUBSPOT = 2
+; 
+PLATFORM_LINKEDIN = 3
+; 
+PLATFORM_ZOOMINFO = 4
+; 
+PLATFORM_APOLLO = 5
+; 
+PLATFORM_WEB = 31
+; 
+PLATFORM_GOOGLE_SHEETS = 41
+; 
+PLATFORM_TRELLUS_DIALER = 42
+; 
+PLATFORM_TRELLUS_VCC = 43
+; 
+PLATFORM_TRELLUS_VCC_XREF = 44
+; 
+PLATFORM_GHL = 50
+; 
+PLATFORM_SALESLOFT = 51
+; 
+PLATFORM_OUTREACH = 52
+; 
+PLATFORM_AMPLEMARKET = 53
+; 
+PLATFORM_UNIFY = 54
+; 
+PLATFORM_ZOHO = 55
+; 
+PLATFORM_PIPEDRIVE = 56
+; 
+PLATFORM_FRESHWORKS = 57
+; 
+PLATFORM_KOMMO = 58
+; 
+PLATFORM_BITRIX = 59
+; 
+PLATFORM_CLOSE = 60
+; 
+PLATFORM_ATTIO = 61
+; 
+PLATFORM_LAWRULER = 62
+; 
+PLATFORM_AGENTLOCATOR = 63
+; 
+PLATFORM_CLAY = 64
+; 
+PLATFORM_COMMONROOM = 65
+; 
+PLATFORM_RINGCENTRAL = 66
+; 
+PLATFORM_AIRCALL = 67
+; 
+PLATFORM_DIALPAD = 68
+; 
+PLATFORM_OPENPHONE = 69
+; 
+PLATFORM_CLOUDTALK = 70
+; 
+PLATFORM_GONG_ENGAGE = 71
+; 
+PLATFORM_NEXTIVA = 72
+; 
+PLATFORM_ZOOM = 73
+; 
+PLATFORM_SKYPE = 74
+; 
+PLATFORM_FIVENINE = 75
+; 
+PLATFORM_ORUM = 76
+; 
+PLATFORM_OUTREACH_RINGCENTRAL = 77
+; 
+PLATFORM_PHONEBURNER = 78
+; 
+PLATFORM_SALESFINITY = 79
+; 
+PLATFORM_CONNECT_AND_SELL = 80
+; 
+PLATFORM_MONSTER_CONNECT = 81
+; 
+PLATFORM_ALOWARE = 82
+; 
+PLATFORM_OUTPLAY = 83
+; 
+PLATFORM_KONCERT = 84
+; 
+PLATFORM_ONEPGR = 85
+; 
+PLATFORM_NOOKS = 86
+; 
+PLATFORM_CONVOSO = 87
+; 
+PLATFORM_FRONTSPIN = 88
+; 
+PLATFORM_SELLX = 89
+; 
+PLATFORM_EIGHT_BY_EIGHT = 90
+; 
+PLATFORM_CALLRAIL = 91
+; 
+PLATFORM_VICIDIAL = 92
+; 
+PLATFORM_TWOXCONNECT = 93
+; 
+PLATFORM_CALLTOOLS = 94
+; 
+PLATFORM_AVISO = 95
+; 
+PLATFORM_VANILLASOFT = 96
+; 
+PLATFORM_LEMLIST = 97
+; 
+PLATFORM_DIALEDIN = 98
+; 
+PLATFORM_GLENCOCO = 99
+; 
+PLATFORM_GENESYS = 100
+; 
+PLATFORM_ELTO = 101
+; 
+PLATFORM_BLOOBIRDS = 102
+; 
+PLATFORM_INSURED_MINE = 103
+; 
+PLATFORM_REVENUE_VESSEL = 104
+; 
+PLATFORM_OFFERD = 105
+; 
+PLATFORM_XDRHUB = 106
+; 
+PLATFORM_FREEDOMCRM = 107
+; 
+PLATFORM_TWENTYCRM = 108
+; 
+PLATFORM_APEX_ORGANIZATIONS = 109
+; 
+PLATFORM_SMARTLEAD = 110
+customer_data.cadence_xrefs.[].cadence_type
+string
+Source-specific cadence/sequence category.
+customer_data.cadence_xrefs.[].value
+string
+Source-specific cadence/sequence reference value.
+customer_data.custom_fields
+JSON text
+Account/source-specific custom data as JSON text in list rows. Parse it before reading keys; no standard contact email field is guaranteed.
+customer_data.vcc_campaign_id
+bytes
+VCC campaign identifier encoded as base64 bytes in list output, not a hex/UUID string.
+customer_data.vcc_contact_id
+bytes
+VCC contact identifier encoded as base64 bytes in list output, not a hex/UUID string.
+Saved outcomes and notes 
+(8)
+Saved outcomes and notes fields
+Field / type
+Definition and values
+user_log.disposition
+string
+Recorded call outcome string. Use /bootstrap account options rather than invented labels; may be set by a user, rule, telephony or AI.
+user_log.sentiment
+string
+Recorded sentiment string. Use /bootstrap account vocabulary; may be automatically populated.
+user_log.purpose
+string
+Recorded call-purpose string. Use /bootstrap account vocabulary.
+user_log.notes
+string
+Recorded notes/summary text; may be user-entered or generated, not the full transcript.
+user_log.retry_at
+uint32
+Suggested/scheduled retry or callback time as Unix seconds; zero means no populated retry time.
+user_log.source
+int32
+Source that populated the disposition/outcome (for example user, AI or telephony), not a user ID. Returned as a numeric code in list results; filter with the numeric values below. The labels explain those codes and are not accepted filter strings for this field.
+DISPOSITION_SOURCE_UNKNOWN = 0
+; 
+DISPOSITION_SOURCE_REJECTED = 1
+; 
+DISPOSITION_SOURCE_TELEPHONY = 2
+; 
+DISPOSITION_SOURCE_RECORDING = 3
+; 
+DISPOSITION_SOURCE_EXPRESSION = 6
+; 
+DISPOSITION_SOURCE_STATE_RULE = 9
+; 
+DISPOSITION_SOURCE_AI_EVAL = 12
+user_log.vcc_disposition_id
+bytes
+VCC disposition identifier encoded as base64 bytes in list output.
+user_log.vcc_agent_id
+bytes
+VCC agent responsible for disposition, encoded as base64 bytes in list output; can be empty.
+Rate limits and complete exports
+Default application rate limits per user
+Endpoint
+Limit
+Shared budget
+Session list
+2 requests per 4 seconds
+Shared by v5 and v6. Pace calls at least 2.5 seconds apart.
+Metric details
+4 requests per 4 seconds
+Shared by v6 and v7.
+Session detail
+1 request per second
+Visible directory
+2 requests per 4 seconds
+Bootstrap
+2 requests per 4 seconds
+Session-list returns the newest matching rows, sorted by started_at descending. There is no cursor or offset.
+Use a maximum limit of 1000. If a time window reaches the cap, divide it into smaller [start, end) windows and deduplicate by session_id. Dense windows may also require rep filters. Do not label a capped or sampled response as a complete export.
+Default limits apply per user; coordinate workers sharing a key. Account overrides and upstream protection may differ.
+On 429, wait the Retry-After delay in seconds. Use bounded backoff for transient 5xx responses and read errors as text.
+A response containing 1,000 rows may have reached the cap. It does not establish that you received every matching call. Use aggregates for totals and clearly label capped or sampled lists.
+Errors and troubleshooting
+Error bodies can be plain text. Keep the status, endpoint, UTC time and response text when asking support for help. Exclude credentials and customer personal data from logs.
+List works, but /session returns 401 “not found”
+Send the exact session_id from a list row in the x-session-id header, with the same Bearer key. A session_id query parameter or JSON body is ignored. “not found” means the session could not be located, not that you need a transcript scope. If correct headers still fail, contact support with the session ID, endpoint, status, response text and UTC time; never include your API key.
+401 “not permissioned” or “not authorized”
+The user behind the key cannot read that session or team. Check /visible and ask your team admin to review reporting access. A team_id parameter does not grant access. “inactive user” can also mean the key is invalid or the account is inactive.
+401 “not on db”
+The backend found the session record but could not load its stored detail. Report the session ID and response text to support. You can still use transcript columns from the list when available.
+400 or rejected phone, company, email or transcript field
+Use the exact paths in the field guide. start and select are required for lists; metrics use selects. POST parameters belong in JSON, with Content-Type: application/json. Error responses can be plain text.
+200 with [] or missing contact/transcript values
+Confirm the UTC date window, readable reps and filters. Remove the live-duration filter to include short calls. Contact data depends on captured CRM enrichment; transcripts depend on recording/transcription settings. A 200 empty result is a successful query with no matching readable rows.
+429 Too Many Requests
+Wait the Retry-After number of seconds, then retry with a bounded retry policy. Coordinate workers using the same user key. Default backend limits are per user, not per IP. If only your shared cloud host is blocked despite pacing, give support the UTC time, endpoint and response headers so upstream limits can be investigated.
+I need every call, not just the newest 50
+Set limit to at most 1000. There is no cursor or offset pagination. If a window fills the limit, split it into smaller [start, end) windows and deduplicate by session_id. A full 1000-row response does not prove the export is complete; very dense windows may also need rep filters.
+I need a team-wide read-only key, or my key was exposed
+A Trellus API key belongs to a user and inherits their permissions; using it for reporting does not make it a separately restricted credential. Each user can copy their own key in Settings → Integrations → API. Use an appropriately permissioned account for team reporting, verify /visible, and contact support for key replacement if it was exposed.
+A request body that exceeds the accepted size can return 
+413
+. Reduce the request size and query scope. For transient 
+5xx
+ responses, use bounded backoff; do not retry indefinitely.
+OpenAPI and coding-assistant prompt
+Download the OpenAPI 3.1 starter for the six documented endpoints. It covers request parameters and authentication; account-specific response objects are described rather than exhaustively modeled.
+Download OpenAPI JSON 
+Set up an MCP connection 
+Copy integration instructions for your coding assistant
+Add the report or integration you want to build, then paste these instructions into your coding assistant. The prompt contains no API key. Set the key privately in your server environment before making live requests.
+Call Data API integration instructions
+Copy 
+Implement a server-side client for the Trellus Call Data API.
+Follow my existing project's language and framework. Implement the integration and give
+me setup steps plus a small test. Use these reporting endpoints to read data; do not use
+them to manage dialer settings or CRM mappings.
+Read TRELLUS_API_KEY from the server environment. Never ask me to paste a key into chat.
+If it is missing, implement the code and explain how to set it privately before live requests.
+Do not expose it in browser code, URLs, logs, output, or prompts. This prompt has no credential.
+Ask about the timezone or team only when my requested report depends on that choice.
+Authentication and endpoint map:
+- GET https://ext.trellus.ai/visible — api_key header; optional team_id header.
+- GET https://ext.trellus.ai/bootstrap — api_key header; key owner's account configuration.
+- POST https://rpt-2.trellus.ai/session-list-v6 — Authorization: Bearer <API_KEY>; JSON body.
+- POST https://rpt-2.trellus.ai/metric-details-v7 — Authorization: Bearer <API_KEY>; JSON body.
+- GET https://rpt-2.trellus.ai/session — Authorization: Bearer <API_KEY>, x-session-id, x-proto-as-json: true.
+- GET https://api.trellus.ai/get-audio-links — api_key and session_id headers.
+Call /visible first to verify identity and read permissions. A key belongs to a user;
+team_id selects a permitted team and does not expand access. Do not assume a separate read-only key.
+Use /bootstrap for exact disposition, sentiment and purpose strings.
+List requests require start (Unix microseconds) and select (array of column paths).
+end is exclusive and defaults to now. cnf defaults to []; limit defaults to 50, maximum 1000.
+For calls, cnf = [[{ "column_name": "conversation_type", "operator": "EQ", "value_safe": 1 }]].
+Fields include session_id, started_at, resource_id, customer_address, customer_data.name,
+customer_data.title, customer_data.company_name, duration, turn_data.texts,
+turn_data.is_customers and turn_data.starts. There is no standard customer email column.
+Return rows are arrays in select order; started_at is seconds, not microseconds.
+cnf is AND of OR groups. Filter values for started_at use seconds. Turn offsets and duration use seconds.
+For counts/sums, use metric-details-v7 with selects: [{ "cnf": [] }, { "column_name": "duration" }].
+If grouped, the group value precedes numeric cells. Both column_name and cnf can appear in a select.
+Request parameter definitions:
+- start: inclusive range start, Unix microseconds; required for list and metrics.
+- end: exclusive range end, Unix microseconds; optional, defaults to now.
+- team_id: optional report-body team selector; defaults to the key owner's team. One team per request.
+- select: required list of exact column paths for session-list-v6; response cell i corresponds to select[i].
+- limit: session-list row cap, default 50, maximum 1000; not a page size with a continuation token.
+- cnf: optional AND of OR filter groups. [] imposes no extra filter; avoid empty inner groups.
+- column_name: exact column path to filter, sum or group; not an alias or display label.
+- operator: EQ equals; NEQ not equal; GT greater; GE greater or equal; LT less;
+  LE less or equal; IN is one of the value_safe array; NIN is not in that array;
+  REGEX searches a string using the backend regex engine (no look-around/backreferences).
+- value_safe: typed comparison value, not a stringified JSON value. Booleans use true/false,
+  numerics use numbers, IN/NIN use arrays, bytes use base64, recognized enum columns accept names or numeric values. user_log.source is a numeric
+  field for list results and filters; use its numeric codes, not the explanatory labels.
+- reducer: required only when a filter path contains [*]; ANY = at least one item matches,
+  ALL = every item matches. Do not attach reducer to a path without [*].
+- selects: required metric-details-v7 aggregation array. { "cnf": [] } counts matching rows;
+  { "column_name": "duration" } sums seconds; specifying both gives a filtered sum.
+  Boolean sums count true values. Each aggregation's cnf is additional to the top-level cnf.
+  Empty {} is invalid. Numeric response cells follow selects order.
+- group_by: optional metrics object with column_name; its value is the first cell in each row.
+  String/boolean/enum grouping uses exact values; float/time grouping requires step_size_safe
+  and step_start_safe. Integer grouping can use exact values or steps.
+- step_size_safe: bin width; step_start_safe: bin origin; step_modulus_safe: optional repeat period.
+  Steps use the grouped column's units (started_at uses seconds). A step requires an origin;
+  do not supply step parameters for strings, booleans or enums. Group cells with steps are bin
+  indices: floor(((value - origin) modulo period, if supplied) / width), not timestamps.
+  Compatibility note: when grouping started_at, the current endpoint scales that bin index by
+  1,000,000. Divide the returned group cell by 1,000,000 before reconstructing a time bin.
+Response definitions and defaults:
+- /visible users: readable user records, including user_id for resource_id matching.
+  user_id_to_email maps known user IDs to email addresses; not every user must have an entry.
+  team is included only for whole-team readers; absence does not mean the key failed.
+  groups are readable group records; memberships link user_group_id to member_id;
+  member_is_group distinguishes a group member from a user member.
+- /bootstrap: the key owner's account configuration and option vocabulary, not a call list.
+- session-list-v6: JSON array of positional row arrays; [] means no matching readable sessions.
+  Each cell's type/meaning is defined in the catalogue below. Results are newest started_at first.
+- metric-details-v7: JSON row arrays; with grouping, [groupValue, ...aggregationValues].
+  Without grouping, cells follow selects order. Counts and sums are numeric, not session objects.
+- /session: SessionData object in protobuf JSON, with camelCase property names, enum names
+  and base64 bytes. Default scalar/empty fields may be omitted; missing is not permission evidence.
+  Catalogue paths are snake_case list-query paths, not property names to copy into detail JSON.
+- /get-audio-links: session is one session metadata object; audio is a recording metadata array;
+  audio_links[i] is the temporary URL for audio[i]. Empty audio/audio_links arrays may mean
+  recording retention expired. Do not treat session as an array.
+- Unset proto values can appear as 0, false, empty string or empty arrays in list cells.
+  A default value is not proof an event was measured or a prediction/evaluation ran.
+  Sales/quality flags are detection signals, not guaranteed ground truth.
+Use the exact session_id from a row as x-session-id for /session, not a URL query or JSON body.
+/session JSON is camelCase (sessionId, customerData, turnData) and omits wordData.
+Inspect 401 text: not found differs from not permissioned and not on db.
+Audio returns { session, audio, audio_links }; links expire after one hour.
+Pace list requests at least 2.5 seconds apart. The default application limit is 2 requests
+per 4 seconds per user, shared with session-list-v5. Metrics: 4 per 4 seconds; detail: 1 per second.
+Honor Retry-After on 429, use bounded backoff for transient 5xx, and read error bodies as text.
+There is no cursor/offset paging. If a window returns limit rows, split it into smaller date
+windows and deduplicate by session_id; never claim a capped response is a full export.
+Never log credentials or include them in prompts. Report missing enrichment/transcripts honestly.
+Minimal call-list body (compute the dates; do not copy old sample timestamps):
+{
+  "start": START_UNIX_MICROSECONDS,
+  "end": END_UNIX_MICROSECONDS,
+  "limit": 50,
+  "cnf": [[{ "column_name": "conversation_type", "operator": "EQ", "value_safe": 1 }]],
+  "select": ["session_id", "started_at", "resource_id", "customer_address", "customer_data.name",
+    "customer_data.title", "customer_data.company_name", "user_log.disposition", "turn_data.texts",
+    "turn_data.is_customers", "turn_data.starts"]
+}
+Use Date.parse(ISO_WITH_TIMEZONE) * 1000 to build start/end in JavaScript.
+Use new Date(started_at * 1000) for returned list timestamps. Handle empty results before
+indexing a row. Combine the aligned transcript arrays into speaker/text/offset objects.
+For errors, preserve the HTTP status and response text but redact credentials and customer
+personal data in logs. If correct /session headers still produce not found or not on db,
+report that as an unresolved backend detail lookup; do not fabricate a transcript.
+Return accurate totals and label capped or sampled results clearly.
+Complete field names, types, enum values and definitions:
+https://www.trellus.ai/developers/api#fields
+OpenAPI starter:
+https://www.trellus.ai/developers/openapi.json
+Read the field reference before choosing columns. Do not invent aliases.
+Member paths containing .[]. are documentation notation. Select the parent array, or use .[0]. or .[*]. projections. Filters through [*] require ANY/ALL; select projections do not use a reducer.
+Power and parallel dialing in your CRM or sales engagement platform.
+SOC 2 Type II
+Request report
+Y Combinator
+Winter 2022
+LinkedIn
+YouTube
+X
+Product
+Power & parallel dialer
+Real-time AI coaching
+AI sales roleplay
+LinkedIn inbox
+Virtual Salesfloor
+Pricing
+Integrations
+HubSpot
+Salesforce
+Salesloft
+Outreach
+Attio
+GoHighLevel
+Apollo
+Google Sheets
+All integrations
+Solutions
+B2B SaaS
+Recruiting & staffing
+Sales agencies
+Insurance
+Real estate
+White-label dialing
+All solutions
+Resources
+Learning Center
+Blog
+Video guides
+API & developer docs
+MCP docs
+FAQ
+Company
+About Trellus
+Customer stories
+Extension security
+Book a demo
+Contact support
+© Trellus. All rights reserved.
+Terms
+Privacy
+Your CRM. Your calling workflow.
+See Trellus in your workflow
+See the calling, coaching and reporting workflow your reps would use.
+01
+Dial from your CRM
+Compare power and parallel dialing in your team’s platform.
+02
+Work on your connect rate
+Explore pickup prediction and number-health tools available for your setup.
+03
+Coach and review calls
+See AI practice, Salesfloor and call analytics. Focus on what your team needs.
+1
+ Your team
+2
+ Choose a time
+Fill in your details to open the calendar and choose a time. All fields are required.
+First name
+Last name
+Email address
+Phone number
+Team size
+Select team size
+Less than 2
+2-7
+8-15
+16-23
+More than 24
+CRM or sales platform
+Select your platform
+Salesloft
+Outreach
+Apollo
+HubSpot
+Salesforce
+Google Sheets
+GoHighLevel
+Amplemarket
+Zoho
+Gong engage
+Openphone
+Clay
+Unify
+Close
+Lemlist
+Attio
+Another option
+Company website
+We’ll use these details to arrange your demo. 
+Privacy statement
+Prefer to explore first?
+Watch your CRM walkthrough 
+No form or signup required.
