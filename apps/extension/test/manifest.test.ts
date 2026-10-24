@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CONTENT_MATCHES } from '../src/hosts';
-import { buildManifest, COMMANDS, DEFAULT_SERVER } from '../src/manifest';
+import { buildManifest, COMMANDS, DEFAULT_SERVER, webAppMatches } from '../src/manifest';
 
 const root = join(__dirname, '..');
 const out = join(root, '.output', 'chrome-mv3');
@@ -11,7 +11,13 @@ const out = join(root, '.output', 'chrome-mv3');
 describe('manifest (source)', () => {
   const m = buildManifest(DEFAULT_SERVER);
   it('asks for exactly the permissions the brief lists', () => {
-    expect([...m.permissions].sort()).toEqual(['activeTab', 'offscreen', 'scripting', 'sidePanel', 'storage', 'tabCapture']);
+    expect([...m.permissions].sort()).toEqual(['activeTab', 'contextMenus', 'notifications', 'offscreen', 'scripting', 'sidePanel', 'storage', 'tabCapture']);
+    expect(m.omnibox.keyword).toBe('cue');
+  });
+  it('runs the settings bridge only on the Cue web app', () => {
+    expect(webAppMatches('http://localhost:8787')).toEqual(['http://localhost:5173/*', 'http://127.0.0.1:5173/*', 'http://localhost:8787/*']);
+    expect(webAppMatches('https://cue.example.com', 'https://app.cue.example.com/team')).toContain('https://app.cue.example.com/*');
+    expect(webAppMatches('https://cue.example.com', 'javascript:alert(1)')).toHaveLength(3);
   });
   it('covers the dialer hosts and the server', () => {
     for (const h of ['*://*.hubspot.com/*', '*://*.trellus.ai/*', '*://app.trellus.ai/*', '*://*.salesloft.com/*', '*://*.outreach.io/*', '*://*.apollo.io/*']) expect(m.host_permissions).toContain(h);
@@ -52,7 +58,12 @@ describe('built extension (.output/chrome-mv3)', () => {
 
   it('keeps permissions as declared', () => {
     const m = manifest();
-    expect([...m.permissions].sort()).toEqual(['activeTab', 'offscreen', 'scripting', 'sidePanel', 'storage', 'tabCapture']);
+    expect([...m.permissions].sort()).toEqual(['activeTab', 'contextMenus', 'notifications', 'offscreen', 'scripting', 'sidePanel', 'storage', 'tabCapture']);
+    expect(m.omnibox.keyword).toBe('cue');
+    // The web-app bridge is registered at runtime, never injected everywhere; its dev origin is a host permission.
+    expect(m.content_scripts.flatMap((c: { js: string[] }) => c.js)).not.toContain('content-scripts/webapp.js');
+    expect(existsSync(join(out, 'content-scripts', 'webapp.js'))).toBe(true);
+    expect(m.host_permissions).toContain('http://localhost:5173/*');
     expect(m.commands['toggle-overbar']).toBeTruthy();
     expect(m.minimum_chrome_version).toBe('116');
   });

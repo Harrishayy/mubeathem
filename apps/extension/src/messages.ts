@@ -1,4 +1,5 @@
-import type { CallSummary, CallView, Contact, ContactInput, ContactListResponse, FeedbackRequest, Outcome, Prospect, ResearchWarmResponse, Speaker, SuggestionAction, TrellusDispositionsResponse, TrellusStatusResponse } from '@cue/core';
+import type { CallSummary, CallView, Contact, ContactListResponse, FeedbackRequest, Outcome, Prospect, ResearchBriefResponse, ResearchWarmResponse, Speaker, SuggestionAction, TrellusStatusResponse } from '@cue/core';
+import type { BesideMode } from './background/beside';
 import type { Connection, TranscriberTurn } from '@cue/client';
 import type { SttCredentials } from './capture/stt';
 import type { TrellusCallState } from './context/trellus';
@@ -62,17 +63,21 @@ export type UiRequest =
   | { type: 'panel.open' }
   | { type: 'server.health' }
   | { type: 'trellus.status' }
-  | { type: 'trellus.setKey'; apiKey: string; teamId?: string }
-  | { type: 'trellus.dispositions' }
-  | { type: 'trellus.setDispositions'; overrides: Record<string, Outcome> }
   /** Saved contacts, most recently called first; `q` matches name, title, company, phone or email. */
   | { type: 'contacts.search'; q?: string; limit?: number }
-  | { type: 'contacts.create'; contact: ContactInput }
   /** This contact's previous calls, newest first (for "Last time"). */
   | { type: 'contacts.history'; contactId: string; limit?: number }
+  /** The whole team's calls matching a name or company (or one contact), newest first. */
+  | { type: 'calls.search'; q?: string; contactId?: string; limit?: number }
   /** Starts the pre-call research now so the brief is instant when the call starts. */
   | { type: 'research.warm'; contactId: string }
-  | { type: 'research.warm'; prospect: Prospect };
+  | { type: 'research.warm'; prospect: Prospect }
+  /** The brief before the call (the same one the call opens with). */
+  | { type: 'research.brief'; contactId: string }
+  | { type: 'research.brief'; prospect: Prospect }
+  /** Opens a source beside the call tab (split view, else a window beside it). */
+  | { type: 'beside.open'; url: string }
+  | { type: 'beside.close' };
 
 export type UiResponse<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -96,9 +101,8 @@ export const UI_PORT = 'cue-ui';
 
 export type HealthSummary = { ok: boolean; mubit: boolean; trellus: boolean; message?: string };
 export type TrellusStatus = TrellusStatusResponse;
-export type TrellusDispositions = TrellusDispositionsResponse;
 export type ContactList = ContactListResponse;
-export type { CallSummary, Contact, ResearchWarmResponse };
+export type { BesideMode, CallSummary, Contact, ResearchBriefResponse, ResearchWarmResponse };
 
 export function initialState(): SessionState {
   return {

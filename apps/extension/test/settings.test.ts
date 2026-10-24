@@ -26,7 +26,7 @@ describe('settings', () => {
     expect(d.token).toBe('');
     expect(d.direction).toBe('honey');
     expect(d.theme).toBe('system');
-    expect(d.autoStart).toBe(false);
+    expect(d.autoStart).toBe(true);
     expect(d.overlay).toBe(true);
     expect(Object.keys(d.hosts).sort()).toEqual(HOSTS.map((h) => h.id).sort());
     expect(Object.values(d.hosts).every(Boolean)).toBe(true);
@@ -37,7 +37,7 @@ describe('settings', () => {
     expect(s.serverUrl).toBe(DEFAULT_SERVER);
     expect(s.direction).toBe('honey');
     expect(s.theme).toBe('dark');
-    expect(s.autoStart).toBe(false);
+    expect(s.autoStart).toBe(true);
     expect(s.hosts.hubspot).toBe(false);
     expect(s.hosts.apollo).toBe(true);
     expect(s.token).toBe('');

@@ -16,7 +16,7 @@ export interface Settings {
   /** Look of the side panel and the on-page overbar. */
   direction: Direction;
   theme: ThemePref;
-  /** Start Cue by itself when Trellus shows a connected call. */
+  /** Start Cue by itself when Trellus shows a connected call (on unless turned off in the Cue app). */
   autoStart: boolean;
   /** Which hosts show the overbar. */
   hosts: Record<HostId, boolean>;
@@ -39,7 +39,7 @@ export function defaultSettings(): Settings {
     token: '',
     direction: 'honey',
     theme: 'system',
-    autoStart: false,
+    autoStart: true,
     hosts: Object.fromEntries(HOSTS.map((h) => [h.id, true])) as Record<HostId, boolean>,
     overlay: true,
     rep: { id: '', name: '' },
@@ -92,16 +92,16 @@ export function normaliseSettings(raw: unknown, token: unknown): Settings {
   };
 }
 
-/**
- * Where the Cue web app lives: the saved URL, else the dev web server beside a local Cue server
- * (:8787 → :5173), else the server's own origin (which serves the built app).
- */
-/** A screen in the Cue web app (hash routes: `contacts`, `history`, `team`), with an optional query. */
-export function webAppRoute(s: Pick<Settings, 'serverUrl' | 'webUrl'>, route: 'contacts' | 'history' | 'team', query: Record<string, string> = {}): string {
+/** A screen in the Cue web app (hash routes such as `history`, `debrief/<id>`, `settings`), with an optional query. */
+export function webAppRoute(s: Pick<Settings, 'serverUrl' | 'webUrl'>, route: string, query: Record<string, string> = {}): string {
   const q = new URLSearchParams(query).toString();
   return `${webAppUrl(s).replace(/\/+$/, '')}/#/${route}${q ? `?${q}` : ''}`;
 }
 
+/**
+ * Where the Cue web app lives: the saved URL, else the dev web server beside a local Cue server
+ * (:8787 → :5173), else the server's own origin (which serves the built app).
+ */
 export function webAppUrl(s: Pick<Settings, 'serverUrl' | 'webUrl'>): string {
   if (s.webUrl) return s.webUrl;
   try {
@@ -154,3 +154,29 @@ export function watchSettings(cb: (s: Settings) => void): () => void {
 }
 
 export const SETTINGS_KEYS = { sync: SYNC_KEY, token: TOKEN_KEY } as const;
+
+/** What the Cue web app's Settings may change here (webapp.content.ts relays it). Never the server or token. */
+export function webPatch(raw: unknown, current: Settings): Partial<Settings> | null {
+  if (!isObj(raw)) return null;
+  const out: Partial<Settings> = {};
+  if (DIRECTIONS.includes(raw.direction as Direction)) out.direction = raw.direction as Direction;
+  if (THEMES.includes(raw.theme as ThemePref)) out.theme = raw.theme as ThemePref;
+  if (typeof raw.autoStart === 'boolean') out.autoStart = raw.autoStart;
+  if (typeof raw.overlay === 'boolean') out.overlay = raw.overlay;
+  if (isObj(raw.hosts)) {
+    const hosts = { ...current.hosts };
+    for (const h of HOSTS) if (typeof raw.hosts[h.id] === 'boolean') hosts[h.id] = raw.hosts[h.id] as boolean;
+    out.hosts = hosts;
+  }
+  if (isObj(raw.rep)) {
+    const id = typeof raw.rep.id === 'string' && /^[\w.:-]{1,120}$/.test(raw.rep.id) ? raw.rep.id : current.rep.id;
+    const name = typeof raw.rep.name === 'string' ? raw.rep.name.trim().slice(0, 120) : current.rep.name;
+    out.rep = { id, name };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/** What the extension tells the web app about itself (no token, ever). */
+export function publicSettings(s: Settings) {
+  return { serverUrl: s.serverUrl, direction: s.direction, theme: s.theme, autoStart: s.autoStart, overlay: s.overlay, hosts: s.hosts, rep: s.rep };
+}

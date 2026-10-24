@@ -1,11 +1,13 @@
 import type { CueApi } from '@cue/client';
-import type { HealthSummary, OffscreenEvent, UiRequest, UiResponse } from '../messages';
+import type { BesideMode, HealthSummary, OffscreenEvent, UiRequest, UiResponse } from '../messages';
 import type { Session } from './session';
 
 export interface RouterDeps {
   session: Session;
   api(): CueApi;
   openPanel(tabId: number | null, windowId: number | null): Promise<void>;
+  /** Opens a source beside the call tab (beside.ts). */
+  beside?: { show(url: string, anchorTabId: number | null): Promise<BesideMode>; close(): Promise<void> };
 }
 
 export interface Sender {
@@ -92,23 +94,30 @@ export async function route(msg: unknown, sender: Sender, d: RouterDeps): Promis
       }
       case 'trellus.status':
         return ok(await d.api().trellusStatus());
-      case 'trellus.setKey':
-        // Forwarded once; the key is never written to extension storage.
-        return ok(await d.api().setTrellusKey({ apiKey: m.apiKey, ...(m.teamId ? { teamId: m.teamId } : {}) }));
-      case 'trellus.dispositions':
-        return ok(await d.api().trellusDispositions());
-      case 'trellus.setDispositions':
-        return ok(await d.api().setTrellusDispositions({ overrides: m.overrides }));
       case 'contacts.search': {
         const q = m.q?.trim().slice(0, 120);
         return ok(await d.api().contacts({ ...(q ? { q } : {}), limit: clamp(m.limit ?? 20, 1, 100) }));
       }
-      case 'contacts.create':
-        return ok(await d.api().createContact(m.contact));
       case 'contacts.history':
         return ok(await d.api().listCalls({ contactId: m.contactId, limit: clamp(m.limit ?? 3, 1, 20) }));
       case 'research.warm':
         return ok(await d.api().warmResearch('contactId' in m ? { contactId: m.contactId } : { prospect: m.prospect }));
+      case 'research.brief':
+        return ok(await d.api().researchBrief('contactId' in m ? { contactId: m.contactId } : { prospect: m.prospect }));
+      case 'calls.search': {
+        const q = m.q?.trim().slice(0, 120);
+        return ok(await d.api().listCalls({ ...(q ? { q } : {}), ...(m.contactId ? { contactId: m.contactId } : {}), limit: clamp(m.limit ?? 50, 1, 200) }));
+      }
+      case 'beside.open': {
+        if (!d.beside) return fail(new Error('Opening beside the call is not available here'));
+        // The call's tab when there is a call; else the tab the request came from (the overlay), else the active tab.
+        const snap = d.session.snapshot;
+        const anchor = snap.phase !== 'idle' ? (snap.tabId ?? sender.tabId) : (sender.tabId ?? snap.page?.tabId ?? null);
+        return ok({ mode: await d.beside.show(m.url, anchor) });
+      }
+      case 'beside.close':
+        await d.beside?.close();
+        return ok(null);
       default:
         return undefined;
     }

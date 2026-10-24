@@ -256,6 +256,11 @@ export class Session {
     }
   }
 
+  /** The tab the page context came from closed: stop showing that contact. A call on it carries on. */
+  pageGone(tabId: number): void {
+    if (this.state.page?.tabId === tabId) this.set({ page: null });
+  }
+
   /* ───────── internals ───────── */
 
   private makeBuffer(): TurnBuffer {

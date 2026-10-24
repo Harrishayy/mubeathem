@@ -212,8 +212,8 @@ describe('Session', () => {
     expect(capture.start).toHaveBeenLastCalledWith(4, expect.any(Number));
   });
 
-  it('auto-starts on a Trellus connect only when the setting is on', async () => {
-    const off = setup();
+  it('auto-starts on a Trellus connect unless the setting is off', async () => {
+    const off = setup({ loadSettings: async () => ({ ...defaultSettings(), autoStart: false, rep: { id: 'rep_1', name: 'Alex' } }) });
     await off.session.init();
     const ctx = (state: 'idle' | 'connected') => ({ tabId: 4, host: 'app.hubspot.com', prospect: PROSPECT, trellus: { present: true, state } });
     await off.session.pageContext(ctx('idle'));
@@ -226,6 +226,16 @@ describe('Session', () => {
     await on.session.pageContext(ctx('connected'));
     expect(on.api.createCall).toHaveBeenCalledWith(expect.objectContaining({ source: 'trellus' }));
     expect(on.session.snapshot.tabId).toBe(4);
+  });
+
+  it('forgets the contact when its tab closes, and only that tab', async () => {
+    const { session } = setup();
+    await session.init();
+    await session.pageContext({ tabId: 4, host: 'app.hubspot.com', prospect: PROSPECT, trellus: { present: false, state: 'none' } });
+    session.pageGone(5);
+    expect(session.snapshot.page?.prospect?.name).toBe('Maya Chen');
+    session.pageGone(4);
+    expect(session.snapshot.page).toBeNull();
   });
 
   it('a Trellus sub-frame reading merges into the tab without wiping the CRM contact', async () => {
