@@ -1,7 +1,0 @@
-/* @cue/ui styles: tokens + every component. One import for apps; `?inline` for a Shadow DOM. */
-@import './tokens/tokens.css';
-@import './styles/primitives.css';
-@import './styles/sprout.css';
-@import './styles/domain.css';
-@import './styles/overbar.css';
-@import './styles/dashboard.css';

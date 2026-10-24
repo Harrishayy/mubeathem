@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Panel</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="panel.css">
+<style>
+  .panel { max-width: 560px; }
+</style>
+</head>
+<body>
+<main class="panel" id="panel"></main>
+<script type="module">
+import { PANEL_HTML, apply, createState, render } from "./panel.js";
+
+// Follows a take as it runs: polls the log and folds in each new line.
+const LOG = new URLSearchParams(location.search).get("log") || "../runs/latest.jsonl";
+const root = document.getElementById("panel");
+root.innerHTML = PANEL_HTML;
+
+let seen = 0;
+let state = createState();
+render(state, root);
+
+async function poll() {
+  try {
+    const res = await fetch(LOG, { cache: "no-store" });
+    if (res.ok) {
+      const lines = (await res.text()).split("\n").filter(Boolean);
+      if (lines.length < seen) { seen = 0; state = createState(); }
+      const changed = new Set();
+      while (seen < lines.length) {
+        let event;
+        try { event = JSON.parse(lines[seen]); } catch { break; /* still being written */ }
+        for (const key of apply(state, event)) changed.add(key);
+        seen += 1;
+      }
+      if (changed.size) render(state, root, changed);
+    }
+  } catch { /* log not there yet */ }
+  setTimeout(poll, 300);
+}
+poll();
+</script>
+</body>
+</html>

@@ -1,6 +1,0 @@
-/* Settings: the sections in the rail, one pane with a tab per section in the centre; its body scrolls. */
-.web-set-body { display: grid; gap: var(--gap-stack); align-content: start; max-width: 760px; padding: var(--space-4); min-width: 0; }
-.web-set-sections { min-width: 0; }
-.web-set-sections .cue-pane-sec__body { max-width: 820px; }
-.web-set-index .cue-index__item { cursor: pointer; font: inherit; border: 0; border-bottom: 1px solid var(--line); }
-.web-set-index .cue-index__item[aria-current='true'] .cue-index__key { background: var(--accent); }

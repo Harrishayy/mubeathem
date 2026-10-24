@@ -1,8 +1,0 @@
-/* History: search in the toolbar, filters in the rail, the calls table in the centre, the call in the drawer. */
-.web-hist-search { display: flex; flex: 0 1 360px; min-width: 0; }
-.web-hist-search .web-input { width: 100%; }
-@media (max-width: 720px) { .web-hist-search { flex: 1 1 100%; } }
-@media (pointer: fine) {
-  .web-hist-rail .web-railsec { gap: 0; padding-block: 10px; }
-  .web-hist-rail .web-check { min-height: 28px; }
-}
