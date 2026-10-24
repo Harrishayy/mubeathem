@@ -4,15 +4,17 @@ import { useState, type FormEvent } from 'react';
 import { useResource, type Resource } from '../hooks/useResource';
 import { getApi } from '../state/api';
 import { repIdFor, settingsStore, updateSettings, type Density, type Direction, type ThemePref, type TranscriberKind } from '../state/settings';
+import { EXTENSION_HOSTS, extensionStore, updateExtension, type ExtensionState } from '../state/extension';
 import { useStore } from '../state/store';
 import { toast } from '../state/ui';
 import '../styles/screens/settings.css';
 
-type Section = 'you' | 'listening' | 'trellus' | 'data';
+type Section = 'you' | 'listening' | 'extension' | 'trellus' | 'data';
 
 const SECTIONS: { id: Section; label: string; note: string }[] = [
   { id: 'you', label: 'You and appearance', note: 'Your name, the look, light or dark' },
   { id: 'listening', label: 'Listening', note: 'How Cue hears the call' },
+  { id: 'extension', label: 'Chrome extension', note: 'Cue beside HubSpot and Trellus' },
   { id: 'trellus', label: 'Trellus', note: 'The dialer and its outcomes' },
   { id: 'data', label: 'Data and privacy', note: 'Server, add-ons, export' },
 ];
@@ -29,6 +31,7 @@ export function SettingsScreen() {
   const health = useResource((signal) => getApi().health({ signal }), [s.serverUrl, s.token]);
   const team = useResource((signal) => getApi().team({}, { signal }), [s.serverUrl, s.token]);
   const trellus = useResource((signal) => getApi().trellusStatus({ signal }), []);
+  const ext = useStore(extensionStore);
   const members = team.data?.members ?? [];
   const st = trellus.data;
 
@@ -51,6 +54,7 @@ export function SettingsScreen() {
   const state: Record<Section, string> = {
     you: s.repName ? firstWord(s.repName) : 'no name',
     listening: s.transcriber === 'webspeech' ? 'mic' : 'typed',
+    extension: ext.version ? 'on' : 'not found',
     trellus: !st ? '…' : st.configured ? (st.reachable === false ? 'down' : 'on') : 'off',
     data: health.data?.ok ? 'online' : health.loading ? '…' : 'offline',
   };
@@ -188,6 +192,8 @@ export function SettingsScreen() {
               <Switch label="Show how each line was made" description="Adds who wrote it (Mubit or the playbook rules), how long it took and the Mubit request id under each line." checked={s.debug} onCheckedChange={(debug) => updateSettings({ debug })} />
               <Switch label="Show the Live tips again" description="The short how-it-works note on the Live screen." checked={!s.seenLiveHint} onCheckedChange={(on) => updateSettings({ seenLiveHint: !on })} />
             </div>
+          ) : section === 'extension' ? (
+            <ExtensionSettings ext={ext} />
           ) : section === 'trellus' ? (
             <Trellus status={trellus} />
           ) : (
@@ -401,5 +407,42 @@ function Dispositions() {
       </ActionBar>
     </div>
     </PaneSection>
+  );
+}
+
+/**
+ * How the Chrome extension behaves. It has no settings screen of its own: these switches reach it
+ * through its bridge on this page. Your name and the look above follow by themselves.
+ */
+function ExtensionSettings({ ext }: { ext: ExtensionState }) {
+  const e = ext.settings;
+  if (!ext.version || !e)
+    return (
+      <div className="web-set-body" aria-label="Chrome extension">
+        <Hint>The Cue extension sits beside HubSpot and Trellus: the brief while Trellus dials, the line to say and the transcript on the call, and the outcome after it.</Hint>
+        <p className="web-muted web-small">
+          It isn't installed in this browser, or this page loaded before it. Build it with <code>pnpm build:ext</code>, load <code>apps/extension/.output/chrome-mv3</code> at <code>chrome://extensions</code> (Developer mode, Load unpacked), then reload this page.
+        </p>
+      </div>
+    );
+  return (
+    <div className="web-set-body" aria-label="Chrome extension">
+      <Hint>The extension never asks for anything on the call. What it does is set here, and your name and the look follow the section above.</Hint>
+      <KeyValue
+        items={[
+          { label: 'Extension', value: <Chip size="sm" tone="ok" icon="check">{`Connected · v${ext.version}`}</Chip> },
+          { label: 'Its server', value: <span className="cue-num">{e.serverUrl}</span> },
+          { label: 'Calls as', value: e.rep.name || 'No name yet' },
+        ]}
+      />
+      <Switch label="Start by itself when Trellus connects" description="Otherwise the bar on the page offers a Start button." checked={e.autoStart} onCheckedChange={(autoStart) => updateExtension({ autoStart })} />
+      <Switch label="Show the bar on the page" description="The one-line bar over HubSpot. Alt+Shift+C shows or hides it from the keyboard." checked={e.overlay} onCheckedChange={(overlay) => updateExtension({ overlay })} />
+      <fieldset className="web-fieldset">
+        <legend className="cue-field__label">Where the bar shows</legend>
+        {EXTENSION_HOSTS.map((h) => (
+          <Switch key={h.id} label={h.label} checked={e.hosts[h.id] ?? true} onCheckedChange={(on) => updateExtension({ hosts: { ...e.hosts, [h.id]: on } })} />
+        ))}
+      </fieldset>
+    </div>
   );
 }
