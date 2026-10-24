@@ -1,6 +1,7 @@
 import {
   MOMENTS,
   type AddTurnRequest,
+  type Brief,
   type CallRecord,
   type CallView,
   type CreateCallRequest,
@@ -17,7 +18,7 @@ import {
   type Turn,
 } from '@cue/core';
 import { buildCallRecord, evidenceFor, newId } from '../adapters/core';
-import { runBrief } from '../pipeline/brief';
+import { briefFor, runBrief } from '../pipeline/brief';
 import { research } from '../pipeline/research';
 import { practiceNext, PracticeError, type PracticeReply } from '../pipeline/practice';
 import { RepTurnPipeline } from '../pipeline/rep-turn';
@@ -112,6 +113,15 @@ export class Cue {
     const providers = [...(this.s.config.exaApiKey ? ['exa'] : []), ...(this.s.config.valyuApiKey ? ['valyu'] : [])];
     if (prospect && providers.length) this.track(research(this.s, prospect).then(() => undefined));
     return { configured: providers.length > 0, providers };
+  }
+
+  /** The brief before the call, for the side panel while Trellus dials. Same cache as the call's brief. */
+  async researchBrief(req: { contactId?: string; prospect?: Prospect }): Promise<{ brief: Brief; configured: boolean; providers: string[] }> {
+    const prospect = req.contactId ? this.contacts.prospect(req.contactId) : (req.prospect ?? null);
+    if (!prospect) throw new AppError(404, 'not_found', `No contact ${req.contactId ?? ''}`.trim());
+    const providers = [...(this.s.config.exaApiKey ? ['exa'] : []), ...(this.s.config.valyuApiKey ? ['valyu'] : [])];
+    const { brief } = await briefFor(this.s, prospect);
+    return { brief, configured: providers.length > 0, providers };
   }
 
   getCall(callId: string): CallView {

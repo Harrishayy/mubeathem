@@ -126,6 +126,13 @@ export type ResearchWarmRequest = z.input<typeof ResearchWarmRequest>;
 export const ResearchWarmResponse = z.object({ configured: z.boolean(), providers: z.array(z.string()) });
 export type ResearchWarmResponse = z.infer<typeof ResearchWarmResponse>;
 
+/**
+ * The brief before the call (POST /api/research/brief, same request as warm): what the call will open
+ * with, cached per person so the call's own brief is the one the rep already read.
+ */
+export const ResearchBriefResponse = z.object({ brief: Brief, configured: z.boolean(), providers: z.array(z.string()) });
+export type ResearchBriefResponse = z.infer<typeof ResearchBriefResponse>;
+
 /** Filters for GET /api/calls. All optional; newest first. */
 export const CallListQuery = z.object({
   repId: z.string().min(1).max(120).optional(),

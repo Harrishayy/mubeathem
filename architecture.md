@@ -185,6 +185,7 @@ Every body is parsed with the matching schema in `packages/core/src/schema/api.t
 | `POST /api/contacts` · `PUT /api/contacts/:id` · `GET` · `DELETE` | `ContactInput` → `Contact`. Email is unique (case-insensitive); 409 on a clash |
 | `POST /api/contacts/import` | `ContactImportRequest` (CSV ≤ 2 MB, header row; aliases like "Full Name", "Job Title"; other columns become facts; an existing email updates) → `ContactImportResponse` |
 | `POST /api/research/warm` | `{contactId}` or `{prospect}` → 202 `{configured, providers}`. Runs Exa + Valyu now and caches the findings, so the call's brief doesn't wait on the web |
+| `POST /api/research/brief` | Same body → `{brief, configured, providers}`. The brief before the call (research + `research_brief`, or the rules brief), cached per person for `CUE_RESEARCH_CACHE_MINUTES`; the call's `brief.ready` reuses it, so the rep reads one brief from dialling to wrap-up |
 | `GET /api/calls/:id` | `CallView` |
 | `GET /api/calls/:id/stream` | SSE. First `view` (a `CallView`), then one `event` per `CallEvent`. Heartbeat comment every 15 s. `Last-Event-ID` resumes from a seq |
 | `POST /api/calls/:id/turns` | `AddTurnRequest` → `202 {turnId}`. Final prospect turns run the pipeline; final rep turns run the claim check and usage matching |

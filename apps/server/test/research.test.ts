@@ -1,4 +1,4 @@
-import { CallView } from '@cue/core';
+import { CallView, ResearchBriefResponse } from '@cue/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CueServer } from '../src/boot';
 import { cited } from '../src/pipeline/brief';
@@ -103,6 +103,24 @@ describe('pre-call research', () => {
     await server.cue.idle();
     expect(web.seen.length).toBe(before);
     expect((await post(server, '/api/research/warm', {})).status).toBe(400);
+  });
+
+  it('the brief before the call is the one the call opens with, from one round of research', async () => {
+    const web = fakeWeb();
+    server = testServer({ env, fetch: web.fetch });
+    const res = await post(server, '/api/research/brief', { prospect: PROSPECT });
+    expect(res.status).toBe(200);
+    const pre = ResearchBriefResponse.parse(await res.json());
+    expect(pre.configured).toBe(true);
+    expect(pre.brief.sources?.some((s) => s.via === 'exa')).toBe(true);
+    const asked = web.seen.length;
+    const v = await json(post(server, '/api/calls', { prospect: PROSPECT, rep: REP }));
+    await server.cue.idle();
+    const view = CallView.parse(await json(server.app.request(`/api/calls/${v.id}`)));
+    expect(web.seen.length).toBe(asked);
+    expect(view.brief?.opener).toBe(pre.brief.opener);
+    expect(view.brief?.hooks).toEqual(pre.brief.hooks);
+    expect((await post(server, '/api/research/brief', { contactId: 'ct_missing' })).status).toBe(404);
   });
 
   it('no keys: no web requests at all', async () => {

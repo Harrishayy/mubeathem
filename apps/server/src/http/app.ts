@@ -168,6 +168,7 @@ export function createApp(cue: Cue, registry: StreamRegistry = new StreamRegistr
   });
 
   app.post('/api/research/warm', async (c) => c.json(cue.warmResearch(await parseBody(c, ResearchWarmRequest)), 202));
+  app.post('/api/research/brief', async (c) => c.json(await cue.researchBrief(await parseBody(c, ResearchWarmRequest))));
 
   app.get('/api/playbook', (c) => c.json(cue.playbook()));
   app.post('/api/playbook/lines/:id/approve', (c) => c.json(cue.setLineStatus(c.req.param('id'), 'active')));

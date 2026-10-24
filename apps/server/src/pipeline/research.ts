@@ -14,7 +14,9 @@ interface CacheEntry {
 /** Findings per person, shared by the pre-call warm-up and the brief, so a warmed call starts instantly. */
 const cache = new WeakMap<Services, Map<string, CacheEntry>>();
 
-const keyOf = (p: Prospect) => [p.name, p.company].map((x) => x.trim().toLowerCase()).join('|');
+/** One person: research and the brief are cached under this key. */
+export const researchKey = (p: Prospect) => [p.name, p.company].map((x) => x.trim().toLowerCase()).join('|');
+const keyOf = researchKey;
 
 export function researchConfigured(s: Services): boolean {
   return !!(s.config.exaApiKey || s.config.valyuApiKey);

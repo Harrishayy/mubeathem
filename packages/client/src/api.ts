@@ -9,6 +9,7 @@ import {
   ContactListResponse,
   HealthResponse,
   TeamResponse,
+  ResearchBriefResponse,
   ResearchWarmResponse,
   type ResearchWarmRequest,
   InsightsResponse,
@@ -107,6 +108,8 @@ export interface CueApi {
   deleteContact(id: string, o?: RequestOptions): Promise<void>;
   /** Starts researching a contact before the call (fire and forget; cached on the server). */
   warmResearch(req: ResearchWarmRequest, o?: RequestOptions): Promise<ResearchWarmResponse>;
+  /** The brief for a contact or prospect before the call (cached; the call opens with the same one). */
+  researchBrief(req: ResearchWarmRequest, o?: RequestOptions): Promise<ResearchBriefResponse>;
   /** CSV with a header row (name, title, company, phone, email, …). */
   importContacts(csv: string, ownerRepId?: string, o?: RequestOptions): Promise<ContactImportResponse>;
   getCall(callId: string, o?: RequestOptions): Promise<CallView>;
@@ -215,6 +218,7 @@ export function createCueApi(opts: CueApiOptions): CueApi {
     updateContact: (id, c, o) => request('PUT', `/api/contacts/${enc(id)}`, Contact, c, o),
     deleteContact: (id, o) => request('DELETE', `/api/contacts/${enc(id)}`, null, undefined, o),
     warmResearch: (req, o) => request('POST', '/api/research/warm', ResearchWarmResponse, req, o),
+    researchBrief: (req, o) => request('POST', '/api/research/brief', ResearchBriefResponse, req, o),
     importContacts: (csv, ownerRepId, o) => request('POST', '/api/contacts/import', ContactImportResponse, { csv, ...(ownerRepId ? { ownerRepId } : {}) }, o),
     getCall: (id, o) => request('GET', call(id), CallView, undefined, o),
     addTurn: (id, turn, o) => request('POST', `${call(id)}/turns`, AddTurnResponse, turn, o),
