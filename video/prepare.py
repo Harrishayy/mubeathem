@@ -1,4 +1,4 @@
-"""Make each recorded take playable in the player: a smooth 60 fps copy of its video,
+"""Make each recorded take playable in the player: a smoothed copy of its video,
 and runs/web/takes.json listing the takes.
 
     python3 video/prepare.py
