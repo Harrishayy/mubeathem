@@ -22,3 +22,5 @@ MUBIT_BASE_URL = os.environ.get("MUBIT_BASE_URL", "https://api.mubit.ai/openai/v
 MODEL = os.environ.get("STEWARD_MODEL", "gpt-6-luna")
 TEMPERATURE = os.environ.get("STEWARD_TEMPERATURE")
 RUNS_DIR = Path(os.environ.get("STEWARD_RUNS_DIR", ROOT / "runs"))
+# Banyan Sapling, served by sapling/serve.py. Unset: safety checks use the stand-in through Mubit.
+SAPLING_URL = os.environ.get("SAPLING_URL")

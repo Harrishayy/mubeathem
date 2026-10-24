@@ -3,9 +3,9 @@ and runs/web/takes.json listing the takes.
 
     python3 video/prepare.py
 
-Isaac records 50 fps (older takes: 20 fps). ffmpeg's motion interpolation doubles that,
-so the player's slow motion stays smooth, without moving any frame in time, so the log
-stays in sync.
+Isaac records two views at 50 fps: the wide shot and the robot's head camera, which goes
+in as an inset. Older 20 fps takes get ffmpeg's motion interpolation instead, which adds
+frames without moving any in time, so the log stays in sync.
 """
 
 import json
@@ -27,11 +27,19 @@ def frame_info(path):
     return (20, data) if isinstance(data, list) else (data["fps"], data["times"])
 
 
-def smooth(src, dst, fps):
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src),
-                    "-vf", f"minterpolate=fps={max(60, fps * 2)}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1",
-                    "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-g", "30",
-                    "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(dst)], check=True)
+def build(video, pov, dst, fps):
+    """A seekable copy for the player: the head camera inset bottom-right when the take has
+    one, and old 20 fps takes interpolated so slow motion stays smooth."""
+    inputs, filters = ["-i", str(video)], []
+    if pov.exists():
+        inputs += ["-i", str(pov)]
+        filters = ["-filter_complex",
+                   "[1:v]scale=768:-2,pad=iw+6:ih+6:3:3:color=white[p];[0:v][p]overlay=W-w-28:H-h-28"]
+    elif fps < 50:
+        filters = ["-vf", f"minterpolate=fps={max(60, fps * 2)}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", *inputs, *filters, "-c:v", "libx264", "-preset", "fast",
+                    "-crf", "18", "-g", str(max(30, fps)), "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                    str(dst)], check=True)
 
 
 def main():
@@ -42,15 +50,17 @@ def main():
         if not (video.exists() and frames.exists()):
             continue
         fps, _ = frame_info(frames)
+        pov = log.with_suffix(".pov.mp4")
         out = WEB / video.name
         if not out.exists() or out.stat().st_mtime < video.stat().st_mtime:
-            print(f"smoothing {video.name}", flush=True)
-            smooth(video, out, fps)
+            print(f"preparing {video.name}", flush=True)
+            build(video, pov, out, fps)
         events = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
         listed.append({
             "take": log.stem,
             "story": story(events),
             "fps": fps,
+            "pov": pov.exists(),
             "video": f"../runs/web/{out.name}",
             "log": f"../runs/takes/{log.name}",
             "frames": f"../runs/takes/{frames.name}",

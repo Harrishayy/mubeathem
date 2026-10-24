@@ -26,6 +26,7 @@
               border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
   .controls label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
   .controls .spacer { flex: 1; }
+  .controls .note[hidden] { display: none; }
   aside.panel { overflow-y: auto; border-left: 1px solid var(--line); }
   @media (max-width: 900px) {
     body { grid-template-columns: 1fr; height: auto; overflow: auto; }
@@ -44,6 +45,7 @@
       <option value="0.25">0.25×</option><option value="0.5" selected>0.5×</option><option value="1">1×</option>
     </select></label>
     <label><input type="checkbox" id="pause" checked> Pause at decisions</label>
+    <span class="note" id="inset-note" hidden>Inset: the robot's head camera</span>
     <span class="spacer"></span>
     <button id="restart" type="button">Restart</button>
   </div>
@@ -154,6 +156,7 @@ async function loadTake(meta) {
   const events = log.split("\n").filter(Boolean).map((line) => JSON.parse(line));
   timeline = events.map((event) => ({ vt: videoTime(event.t, frames, meta.fps), event }));
   video.src = meta.video;
+  document.getElementById("inset-note").hidden = !meta.pov;
   video.playbackRate = Number(speedSelect.value);
   resetTo(0);
   history.replaceState(null, "", `?take=${encodeURIComponent(meta.take)}`);

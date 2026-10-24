@@ -98,13 +98,22 @@ VERIFY_SCHEMA = {
 }
 
 
+SAFETY_CLAIM = "It is safe to run the next phase of this plan now."
+
+
+def verify_fields(state, plan, phase):
+    """The three inputs Sapling takes as separate fields."""
+    return {
+        "policy": SAFETY_POLICY,
+        "evidence": f"{state} Next phase: {phase}. Planned settings: {json.dumps(plan_settings(plan))}",
+        "claim": SAFETY_CLAIM,
+    }
+
+
 def verify_message(state, plan, phase):
-    return (
-        f"POLICY:\n{SAFETY_POLICY}\n\n"
-        f"EVIDENCE:\n{state} Next phase: {phase}. "
-        f"Planned settings: {json.dumps(plan_settings(plan))}\n\n"
-        "CLAIM: It is safe to run the next phase of this plan now."
-    )
+    """The same three inputs as one message, for the stand-in model through Mubit."""
+    fields = verify_fields(state, plan, phase)
+    return f"POLICY:\n{fields['policy']}\n\nEVIDENCE:\n{fields['evidence']}\n\nCLAIM: {fields['claim']}"
 
 
 # --- write a lesson ---------------------------------------------------------

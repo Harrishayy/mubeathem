@@ -12,7 +12,7 @@ const MAX_CALLS = 4;
 export const PANEL_HTML = `
   <header>
     <h1>STEWARD</h1>
-    <div class="via">every decision via <b>Mubit</b></div>
+    <div class="via" data-slot="via"></div>
   </header>
   <section class="robots" data-slot="robots"></section>
   <section class="card">
@@ -20,12 +20,12 @@ export const PANEL_HTML = `
     <ol data-slot="memory"></ol>
   </section>
   <section class="card">
-    <h2>Calls through Mubit</h2>
+    <h2>Model calls</h2>
     <ol class="calls" data-slot="calls"></ol>
   </section>`;
 
 export function createState() {
-  return { take: null, robots: new Map(), lessons: [], newIds: new Set(), calls: [], totalCalls: 0 };
+  return { take: null, verifier: null, robots: new Map(), lessons: [], newIds: new Set(), calls: [], totalCalls: 0 };
 }
 
 function robot(state, name) {
@@ -41,7 +41,7 @@ export function apply(state, e) {
   const r = e.robot ? robot(state, e.robot) : null;
   const mark = (field) => changed.add(`${e.robot}:${field}`);
   switch (e.kind) {
-    case "take": state.lessons = [...(e.lessons || [])]; break;
+    case "take": state.lessons = [...(e.lessons || [])]; state.verifier = e.verifier || null; break;
     case "attempt":
       Object.assign(r, { attempt: e.attempt, phase: "planning", plan: null, safety: null, result: null, lessonsFound: null });
       mark("phase");
@@ -105,6 +105,9 @@ function renderRobot(r, changed) {
 
 export function render(state, root, changed = new Set()) {
   const slot = (name) => root.querySelector(`[data-slot="${name}"]`);
+  // Takes before Sapling ran their safety checks on a stand-in model through Mubit.
+  slot("via").innerHTML = state.verifier === "sapling"
+    ? "plans via <b>Mubit</b> · safety by <b>Sapling</b>" : "every decision via <b>Mubit</b>";
   slot("robots").innerHTML = [...state.robots.values()].map((r) => renderRobot(r, changed)).join("");
   slot("memory").innerHTML = state.lessons.length
     ? state.lessons.map((l) => `<li class="lesson${state.newIds.has(l.id) ? " fresh" : ""}${changed.has(`lesson:${l.id}`) ? " enter" : ""}">
@@ -112,7 +115,7 @@ export function render(state, root, changed = new Set()) {
     : `<li class="none">No lessons yet.</li>`;
   slot("calls").innerHTML = state.calls.length
     ? state.calls.map((c, i) => `<li class="${i === 0 && changed.has("calls") ? "enter" : ""}">
-        <span><b>${esc(TASK_NAMES[c.task] || c.task)}</b> · ${esc(c.robot)}</span><span>${c.ms} ms</span></li>`).join("")
+        <span><b>${esc(TASK_NAMES[c.task] || c.task)}</b> · ${c.via === "sapling" ? "Sapling" : "Mubit"} · ${esc(c.robot)}</span><span>${c.ms} ms</span></li>`).join("")
       + `<li><span>total this take</span><span>${state.totalCalls}</span></li>`
     : `<li class="none">None yet.</li>`;
 }

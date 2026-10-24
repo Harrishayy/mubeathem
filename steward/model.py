@@ -1,4 +1,6 @@
-"""Every model call Steward makes, all through Mubit's gateway."""
+"""The model calls: plans and lessons through Mubit's gateway; safety checks by Banyan
+Sapling when a verifier is given (steward/sapling.py), else by a stand-in model through
+Mubit that uses Sapling's inputs and labels."""
 
 import json
 import os
@@ -13,6 +15,7 @@ class Verdict:
     label: str
     status: str
     reason: str
+    source: str = "stand-in"  # "sapling" when Banyan Sapling made the check
 
     @property
     def go(self):
@@ -37,12 +40,14 @@ def mubit_client():
 
 
 class MubitModel:
-    """One robot's view of the three tasks. on_call(task=, ms=, request_id=) sees each call."""
+    """One robot's view of the three tasks. on_call(task=, ms=, via=, request_id=) sees each
+    call. With a verifier (Sapling), safety checks go to it instead of through Mubit."""
 
-    def __init__(self, client, model=config.MODEL, on_call=None):
+    def __init__(self, client, model=config.MODEL, on_call=None, verifier=None):
         self.client = client
         self.model = model
         self.on_call = on_call
+        self.verifier = verifier
 
     def _call(self, task, instructions, message, schema):
         kwargs = {
@@ -62,7 +67,7 @@ class MubitModel:
         resp = self.client.chat.completions.create(**kwargs)
         ms = round((time.perf_counter() - start) * 1000)
         if self.on_call:
-            self.on_call(task=task, ms=ms, request_id=resp.id)
+            self.on_call(task=task, ms=ms, via="mubit", request_id=resp.id)
         return json.loads(resp.choices[0].message.content)
 
     def plan(self, state, lessons):
@@ -71,6 +76,8 @@ class MubitModel:
         return tasks.clamp_plan(raw)
 
     def verify(self, state, plan, phase):
+        if self.verifier:
+            return self.verifier.verify(state, plan, phase)
         raw = self._call("verify", tasks.VERIFY_INSTRUCTIONS,
                          tasks.verify_message(state, plan, phase), tasks.VERIFY_SCHEMA)
         return Verdict.from_json(raw)

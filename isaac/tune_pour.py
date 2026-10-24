@@ -26,6 +26,9 @@ parser.add_argument("--pour-height", type=float, nargs="+", default=[8.0])
 parser.add_argument("--repeats", type=int, default=1)
 parser.add_argument("--video", action="store_true")
 parser.add_argument("--name", default="tune", help="Video file name under runs/tuning/.")
+parser.add_argument("--eye", type=float, nargs=3, default=None, help="Camera position.")
+parser.add_argument("--lookat", type=float, nargs=3, default=None, help="Camera target.")
+parser.add_argument("--nut-colour", type=float, nargs=3, default=None, help="RGB 0-1, looks only.")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 
@@ -40,8 +43,9 @@ from steward.tasks import PHASES  # noqa: E402
 
 
 def main():
-    world = PourWorld(args.dataset, demo=args.demo, robot="tuning", nuts=args.nuts,
-                      restitution=args.restitution, video=args.video, device=args.device)
+    camera = {k: tuple(v) for k, v in (("eye", args.eye), ("lookat", args.lookat)) if v}
+    world = PourWorld(args.dataset, demo=args.demo, robot="tuning", nuts=args.nuts, restitution=args.restitution,
+                      video=args.video, nut_colour=args.nut_colour, device=args.device, **camera)
     print(f"Pour segment: steps {world.pour_start}-{world.pour_end}, return ends at {world.return_end}, "
           f"bowl radius {world.bowl_radius:.3f} m")
     print(world.subject())

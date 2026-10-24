@@ -40,7 +40,7 @@ def gate(world, model, plan, phase, log, robot, max_checks=12):
             log("error", robot=robot, where="verify", error=str(error))
             return False
         log("safety", robot=robot, phase=phase, label=verdict.label,
-            status=verdict.status, reason=verdict.reason)
+            status=verdict.status, reason=verdict.reason, by=verdict.source)
         if verdict.go:
             return True
         if verdict.status == "unsure" or verdict.label == "inconsistent_context":

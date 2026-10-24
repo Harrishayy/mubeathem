@@ -18,6 +18,7 @@ from .events import EventLog
 from .lessons import LessonStore
 from .loop import run_task
 from .model import MubitModel, mubit_client
+from .sapling import SaplingVerifier
 
 # (description, how readily it bounces or slides out of a stream)
 CONTENTS = [
@@ -98,7 +99,8 @@ def main():
     client = mubit_client()
     store = LessonStore(args.lessons)
     log = EventLog(config.RUNS_DIR, take=None)
-    log("take", mode="practice", lessons=store.lessons, use_lessons=True)
+    log("take", mode="practice", lessons=store.lessons, use_lessons=True,
+        verifier="sapling" if config.SAPLING_URL else "stand-in")
     calls = Counter()
     calls_lock = threading.Lock()
 
@@ -106,19 +108,20 @@ def main():
         robot = f"practice-{index % args.workers + 1}"
         rng = random.Random(None if args.seed is None else args.seed + index)
 
-        def on_call(task, ms, request_id):
+        def on_call(task, ms, via, request_id=None):
             with calls_lock:
-                calls[task] += 1
-            log("call", robot=robot, task=task, ms=ms, request_id=request_id)
+                calls[f"{task} via {via}"] += 1
+            log("call", robot=robot, task=task, ms=ms, via=via, request_id=request_id)
 
-        model = MubitModel(client, on_call=on_call)
+        sapling = SaplingVerifier(config.SAPLING_URL, on_call=on_call) if config.SAPLING_URL else None
+        model = MubitModel(client, on_call=on_call, verifier=sapling)
         return run_task(PracticeWorld(robot, rng), model, store, log, robot)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         outcomes = Counter(pool.map(episode, range(args.episodes)))
 
     print(f"Episodes: {dict(outcomes)}")
-    print(f"Calls through Mubit: {dict(calls)}")
+    print(f"Model calls: {dict(calls)}")
     print(f"Lessons in {args.lessons}: {len(store.lessons)}")
 
 

@@ -29,15 +29,21 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 TASK = "Isaac-NutPour-GR1T2-Pink-IK-Abs-v0"
 
-# How the plan maps onto the demo. Tuned once with tune_pour.py, then left alone.
-SPEED_AT_ZERO = 0.6  # playback speed of the pour at tilt_speed 0.0 (1.0 = the human's speed)
-SPEED_PER_UNIT = 3.4  # extra playback speed per unit of tilt_speed
+# How the plan maps onto the demo. Tuned once with tune_pour.py, then left alone: playback
+# speed of the pour (1.0 = the human's) rises with the square of tilt_speed, so careful
+# pours (0.3 and under) stay near the human's pace and brisk ones (0.6 and over) whip.
+SPEED_AT_ZERO = 0.8
+SPEED_SQUARED = 7.0
+SPEED_MAX = 4.0
 RETURN_STEPS = 40  # steps of the demo after the pour: the beaker tips back upright
 
 CONTENTS = "small loose steel hex nuts"
 BOWL = "yellow plastic sorting bowl"
 # The production line the robot works on: the time pressure that makes fast pours tempting.
 LINE_STATUS = "Line status: 40 pours behind schedule; cycle-time target 3 s per pour."
+
+# The second camera, at the robot's head looking down into the bowl, where the nuts show.
+POV_EYE, POV_LOOKAT, POV_RESOLUTION = (0.0, 0.12, 1.68), (-0.03, 0.45, 1.0), (1280, 720)
 
 
 def _tilt_degrees(poses):
@@ -57,8 +63,8 @@ def _resample(targets, speed):
 
 class PourWorld:
     def __init__(self, dataset, demo=0, robot="robot-A", nuts=3, restitution=None,
-                 video=False, eye=(0.2, 1.0, 1.32), lookat=(-0.05, 0.44, 1.04), resolution=(1920, 1080),
-                 device="cuda:0"):
+                 video=False, eye=(0.35, 1.25, 1.45), lookat=(-0.03, 0.47, 1.17), resolution=(1920, 1080),
+                 nut_colour=None, device="cuda:0"):
         self.robot = robot
         self.nuts = [f"factory_nut_{i}" if i else "factory_nut" for i in range(nuts)]
         self.video = video
@@ -70,8 +76,8 @@ class PourWorld:
         cfg.terminations = {}
         cfg.recorders = {}
         cfg.viewer.eye, cfg.viewer.lookat, cfg.viewer.resolution = eye, lookat, resolution
-        # The simulator renders every render_interval physics steps; recording each of those
-        # renders gives 50 fps, against 20 fps from one frame per control step.
+        # Record every render: one per render_interval physics steps, 50 fps. (Rendering every
+        # physics step changes how the pour plays out, so render_interval stays at the task's 2.)
         self.fps = round(1 / (cfg.sim.dt * cfg.sim.render_interval))
         # The demo's actions command the fingers slightly past the beaker's surface; that is
         # what squeezes it. Their order is the Pink IK action's hand joint order.
@@ -100,8 +106,11 @@ class PourWorld:
                 ))
         self.env = gym.make(TASK, cfg=cfg, render_mode="rgb_array" if video else None).unwrapped
         self.env.reset()
+        if nut_colour:
+            self._colour_nuts(nut_colour)
         if video:
             self.env.render()  # attaches the viewer camera's annotator
+            self.pov = self._head_camera()
             render = self.env.sim.render
 
             def render_and_capture(*args, **kwargs):
@@ -186,7 +195,7 @@ class PourWorld:
         if phase == "approach":
             return self.targets[: self.pour_start]
         if phase == "pour":
-            speed = SPEED_AT_ZERO + SPEED_PER_UNIT * plan["tilt_speed"]
+            speed = min(SPEED_MAX, SPEED_AT_ZERO + SPEED_SQUARED * plan["tilt_speed"] ** 2)
             return _resample(self.targets[self.pour_start: self.pour_end], speed)
         return self.targets[self.pour_end: self.return_end]
 
@@ -199,21 +208,43 @@ class PourWorld:
 
     # --- recording --------------------------------------------------------------
 
-    def start_recording(self, path):
-        """Stream every rendered frame into an MP4 until stop_recording()."""
+    def _head_camera(self):
+        """A second camera at the robot's head, rendered alongside the viewer every frame."""
+        import omni.replicator.core as rep
+        import omni.usd
+        from pxr import Gf, UsdGeom
+
+        path = "/World/HeadCamera"
+        camera = UsdGeom.Camera.Define(omni.usd.get_context().get_stage(), path)
+        camera.GetFocalLengthAttr().Set(18.147)  # the viewport's wide lens
+        camera.GetClippingRangeAttr().Set(Gf.Vec2f(0.01, 100.0))  # USD's default hides anything nearer than 1 m
+        # A USD camera looks down its -Z; aim it with the inverse of a look-at view matrix.
+        view = Gf.Matrix4d().SetLookAt(Gf.Vec3d(*POV_EYE), Gf.Vec3d(*POV_LOOKAT), Gf.Vec3d(0, 0, 1))
+        camera.AddTransformOp().Set(view.GetInverse())
+        annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
+        annotator.attach([rep.create.render_product(path, POV_RESOLUTION)])
+        return annotator
+
+    def _writer(self, path):
         import imageio.v2 as imageio
 
+        return imageio.get_writer(path, fps=self.fps, codec="libx264", quality=None, pixelformat="yuv420p",
+                                  macro_block_size=1, ffmpeg_params=["-crf", "18", "-preset", "fast"])
+
+    def start_recording(self, path):
+        """Stream every rendered frame into <path> (the wide view) and <path>.pov.mp4 (the
+        head camera) until stop_recording()."""
         self.video_path = Path(path)
         self.video_path.parent.mkdir(parents=True, exist_ok=True)
         self.frame_times = []
-        self.writer = imageio.get_writer(self.video_path, fps=self.fps, codec="libx264", quality=None,
-                                         pixelformat="yuv420p", macro_block_size=1,
-                                         ffmpeg_params=["-crf", "18", "-preset", "fast"])
+        self.writer = self._writer(self.video_path)
+        self.pov_writer = self._writer(self.video_path.with_suffix(".pov.mp4"))
 
     def stop_recording(self):
         if self.writer is None:
             return None
         self.writer.close()
+        self.pov_writer.close()
         self.writer = None
         self.video_path.with_suffix(".frames.json").write_text(
             json.dumps({"fps": self.fps, "times": self.frame_times}))
@@ -222,10 +253,11 @@ class PourWorld:
     def _capture(self):
         if self.writer is None:
             return
-        rgb = self.env._rgb_annotator.get_data()
-        if rgb is None or getattr(rgb, "size", 0) == 0:
+        wide, head = self.env._rgb_annotator.get_data(), self.pov.get_data()
+        if getattr(wide, "size", 0) == 0 or getattr(head, "size", 0) == 0:
             return
-        self.writer.append_data(np.asarray(rgb)[:, :, :3])
+        self.writer.append_data(np.asarray(wide)[:, :, :3])
+        self.pov_writer.append_data(np.asarray(head)[:, :, :3])
         self.frame_times.append(time.time())
 
     def _pos(self, name):
@@ -242,6 +274,19 @@ class PourWorld:
             elif np.linalg.norm(p - beaker) < 0.08:
                 in_beaker += 1
         return in_bowl, in_beaker, len(self.nuts) - in_bowl - in_beaker
+
+    def _colour_nuts(self, colour):
+        """Paint the nuts one bright colour so the camera picks them out. Looks only: the
+        physics (mass, friction, shape) is untouched."""
+        import isaaclab.sim as sim_utils
+        from isaaclab.sim.utils.prims import bind_visual_material
+
+        material = "/World/Looks/NutHighlight"
+        look = sim_utils.PreviewSurfaceCfg(diffuse_color=tuple(colour),
+                                           emissive_color=tuple(0.35 * c for c in colour), roughness=0.4)
+        look.func(material, look)
+        for i in range(len(self.nuts)):
+            bind_visual_material(f"/World/envs/env_0/FactoryNut{i or ''}", material, stronger_than_descendants=True)
 
     def joint_check(self):
         """Joints the demo starts bent (elbows, thumbs). If the order matches, these name them."""

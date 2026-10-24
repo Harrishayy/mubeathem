@@ -28,7 +28,7 @@ The governing layer sits between a robot's planner and its motors. It works at p
 
 **Govern.** Before each phase, our system checks the plan against a written safety policy and current evidence. Movement requires an explicit approval. A violation holds the robot; uncertainty or contradictory evidence stops it for a human.
 
-**Learn.** Every model call goes through Mubit. Repeated planning, checking and lesson-writing calls become examples for task-specific adapters. Corrections first help through recalled lessons, then become data for model updates.
+**Learn.** Every model call goes through Mubit. Repeated planning, checking and lesson-writing calls become examples for task-specific adapters. Corrections first help through recalled lessons; retries that apply a lesson are recorded as examples for model updates.
 
 These are two different timescales: memory changes the next plan immediately; adapter training is the route toward changing the model itself.
 
@@ -42,7 +42,7 @@ The safety task uses Banyan Sapling's format: policy, evidence and claim as inpu
 
 The written policy covers people near the robot, an unknown bowl position and a limit on planned tilt angle. The loop checks before approach, pour and return.
 
-When a lesson fixes a plan, that corrected plan is the answer recorded through Mubit. The fleet's corrections therefore become training data through subsequent calls. Recording is not a guarantee that every example represents a successful physical outcome.
+When a retry applies a lesson, its plan is recorded through Mubit as another training example. First-attempt plans are recorded too, including those that spill. Recording is not a guarantee that every example represents a successful physical outcome.
 
 By default, a task needs 25 kept examples before its first training. Mubit trains a small task-specific adapter and tests each version against the provider model's answers. Once a version passes, we can compare it side by side with the provider in the console's **Try models**.
 
@@ -50,15 +50,15 @@ Tonight, Mubit has recorded 146 plan calls, 566 safety checks and 23 lesson call
 
 ## 5. The demo
 
-A Fourier GR-1 humanoid in NVIDIA Isaac Sim pours a beaker of four steel nuts into a bowl. The motion comes from a recorded human teleoperation demonstration, replayed joint by joint. The planner reshapes that motion: `tilt_speed` controls how fast the pour plays.
+A Fourier GR-1 humanoid in NVIDIA Isaac Sim pours a beaker of three steel nuts into a bowl. The motion comes from a recorded human teleoperation demonstration, replayed joint by joint. The planner reshapes that motion: `tilt_speed` controls how fast the pour plays.
 
-The planner is told pours are timed, as on a production line. Without lessons, it pours fast. On attempt one, nuts scatter. The spill comes from simulated physics, and the result comes from counting nuts in the bowl.
+The planner is told pours are timed, as on a production line. Without lessons, it usually pours fast, and the first attempt usually spills. The spill comes from simulated physics, and the result comes from counting nuts in the bowl.
 
-Our system writes a lesson from the failure. The scene resets. Attempt two reads the lesson, pours slowly and lands all four nuts. The audience can follow the changed settings and the lesson that caused them.
+After a spill, a model writes a lesson from the failed plan and the nut count. The scene resets. The next plan reads the lesson and pours more slowly. In the selected take, the retry lands all three nuts. The audience can follow the changed setting and the lesson in the prompt.
 
 The video places the simulation beside a live panel showing the plan, safety verdict, lessons and calls through Mubit. We record takes and select the best one; each clip is one real, uncut run.
 
-For Night Shift's correction-to-model-update criterion, the next evidence is in Mubit: the recurring task, its recorded corrected answers and its adapter status. Once a version passes, the demo can include a comparison in **Try models**. The successful retry demonstrates memory changing a decision; showing a model update also requires the adapter evidence.
+For Night Shift's correction-to-model-update criterion, the next evidence is in Mubit: the recurring task, its recorded answers with lessons in the prompt and its adapter status. Once a version passes, the demo can include a comparison in **Try models**. The successful retry demonstrates memory changing a decision; showing a model update also requires the adapter evidence.
 
 ## 6. What's real and what isn't yet (honest limits)
 
@@ -66,15 +66,23 @@ Sapling itself is not connected yet. The safety check runs Sapling's input and o
 
 Whether an adapter passes in time is not known yet. Once a version passes, we can compare it in **Try models**; we cannot claim an adapter result before that happens.
 
-The simulation pauses during each model call. Tonight's median frontier-model call through Mubit took about 2.2 seconds, and one attempt needs a plan plus three safety checks. That is too slow for robot control and motivates testing small adapters. No adapter speedup has been demonstrated here.
+The simulation pauses during each model call. Tonight's median frontier-model call through Mubit took about 2.5 seconds, and one attempt needs a plan plus three safety checks. That is too slow for robot control and motivates testing small adapters. No adapter speedup has been demonstrated here.
 
-The plan's `tilt_angle_deg` and `pour_height_cm` are not used by the motion; tilt speed is the lever. This build changes settings on a recorded skill; it does not learn new motor control. Nothing is proven on physical robots.
+The plan's `arm_speed`, `tilt_angle_deg` and `pour_height_cm` are not used by the motion; only `tilt_speed` changes it. This build changes settings on a recorded skill; it does not learn new motor control. Nothing is proven on physical robots.
+
+Physics is noisy: the same tilt speed can spill in one take and land in another, and takes are picked.
+
+No person is present in the Isaac scene; all 45 of 45 recorded Isaac safety checks returned `supported`. The hold/stop path is unit-tested but has not been shown in the sim.
+
+Nothing tells Mubit which plan failed. Its recorded calls include first-attempt plans that spilled, so an adapter can learn to apply a lesson in the prompt, rather than learn that the first plan was wrong. Each call's `request_id` is logged but is not used yet.
+
+A second-robot take has not been recorded. Shared lessons can be passed to `run_pour.py --robot robot-B --lessons <robot-A lessons file>`.
 
 Scenarios are staged; decisions are live. Selecting a take shows the loop clearly, but does not establish a general success rate or safety guarantee.
 
 ## 7. Why this matters / where it goes
 
-The goal is to shorten the distance between one failure and a better decision everywhere. Shared lessons address repeated mistakes now. Written checks make permission to act explicit. Mubit provides a path from recurring corrected answers to tested model updates.
+The goal is to shorten the distance between one failure and a better decision everywhere. Shared lessons address repeated mistakes now. Written checks make permission to act explicit. Mubit records retries that apply lessons as examples for tested model updates.
 
 The next work is to measure adapter quality and latency, test more varied situations, and validate the approach on physical hardware. A similar pattern could serve software agents wherever actions have policies and observable outcomes. That is a direction to test, beyond what this pouring demo establishes.
 

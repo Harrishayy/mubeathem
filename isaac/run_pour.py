@@ -1,4 +1,5 @@
-"""Takes: the loop runs the GR-1 pour in Isaac Sim, every decision through Mubit.
+"""Takes: the loop runs the GR-1 pour in Isaac Sim, plans and lessons through Mubit,
+safety checks by Banyan Sapling (start sapling/serve.py first and set SAPLING_URL).
 
 From ~/steward/IsaacLab, after `source ~/steward/isaac-env.sh`:
     ./isaaclab.sh -p ~/steward/repo/isaac/run_pour.py --headless --enable_cameras --video --takes 5
@@ -35,6 +36,9 @@ parser.add_argument("--max-attempts", type=int, default=3)
 parser.add_argument("--nuts", type=int, default=3)
 parser.add_argument("--restitution", type=float, default=None)
 parser.add_argument("--video", action="store_true")
+parser.add_argument("--stand-in", action="store_true",
+                    help="Safety checks by the stand-in model through Mubit, in Sapling's format, instead of "
+                         "Sapling itself. Each take's log says which made its checks.")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 
@@ -48,9 +52,16 @@ from steward.events import EventLog  # noqa: E402
 from steward.lessons import LessonStore  # noqa: E402
 from steward.loop import run_task  # noqa: E402
 from steward.model import MubitModel, mubit_client  # noqa: E402
+from steward.sapling import SaplingVerifier  # noqa: E402
 
 
 def main():
+    sapling = None
+    if not args.stand_in:
+        if not config.SAPLING_URL:
+            raise SystemExit("Set SAPLING_URL: takes run their safety checks on Banyan Sapling (sapling/serve.py),"
+                             " or pass --stand-in.")
+        sapling = SaplingVerifier(config.SAPLING_URL).health()  # fail now, not at the first check
     world = PourWorld(args.dataset, demo=args.demo, robot=args.robot, nuts=args.nuts,
                       restitution=args.restitution, video=args.video, device=args.device)
     client = mubit_client()
@@ -61,11 +72,15 @@ def main():
         store = LessonStore(args.lessons or takes_dir / f"{take}.lessons.json")
         log = EventLog(config.RUNS_DIR, take=take)
         log("take", mode="isaac", demo=args.demo, use_lessons=not args.no_lessons,
-            lessons=[] if args.no_lessons else store.lessons)
+            lessons=[] if args.no_lessons else store.lessons,
+            verifier="sapling" if sapling else "stand-in",
+            sapling_weights=sapling["weights_sha256"] if sapling else None)
 
         if args.video:
             world.start_recording(takes_dir / f"{take}.mp4")
-        model = MubitModel(client, on_call=functools.partial(log, "call", robot=args.robot))
+        on_call = functools.partial(log, "call", robot=args.robot)
+        verifier = SaplingVerifier(config.SAPLING_URL, on_call=on_call) if sapling else None
+        model = MubitModel(client, on_call=on_call, verifier=verifier)
         outcome = run_task(world, model, store, log, args.robot,
                            max_attempts=args.max_attempts, use_lessons=not args.no_lessons)
 
