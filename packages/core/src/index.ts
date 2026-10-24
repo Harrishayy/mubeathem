@@ -16,3 +16,4 @@ export * from './playbook/stepwin';
 export * from './playbook/apply';
 export * from './fixtures/demo';
 export * from './signals/identity';
+export * from './signals/endpoint';

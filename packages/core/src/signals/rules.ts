@@ -63,7 +63,7 @@ const MOMENT_RULES: MomentRule[] = [
   },
   {
     moment: 'close',
-    re: /\b((monday|tuesday|wednesday|thursday|friday)( works| is good| is fine| afternoon| morning|'?s good)|works for me|that works|let'?s do it|book it|send (me |over )?(the |an? )?(invite|calendar)|put (it|something) in|i'?m free|happy to (take|do|hop on) (a|the) (call|meeting)|set (it|something) up|let'?s (set|book|schedule|find a time)|what times? (do you|works|are you)|when (are you|is your team) free)\b/,
+    re: /\b((monday|tuesday|wednesday|thursday|friday)( works| is good| is fine| afternoon| morning|'?s good)|works for me|that works|let'?s do it|book it|send (me |over )?(the |an? )?(invite|calendar)|put (it|something) in|i'?m free|happy to (take|do|hop on) (a|the) (call|meeting)|set (it|something) up|let'?s (set|book|schedule|find a time)|what times? (do you|works|are you)|when (are you|is your team) free|(could|would) work for (me|us)|\w+ (morning|afternoon)? ?could work)\b/,
     confidence: 0.85,
     cue: 'agreed to a time',
   },
@@ -75,19 +75,19 @@ const MOMENT_RULES: MomentRule[] = [
   },
   {
     moment: 'objection_price',
-    re: /\b(too expensive|can'?t afford|no budget|not in (the|our) budget|(costs?|price is|pricing is) too|cheaper (elsewhere|option)|already paying (too much|enough)|insurance is (a waste|expensive))\b/,
+    re: /\b(too expensive|can'?t afford|no budget|not in (the|our) budget|(costs?|price is|pricing is) too|cheaper (elsewhere|option)|already paying (too much|enough)|insurance is (a waste|expensive)|(would|will|is) (it|that|this) (be )?cheaper|cheaper than (what )?we|(premiums?|rates?|costs?) (already |just )?(went|gone|go|keep going) up|what does (it|that|this|something like (this|that)) even cost)\b/,
     confidence: 0.8,
     cue: 'pushing back on price',
   },
   {
     moment: 'buying_signal',
-    re: /\b(how much|what (would|does|will) (it|that|this|something like that) (cost|run|be)|pricing|ballpark|what('s| is) the (premium|price|cost)|how (does|would) (that|it|this|the quote) work|what would you need( from us)?|could you (quote|send a quote)|what do you (cover|need)|how (fast|quickly|long)|would (our|the|my) [\w\s]{1,30} (be )?covered|do you (cover|do))\b/,
+    re: /\b(how much|what (would|does|will) (it|that|this|something like that) (cost|run|be)|pricing|ballpark|what('s| is) the (premium|price|cost)|how (does|would) (that|it|this|the quote) work|what would you need( from us)?|could you (quote|send a quote)|what do you (cover|need)|how (fast|quickly|long)|would (our|the|my|a|an) [\w\s]{1,40} (actually |even )?(be )?covered|(would|is|are) (that|it|this|we) (actually |even )?covered|do you (cover|do)|(we'?ve|i'?ve) been (talking|thinking|meaning to (ask|look)) (about|into))\b/,
     confidence: 0.8,
     cue: 'asking how it works or what it costs',
   },
   {
     moment: 'brush_off_email',
-    re: /\b(send (me |us |over )?(an? |some )?(email|info|information|details|something|deck)|email me|shoot me (an|a) (email|note)|drop me (an|a) (email|line|note)|put it in (an|a) email|just email)\b/,
+    re: /\b(send (me |us |over )?(an? |some )?(email|info|information|details|something|deck)|email me|shoot me (an|a) (email|note)|drop me (an|a) (email|line|note)|put it in (an|a) email|just email|email (it|that|this|something) (over|through|to me)|send (it|that|this) over)\b/,
     confidence: 0.85,
     cue: 'asked for an email',
   },

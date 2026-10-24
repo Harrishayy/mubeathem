@@ -1,4 +1,4 @@
-export { createCueApi, CueApiError, type CueApi, type CueApiOptions, type CueApiErrorCode, type RequestOptions } from './api';
+export { createCueApi, CueApiError, type CueApi, type CueApiOptions, type CueApiErrorCode, type RequestOptions, type TraceQuery } from './api';
 export { subscribeCall, type Connection, type EventSourceCtor, type EventSourceLike, type SubscribeHandlers, type SubscribeOptions } from './stream';
 export {
   WebSpeechTranscriber,

@@ -24,6 +24,51 @@ describe('createCueApi', () => {
     expect(api.streamUrl(callId, 7)).toBe(`http://cue.test/api/calls/${callId}/stream?after=7&token=tok`);
   });
 
+  it('builds trace queries and export URLs, skipping unset params', async () => {
+    const urls: string[] = [];
+    const fetch = vi.fn(async (url: string | URL | Request) => {
+      urls.push(String(url));
+      return jsonRes({ items: [], nextCursor: null });
+    });
+    const api = createCueApi({ baseUrl: 'http://cue.test', fetch: fetch as typeof globalThis.fetch });
+    await api.traces({ task: 'write_line', ok: false, limit: 20 });
+    await api.traces();
+    expect(urls).toEqual(['http://cue.test/api/traces?task=write_line&ok=false&limit=20', 'http://cue.test/api/traces']);
+    expect(api.traceExportUrl({ format: 'openai', range: '7d' })).toBe('http://cue.test/api/traces/export?format=openai&range=7d');
+    expect(api.traceExportUrl()).toBe('http://cue.test/api/traces/export');
+  });
+
+  it('filters history, reads the team and manages contacts', async () => {
+    const seen: string[] = [];
+    const fetch = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const u = String(url);
+      seen.push(`${init?.method ?? 'GET'} ${u}`);
+      if (u.includes('/api/team')) return jsonRes({ members: [] });
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 });
+      if (u.endsWith('/import')) return jsonRes({ imported: 1, updated: 0, skipped: 0, errors: [] });
+      if (u.includes('/api/contacts?') || u.endsWith('/api/contacts') && init?.method !== 'POST') return jsonRes({ items: [], total: 0 });
+      if (u.includes('/api/contacts')) return jsonRes({ id: 'ct_1', name: 'Ada', title: '', company: '', phone: null, email: null, crmId: null, facts: {}, notes: null, ownerRepId: null, createdAt: 1, updatedAt: 1, lastCalledAt: null, calls: 0, lastOutcome: null });
+      return jsonRes([]);
+    });
+    const api = createCueApi({ baseUrl: 'http://cue.test', fetch: fetch as typeof globalThis.fetch });
+    await api.listCalls({ repId: 'rep_a', outcome: 'meeting_booked', q: 'acme co' });
+    await api.listCalls(5);
+    await api.team({ weeks: 4 });
+    await api.contacts({ q: 'ada' });
+    expect((await api.createContact({ name: 'Ada' })).id).toBe('ct_1');
+    await api.deleteContact('ct_1');
+    expect((await api.importContacts('name\nAda', 'rep_a')).imported).toBe(1);
+    expect(seen).toEqual([
+      'GET http://cue.test/api/calls?repId=rep_a&outcome=meeting_booked&q=acme%20co',
+      'GET http://cue.test/api/calls?limit=5',
+      'GET http://cue.test/api/team?weeks=4',
+      'GET http://cue.test/api/contacts?q=ada',
+      'POST http://cue.test/api/contacts',
+      'DELETE http://cue.test/api/contacts/ct_1',
+      'POST http://cue.test/api/contacts/import',
+    ]);
+  });
+
   it('turns ApiError bodies into CueApiError with code and status', async () => {
     const api = createCueApi({ baseUrl: 'http://cue.test', fetch: (async () => jsonRes({ error: { code: 'call_ended', message: 'The call has ended' } }, 409)) as typeof fetch });
     const err = await api.addTurn(callId, { speaker: 'prospect', text: 'hi' }).catch((e) => e);

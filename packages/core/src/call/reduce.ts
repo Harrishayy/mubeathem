@@ -80,6 +80,7 @@ function applyWith(view: CallView, e: CallEvent, cap: number): CallView {
       v.startedAt = e.at;
       v.prospect = e.prospect;
       v.rep = e.rep;
+      if (e.contactId) v.contactId = e.contactId;
       return v;
 
     case 'brief.ready':

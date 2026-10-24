@@ -3,7 +3,7 @@
  * the ULID layout. Lexical order matches creation order, including within one millisecond.
  */
 
-export type IdPrefix = 'call' | 'turn' | 'sug' | 'line' | 'evt';
+export type IdPrefix = 'call' | 'turn' | 'sug' | 'line' | 'evt' | 'trc' | 'ct';
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const TIME_LEN = 10;

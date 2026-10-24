@@ -4,7 +4,16 @@ import {
   CallRecord,
   CallSummary,
   CallView,
+  Contact,
+  ContactImportResponse,
+  ContactListResponse,
   HealthResponse,
+  TeamResponse,
+  ResearchWarmResponse,
+  type ResearchWarmRequest,
+  InsightsResponse,
+  TraceDetail,
+  TraceListResponse,
   PlaybookLine,
   PlaybookResponse,
   PracticeNextResponse,
@@ -16,10 +25,17 @@ import {
   AddTurnRequest,
   CreateCallRequest,
   FeedbackRequest,
+  type CallListQuery,
+  type ContactInput,
+  type ContactListQuery,
+  type TeamQuery,
   type EndCallRequest,
   type SuggestionActionRequest,
   type TrellusDispositionsRequest,
   type TrellusKeyRequest,
+  type TaskId,
+  type TraceExportFormat,
+  type TraceRange,
 } from '@cue/core';
 import type { z } from 'zod';
 
@@ -59,6 +75,14 @@ export interface CueApiOptions {
   timeoutMs?: number;
 }
 
+export interface TraceQuery {
+  task?: TaskId;
+  callId?: string;
+  ok?: boolean;
+  before?: string;
+  limit?: number;
+}
+
 export interface RequestOptions {
   signal?: AbortSignal;
 }
@@ -72,7 +96,19 @@ export interface CueApi {
   exportUrl(): string;
   health(o?: RequestOptions): Promise<HealthResponse>;
   createCall(req: In<typeof CreateCallRequest>, o?: RequestOptions): Promise<CallView>;
-  listCalls(limit?: number, o?: RequestOptions): Promise<CallSummary[]>;
+  /** History, newest first. A number is just a limit; an object filters by rep, outcome, text, date. */
+  listCalls(q?: number | CallListQuery, o?: RequestOptions): Promise<CallSummary[]>;
+  /** Each rep's numbers and weekly trend, plus team totals. */
+  team(q?: TeamQuery, o?: RequestOptions): Promise<TeamResponse>;
+  contacts(q?: ContactListQuery, o?: RequestOptions): Promise<ContactListResponse>;
+  contact(id: string, o?: RequestOptions): Promise<Contact>;
+  createContact(c: ContactInput, o?: RequestOptions): Promise<Contact>;
+  updateContact(id: string, c: ContactInput, o?: RequestOptions): Promise<Contact>;
+  deleteContact(id: string, o?: RequestOptions): Promise<void>;
+  /** Starts researching a contact before the call (fire and forget; cached on the server). */
+  warmResearch(req: ResearchWarmRequest, o?: RequestOptions): Promise<ResearchWarmResponse>;
+  /** CSV with a header row (name, title, company, phone, email, …). */
+  importContacts(csv: string, ownerRepId?: string, o?: RequestOptions): Promise<ContactImportResponse>;
   getCall(callId: string, o?: RequestOptions): Promise<CallView>;
   addTurn(callId: string, turn: In<typeof AddTurnRequest>, o?: RequestOptions): Promise<AddTurnResponse>;
   suggestionAction(callId: string, suggestionId: string, req: SuggestionActionRequest, o?: RequestOptions): Promise<void>;
@@ -84,6 +120,13 @@ export interface CueApi {
   approveLine(lineId: string, o?: RequestOptions): Promise<PlaybookLine>;
   rejectLine(lineId: string, o?: RequestOptions): Promise<PlaybookLine>;
   stats(o?: RequestOptions): Promise<StatsResponse>;
+  /** Mubit traces, newest first, without bodies. `nextCursor` pages back. */
+  traces(q?: TraceQuery, o?: RequestOptions): Promise<TraceListResponse>;
+  /** One trace with its full input and output. */
+  trace(id: string, o?: RequestOptions): Promise<TraceDetail>;
+  insights(range?: TraceRange, o?: RequestOptions): Promise<InsightsResponse>;
+  /** Download URL for a trace export (jsonl, OpenAI fine-tune, or Langfuse batch). */
+  traceExportUrl(q?: { format?: TraceExportFormat; task?: TaskId; range?: TraceRange }): string;
   trellusStatus(o?: RequestOptions): Promise<TrellusStatusResponse>;
   trellusSync(o?: RequestOptions): Promise<TrellusSyncResponse>;
   setTrellusKey(req: TrellusKeyRequest, o?: RequestOptions): Promise<TrellusStatusResponse>;
@@ -95,12 +138,18 @@ export interface CueApi {
 
 const enc = encodeURIComponent;
 
+/** `?a=1&b=x` from the defined entries, or ''. */
+function qs(params: Record<string, string | number | undefined>): string {
+  const p = Object.entries(params).filter((e): e is [string, string | number] => e[1] !== undefined && e[1] !== '');
+  return p.length ? `?${p.map(([k, v]) => `${enc(k)}=${enc(String(v))}`).join('&')}` : '';
+}
+
 export function createCueApi(opts: CueApiOptions): CueApi {
   const base = opts.baseUrl.replace(/\/+$/, '');
   const timeoutMs = opts.timeoutMs ?? 10_000;
   const doFetch = opts.fetch ?? ((...a: Parameters<typeof fetch>) => globalThis.fetch(...a));
 
-  async function request<T extends z.ZodType | null>(method: 'GET' | 'POST' | 'PUT', path: string, schema: T, body?: unknown, o?: RequestOptions): Promise<T extends z.ZodType ? z.infer<T> : void> {
+  async function request<T extends z.ZodType | null>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', path: string, schema: T, body?: unknown, o?: RequestOptions): Promise<T extends z.ZodType ? z.infer<T> : void> {
     const timeout = new AbortController();
     const timer = setTimeout(() => timeout.abort(), timeoutMs);
     const signal = o?.signal ? anySignal([o.signal, timeout.signal]) : timeout.signal;
@@ -158,7 +207,15 @@ export function createCueApi(opts: CueApiOptions): CueApi {
     exportUrl: () => `${base}/api/export.jsonl`,
     health: (o) => request('GET', '/health', HealthResponse, undefined, o),
     createCall: (req, o) => request('POST', '/api/calls', CallView, req, o),
-    listCalls: (limit, o) => request('GET', `/api/calls${limit ? `?limit=${limit}` : ''}`, CallSummary.array(), undefined, o),
+    listCalls: (q, o) => request('GET', `/api/calls${qs(typeof q === 'number' ? { limit: q } : (q ?? {}))}`, CallSummary.array(), undefined, o),
+    team: (q, o) => request('GET', `/api/team${qs(q ?? {})}`, TeamResponse, undefined, o),
+    contacts: (q, o) => request('GET', `/api/contacts${qs(q ?? {})}`, ContactListResponse, undefined, o),
+    contact: (id, o) => request('GET', `/api/contacts/${enc(id)}`, Contact, undefined, o),
+    createContact: (c, o) => request('POST', '/api/contacts', Contact, c, o),
+    updateContact: (id, c, o) => request('PUT', `/api/contacts/${enc(id)}`, Contact, c, o),
+    deleteContact: (id, o) => request('DELETE', `/api/contacts/${enc(id)}`, null, undefined, o),
+    warmResearch: (req, o) => request('POST', '/api/research/warm', ResearchWarmResponse, req, o),
+    importContacts: (csv, ownerRepId, o) => request('POST', '/api/contacts/import', ContactImportResponse, { csv, ...(ownerRepId ? { ownerRepId } : {}) }, o),
     getCall: (id, o) => request('GET', call(id), CallView, undefined, o),
     addTurn: (id, turn, o) => request('POST', `${call(id)}/turns`, AddTurnResponse, turn, o),
     suggestionAction: (id, sid, req, o) => request('POST', `${call(id)}/suggestions/${enc(sid)}/action`, null, req, o),
@@ -170,6 +227,10 @@ export function createCueApi(opts: CueApiOptions): CueApi {
     approveLine: (id, o) => request('POST', `/api/playbook/lines/${enc(id)}/approve`, PlaybookLine, {}, o),
     rejectLine: (id, o) => request('POST', `/api/playbook/lines/${enc(id)}/reject`, PlaybookLine, {}, o),
     stats: (o) => request('GET', '/api/stats', StatsResponse, undefined, o),
+    traces: (q, o) => request('GET', `/api/traces${qs({ ...q, ok: q?.ok === undefined ? undefined : String(q.ok) })}`, TraceListResponse, undefined, o),
+    trace: (id, o) => request('GET', `/api/traces/${enc(id)}`, TraceDetail, undefined, o),
+    insights: (range, o) => request('GET', `/api/insights${qs({ range })}`, InsightsResponse, undefined, o),
+    traceExportUrl: (q) => `${base}/api/traces/export${qs(q ?? {})}`,
     trellusStatus: (o) => request('GET', '/api/trellus/status', TrellusStatusResponse, undefined, o),
     trellusSync: (o) => request('POST', '/api/trellus/sync', TrellusSyncResponse, {}, o),
     setTrellusKey: (req, o) => request('POST', '/api/trellus/key', TrellusStatusResponse, req, o),

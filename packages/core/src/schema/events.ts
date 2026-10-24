@@ -25,7 +25,7 @@ import { CallReview } from './tasks';
 const base = { callId: Id, at: EpochMs, seq: z.number().int().nonnegative() };
 
 export const CallEvent = z.discriminatedUnion('type', [
-  z.object({ ...base, type: z.literal('call.started'), source: CallSourceZ, prospect: Prospect, rep: Rep, trellusSessionId: z.string().max(120).optional() }),
+  z.object({ ...base, type: z.literal('call.started'), source: CallSourceZ, prospect: Prospect, rep: Rep, trellusSessionId: z.string().max(120).optional(), contactId: Id.optional() }),
   z.object({ ...base, type: z.literal('brief.ready'), brief: Brief }),
   /** Interim and final transcript turns. A final turn with an existing id replaces the interim one. */
   z.object({ ...base, type: z.literal('turn.added'), turn: Turn }),

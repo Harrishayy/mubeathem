@@ -185,6 +185,19 @@ export const Suggestion = z.object({
    * again on the model read; `direct` = written once after the read. Absent on compliance cards.
    */
   writePath: z.enum(['speculative', 'rewritten', 'direct']).optional(),
+  /**
+   * Latency layers (architecture.md §5.3). `instant` = shown before any Mubit call returned (rules
+   * read + playbook line, or a precomputed Mubit line with `servedBy: 'cache'`); `refined` = the same
+   * card id re-emitted once Mubit's read/write landed. Absent when there is no refinement layer
+   * (rules-only server, compliance cards). The reducer replaces a shown card with the same id.
+   */
+  stage: z.enum(['instant', 'refined']).optional(),
+  /** When the refined version replaced the instant one (epoch ms). */
+  refinedAt: EpochMs.optional(),
+  /** ms from the prospect finishing to the refined version. `latencyMs` stays the first card's. */
+  refinedLatencyMs: z.number().int().nonnegative().optional(),
+  /** For `servedBy: 'cache'`: where the precomputed Mubit line came from (`standby` = written ahead for a predicted moment). */
+  precomputed: z.enum(['standby']).optional(),
 });
 export type Suggestion = z.infer<typeof Suggestion>;
 
@@ -195,10 +208,21 @@ export const ResearchHook = z.object({
   hook: z.string().max(240),
   product: ProductLineZ,
   source: z.string().max(400).optional(),
-  /** `exa` | `crm` | `manual` | `fixture` */
+  /** `exa` | `valyu` | `crm` | `web` | `manual` | `fixture` */
   via: z.string().max(20),
+  /** The page the hook came from, when it came from research. */
+  url: z.string().max(2000).optional(),
 });
 export type ResearchHook = z.infer<typeof ResearchHook>;
+
+/** A page the brief read, for the "where this came from" list. */
+export const BriefSource = z.object({
+  title: z.string().max(200),
+  url: z.string().max(2000).nullable(),
+  via: z.string().max(20),
+  publishedAt: z.string().max(40).nullable(),
+});
+export type BriefSource = z.infer<typeof BriefSource>;
 
 export const Brief = z.object({
   summary: z.string().max(400),
@@ -206,6 +230,8 @@ export const Brief = z.object({
   opener: z.string().max(320),
   personaGuess: PersonaZ,
   servedBy: z.enum(['mubit', 'rules', 'cache']),
+  /** What the research read (Exa, Valyu, CRM), newest-first where dated. */
+  sources: z.array(BriefSource).max(12).optional(),
 });
 export type Brief = z.infer<typeof Brief>;
 
