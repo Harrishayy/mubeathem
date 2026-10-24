@@ -13,8 +13,14 @@ export interface PaneProps {
   /** A ruled action bar pinned to the bottom of the pane. */
   footer?: ReactNode;
   children: ReactNode;
-  /** The body scrolls inside the pane (default). Off: the pane grows with its content. */
-  scroll?: boolean;
+  /**
+   * `true` (default): the body scrolls inside the pane (fills a fixed-height cell, e.g. a `Screen`).
+   * `false`: the pane grows with its content (report sections on a `Board`).
+   * `'cap'`: grows up to about three-quarters of the window, then scrolls inside (long tables).
+   */
+  scroll?: boolean | 'cap';
+  /** Columns on a `Board` (12-column grid). Full width below 1080 px. */
+  span?: 3 | 4 | 5 | 6 | 7 | 8 | 9 | 12;
   /** Body padding; `none` for tables and lists that rule their own rows. */
   pad?: 'none' | 'sm' | 'md';
   as?: 'section' | 'aside' | 'nav' | 'div';
@@ -28,9 +34,9 @@ export interface PaneProps {
  * pinned footer for actions. The body scrolls inside the pane so the page never does on a laptop;
  * on phones panes stack and grow. Text inside always wraps: nothing in a pane truncates.
  */
-export function Pane({ label, meta, actions, hint, footer, children, scroll = true, pad = 'md', as: As = 'section', className, bodyClassName, id }: PaneProps) {
+export function Pane({ label, meta, actions, hint, footer, children, scroll = true, span, pad = 'md', as: As = 'section', className, bodyClassName, id }: PaneProps) {
   return (
-    <As className={cx('cue-pane', !scroll && 'cue-pane--grow', className)} aria-label={label} id={id}>
+    <As className={cx('cue-pane', scroll === false && 'cue-pane--grow', scroll === 'cap' && 'cue-pane--cap', span && `cue-span-${span}`, className)} aria-label={label} id={id}>
       <header className="cue-pane__head">
         <span className="cue-label cue-pane__label">{label}</span>
         {meta !== undefined && meta !== null && meta !== false && <span className="cue-pane__meta">{meta}</span>}

@@ -59,6 +59,12 @@ import {
   type OverbarMode,
   type SuggestionCardHandle,
   type ToastData,
+  Board,
+  BoardSection,
+  Screen,
+  SectionNav,
+  Toolbar,
+  type Column,
 } from '../src';
 import { CARD_SPECS, suggestionFrom } from '../src/fixtures/demo';
 import { COMPLIANCE_SUGGESTION, DEMO_PLAYBOOK, DEMO_STATS, VIEWS, stressSuggestion } from '../src/fixtures/views';
@@ -118,6 +124,12 @@ export function Catalogue({ state: s, playback, only }: { state: GalleryState; p
   );
 }
 
+const TABLE_COLUMNS: Column<(typeof TABLE_ROWS)[number]>[] = [
+  { key: 'rank', header: '#', width: '48px', mono: true, render: (r) => r.rank },
+  { key: 'text', header: 'Line', render: (r) => <span className="cue-table__line">{r.text}</span> },
+  { key: 'rate', header: 'Win rate', width: '90px', mono: true, align: 'end', render: (r) => `${Math.round(r.rate * 100)}%` },
+];
+
 const TABLE_ROWS = [
   { id: 'a', rank: '01', text: 'Makes sense, most founders do. When did they last re-quote you after the raise?', rate: 0.62, calls: 24 },
   { id: 'b', rank: '02', text: 'Totally fair. Brokers are great at renewals; we are a second quote built for funded startups.', rate: 0.51, calls: 41 },
@@ -146,6 +158,40 @@ function DashboardSection({ views, stress }: { views: Record<keyof typeof VIEWS,
           onNavigate={(_, e) => e.preventDefault()}
           end={<BandTag>Mubit · 6/6 adapters</BandTag>}
         />
+      </Specimen>
+      <Specimen label="Toolbar · SectionNav · Board · BoardSection · Screen (the page layout)" wide>
+        <div className="cue-dash" style={{ minHeight: 0 }}>
+          <Toolbar label="Specimen filters">
+            <span className="cue-label">Range</span>
+            <span className="cue-filter" role="group" aria-label="Range">
+              <button type="button" aria-pressed="true">7 days</button>
+              <button type="button" aria-pressed="false">All</button>
+            </span>
+            <SectionNav links={[{ id: 'g-board-a', label: 'Report row' }, { id: 'g-board-b', label: 'List + detail' }]} />
+          </Toolbar>
+          <Board>
+            <BoardSection id="g-board-a" title="A report row" hint={stress ? long : 'Panes on 12 columns take their content height; full width below 1080 px.'}>
+              <Pane label="Span 4" span={4} scroll={false}>
+                {stress ? long : 'Four of twelve.'}
+              </Pane>
+              <Pane label="Span 8 · capped" span={8} scroll="cap" pad="none">
+                <DataTable label="Capped table" columns={TABLE_COLUMNS} rows={rows} rowKey={(r) => r.id} minWidth={420} />
+              </Pane>
+            </BoardSection>
+            <BoardSection id="g-board-b" title="List + detail" hint="A Screen fills the window under the pinned band and toolbar.">
+              <div style={{ height: 260, display: 'grid' }}>
+                <Screen>
+                  <Pane label="List" pad="none">
+                    <DataTable label="Screen list" columns={TABLE_COLUMNS} rows={rows} rowKey={(r) => r.id} minWidth={420} />
+                  </Pane>
+                  <Pane label="Detail" as="aside">
+                    {stress ? long : 'The selected row in full.'}
+                  </Pane>
+                </Screen>
+              </div>
+            </BoardSection>
+          </Board>
+        </div>
       </Specimen>
       <Specimen label="KpiStrip · Kpi" wide>
         <KpiStrip>

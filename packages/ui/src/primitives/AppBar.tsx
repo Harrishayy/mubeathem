@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
+import { useChromeHeight } from '../lib/useChromeHeight';
 import { cx } from '../lib/cx';
 
 export interface AppTab {
@@ -39,8 +40,10 @@ export function CueMark({ size = 22 }: { size?: number }) {
  * below, and a status/actions slot. Tabs scroll sideways on a phone rather than wrapping or clipping.
  */
 export function AppBar({ tabs, active, end, brand, onNavigate, className }: AppBarProps) {
+  const ref = useRef<HTMLElement>(null);
+  useChromeHeight(ref, '--appbar-h');
   return (
-    <header className={cx('cue-appbar', className)}>
+    <header ref={ref} className={cx('cue-appbar', className)}>
       <div className="cue-appbar__brand">
         {brand ?? (
           <>

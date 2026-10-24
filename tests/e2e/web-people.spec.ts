@@ -95,7 +95,8 @@ test('team: You and Team views, empty state and leaderboard', async ({ page, req
   await request.post(`/api/calls/${v.id}/end`, { data: { outcome: 'meeting_booked' } });
   await page.reload();
   await expect(page.getByText('Your booking rate')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Your weekly trend' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Your trend' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Coaching' })).toBeVisible();
   await noOverflow(page, 'team you');
 
   await page.getByRole('radio', { name: 'Team' }).click();

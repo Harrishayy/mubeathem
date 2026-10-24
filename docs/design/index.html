@@ -1415,6 +1415,75 @@ a.cue-brief__source-title:focus-visible { outline: 2px solid var(--focus); outli
   .cue-dash-grid > * { grid-column: auto !important; grid-row: auto !important; }
 }
 
+/* ── Board: the page layout for every screen but the live console ──
+   The page scrolls; the band and the toolbar stay pinned. Rows of panes on 12 columns take their
+   content's height; a Screen (list + detail) fills the window under the pinned chrome. Two
+   scrolling panes are never stacked vertically, so no section shrinks to a two-row slot. */
+.cue-dash:not(.cue-dash--fit) > .cue-appbar { position: sticky; top: 0; z-index: 30; }
+.cue-toolbar {
+  position: sticky; top: var(--appbar-h, 52px); z-index: 20;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 10px 16px;
+  background: var(--bg); border-bottom: 1px solid var(--pane-line);
+}
+.cue-board { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px; padding: 8px; align-items: start; min-width: 0; }
+.cue-board__section { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px; align-items: start; min-width: 0; scroll-margin-top: calc(var(--appbar-h, 52px) + var(--toolbar-h, 0px) + 8px); }
+.cue-board__section + .cue-board__section { margin-top: 12px; }
+.cue-board__head { grid-column: 1 / -1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; padding: 4px 4px 0; min-width: 0; }
+.cue-board__title { margin: 0; font-family: var(--font-display, var(--font-body)); font-size: var(--text-title, 20px); font-weight: var(--weight-semibold); color: var(--ink); line-height: 1.25; }
+.cue-board__title:focus { outline: none; }
+.cue-board__title:focus-visible { box-shadow: var(--focus-ring); }
+.cue-board__hint { margin: 0; flex: 1 1 320px; min-width: 0; color: var(--ink-2); font-size: var(--text-small); overflow-wrap: anywhere; }
+.cue-board__actions { margin-inline-start: auto; display: inline-flex; flex-wrap: wrap; gap: 8px; }
+.cue-board__section > :not(.cue-board__head):not([class*='cue-span-']) { grid-column: 1 / -1; }
+.cue-board > :not([class*='cue-span-']) { grid-column: 1 / -1; }
+.cue-board .cue-kpis { padding: 0; }
+.cue-span-3 { grid-column: span 3; } .cue-span-4 { grid-column: span 4; } .cue-span-5 { grid-column: span 5; }
+.cue-span-6 { grid-column: span 6; } .cue-span-7 { grid-column: span 7; } .cue-span-8 { grid-column: span 8; }
+.cue-span-9 { grid-column: span 9; } .cue-span-12 { grid-column: 1 / -1; }
+.cue-board .cue-pane--grow, .cue-board .cue-pane--cap { align-self: stretch; }
+.cue-pane--cap .cue-pane__body { max-height: min(74vh, 820px); }
+/* A list beside its detail, sized to the window below the band and toolbar. */
+.cue-screen {
+  grid-column: 1 / -1; display: grid; gap: 8px; min-width: 0;
+  grid-template-columns: var(--screen-cols, minmax(0, 1fr) minmax(320px, 32vw));
+  height: calc(100dvh - var(--appbar-h, 52px) - var(--toolbar-h, 0px) - 16px); min-height: 560px;
+}
+.cue-screen > * { min-height: 0; }
+.cue-sectionnav { display: inline-flex; flex-wrap: wrap; gap: 2px; }
+.cue-sectionnav__link {
+  min-height: 32px; padding: 4px 10px; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer;
+  font: inherit; font-size: var(--text-small); font-weight: var(--weight-semibold); color: var(--ink-2);
+}
+.cue-sectionnav__link:hover { color: var(--ink); background: var(--row-on); }
+.cue-sectionnav__link:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+@media (max-width: 1279.98px) {
+  .cue-span-3 { grid-column: span 6; }
+  .cue-span-4, .cue-span-5 { grid-column: span 6; }
+  .cue-span-7, .cue-span-8, .cue-span-9 { grid-column: 1 / -1; }
+}
+@media (max-width: 1079.98px) {
+  .cue-board, .cue-board__section { grid-template-columns: minmax(0, 1fr); }
+  [class*='cue-span-'] { grid-column: 1 / -1 !important; }
+  .cue-pane--cap .cue-pane__body { max-height: none; }
+  /* Tablets keep list + detail side by side; each scrolls inside itself. */
+  .cue-screen { grid-template-columns: minmax(0, 1fr) minmax(280px, 38%); }
+  .cue-screen > .cue-pane > .cue-pane__body { overflow: auto; }
+  /* Three-part screens (index, list, detail): the index runs across the top, short. */
+  .cue-screen:has(> :nth-child(3)) { grid-template-rows: auto minmax(0, 1fr); }
+  .cue-screen:has(> :nth-child(3)) > :first-child { grid-column: 1 / -1; }
+  .cue-screen:has(> :nth-child(3)) > :first-child > .cue-pane__body { max-height: 200px; }
+}
+@media (max-width: 899.98px) {
+  /* Phones: the list, then its detail. The list is capped so the detail is a short scroll away. */
+  .cue-screen { grid-template-columns: minmax(0, 1fr); height: auto; min-height: 0; }
+  .cue-screen > .cue-pane:first-child > .cue-pane__body { max-height: 70vh; }
+  .cue-screen > .cue-pane:not(:first-child) > .cue-pane__body { overflow: visible; }
+}
+@media (max-width: 720px) {
+  .cue-dash:not(.cue-dash--fit) > .cue-appbar { position: static; }
+  .cue-toolbar { position: static; padding: 10px 12px; }
+}
+
 /* ── Band ── */
 .cue-appbar {
   display: flex; align-items: stretch; flex-wrap: wrap; gap: 0 18px; min-height: 52px; flex: none;

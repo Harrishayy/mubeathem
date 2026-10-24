@@ -8,7 +8,10 @@ import {
   EmptyState,
   ErrorState,
   MomentChip,
+  Board,
+  BoardSection,
   Pane,
+  Screen,
   PaneSection,
   Skeleton,
   Sprout,
@@ -288,9 +291,34 @@ export function Playbook() {
   const momentLabel = moment === 'all' ? null : momentParts(moment);
 
   return (
-    <>
+    <Board>
       {learned}
-      <div className="cue-dash-grid web-pb-grid">
+      {candidates.length > 0 && (
+        <BoardSection title="Waiting for approval" hint="New lines Cue picked up from calls that went well. Approve to try them on live calls; reject to drop them.">
+            <Pane label="Waiting for approval" meta={String(candidates.length)} pad="none" span={12} scroll="cap">
+              {d && (
+                <DataTable
+                  label="Lines waiting for approval"
+                  className="web-pb-queue"
+                  columns={queueColumns}
+                  rows={candidates}
+                  rowKey={(l) => l.id}
+                  selectedKey={current?.id}
+                  onSelect={(l) => pick(l.id)}
+                  rowFamily={(l) => MOMENT_META[l.moment].family}
+                  minWidth={700}
+                  empty={
+                    <EmptyState compact title="Nothing to review">
+                      When a rep goes off-script and books, Cue proposes their line here.
+                    </EmptyState>
+                  }
+                />
+              )}
+            </Pane>
+        </BoardSection>
+      )}
+      <BoardSection title="The playbook" hint="Pick what the prospect just did, then a line, to see how it performs. Lines are ranked by how often they moved the call forward when used.">
+        <Screen cols="minmax(220px, 18vw) minmax(0, 1fr) minmax(300px, 26vw)" className="web-pb-grid">
         <Pane label="Moments" as="nav" pad="none" className="web-pb-grid__moments" actions={<span className="cue-label">Win rate</span>} hint="What the prospect just did. Pick one to see its lines; the bar is how often a line moved the call forward.">
           <div className="cue-index">
             <MomentItem name="All moments" count={active.length} rate={allRate} on={moment === 'all'} onClick={() => setMoment('all')} />
@@ -352,29 +380,9 @@ export function Playbook() {
         </Pane>
 
         <LineDetail line={current} rank={rank} trial={ranked.find((r) => r.line.id === current?.id)?.trial ?? false} busy={current ? deciding[current.id] : undefined} onDecide={(id, v) => void decide(id, v)} />
-
-        <Pane label="Waiting for approval" meta={String(candidates.length)} pad="none" className="web-pb-grid__queue" hint="New lines Cue picked up from calls that went well. Approve to try them on live calls; reject to drop them.">
-          {d && (
-            <DataTable
-              label="Lines waiting for approval"
-              className="web-pb-queue"
-              columns={queueColumns}
-              rows={candidates}
-              rowKey={(l) => l.id}
-              selectedKey={current?.id}
-              onSelect={(l) => pick(l.id)}
-              rowFamily={(l) => MOMENT_META[l.moment].family}
-              minWidth={700}
-              empty={
-                <EmptyState compact title="Nothing to review">
-                  When a rep goes off-script and books, Cue proposes their line here.
-                </EmptyState>
-              }
-            />
-          )}
-        </Pane>
-      </div>
-    </>
+        </Screen>
+      </BoardSection>
+    </Board>
   );
 }
 

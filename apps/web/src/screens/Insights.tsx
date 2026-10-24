@@ -2,6 +2,8 @@ import { MOMENT_META, formatPercent, type InsightsResponse, type MubitTraceSumma
 import {
   ActionBar,
   Bar,
+  Board,
+  BoardSection,
   Button,
   Chip,
   DataTable,
@@ -13,8 +15,11 @@ import {
   MomentChip,
   Pane,
   PaneSection,
+  Screen,
+  SectionNav,
   Skeleton,
   Sprout,
+  Toolbar,
   formatMs,
   formatUsd,
   type Column,
@@ -45,8 +50,8 @@ export function Insights() {
 
   return (
     <div className="web-insights">
-      <div className="web-insights__bar">
-        <h1 className="web-sr">Insights</h1>
+      <h1 className="web-sr">Insights</h1>
+      <Toolbar label="Insights">
         <span className="cue-label">Range</span>
         <span className="cue-filter" role="group" aria-label="Range">
           {RANGES.map((r) => (
@@ -56,20 +61,35 @@ export function Insights() {
           ))}
         </span>
         {d && <span className="cue-pane__meta">{`${BUCKET_TIME.day.format(d.since)} → ${BUCKET_TIME.day.format(d.until)}`}</span>}
-      </div>
+        <span className="web-toolbar__end">
+          <SectionNav
+            links={[
+              { id: 'ins-outcomes', label: 'What books meetings' },
+              { id: 'ins-jobs', label: 'AI jobs' },
+              { id: 'ins-requests', label: 'Requests' },
+            ]}
+          />
+        </span>
+      </Toolbar>
       {insights.error && !d ? (
-        <div className="cue-dash-grid">
+        <Board>
           <ErrorState title="Can't load insights" message={insights.error.message} onRetry={insights.reload} />
-        </div>
+        </Board>
       ) : (
-        <>
+        <Board>
           <Headline d={d} />
-          <div className="cue-dash-grid web-insights-grid">
+          <BoardSection id="ins-outcomes" title="What books meetings" hint="Which suggestions turn into meetings: calls where a line was used against calls where none was, each moment, and the lines that book.">
             <Outcomes d={d} />
+          </BoardSection>
+          <BoardSection id="ins-jobs" title="AI jobs" hint="Each job Cue runs through Mubit: how many requests, how fast, what it cost and any errors.">
             <Tasks d={d} />
-            <Traces range={range} />
-          </div>
-        </>
+          </BoardSection>
+          <BoardSection id="ins-requests" title="Requests" hint="Every AI request, newest first. Pick one to see exactly what went in and what came back.">
+            <Screen cols="minmax(0, 1.5fr) minmax(340px, 1fr)">
+              <Traces range={range} />
+            </Screen>
+          </BoardSection>
+        </Board>
       )}
     </div>
   );
@@ -121,56 +141,60 @@ function Outcomes({ d }: { d: InsightsResponse | null }) {
     { key: 'used', header: 'Used', width: '84px', mono: true, render: (l) => `${l.used}/${l.shown}` },
     { key: 'booked', header: 'Booked', width: '74px', mono: true, render: (l) => l.booked },
   ];
-  return (
-    <Pane label="What books meetings" meta={o ? `${o.calls.total} calls` : undefined} pad="none" className="web-insights-grid__outcomes" hint="Which suggestions turn into meetings: calls where a line was used vs not, each moment, and the top lines.">
-      {!o ? (
-        <div className="web-pad">
-          <Skeleton lines={6} />
-        </div>
-      ) : o.calls.total === 0 ? (
+  if (!o) {
+    return (
+      <Pane label="Loading outcomes" span={12} scroll={false}>
+        <Skeleton lines={6} />
+      </Pane>
+    );
+  }
+  if (o.calls.total === 0) {
+    return (
+      <Pane label="No calls yet" span={12} scroll={false} pad="none">
         <EmptyState art={<Sprout state="idle" size={64} />} title="No calls in this range">
           Make a call from Live (or Contacts) and its outcome shows up here. Try a wider range above.
         </EmptyState>
-      ) : (
-        <>
-          <PaneSection label="Cues used vs not" hint="Booking rate on calls where you used at least one suggestion, against calls where you didn't.">
-            <KeyValue
-              items={[
-                {
-                  label: 'Used a cue',
-                  value: <Bar value={o.cueUsage.used.bookingRate} tone="ok" label={`${formatPercent(o.cueUsage.used.bookingRate)} booked · ${o.cueUsage.used.calls} ${o.cueUsage.used.calls === 1 ? 'call' : 'calls'}`} />,
-                },
-                {
-                  label: 'No cue used',
-                  value: <Bar value={o.cueUsage.notUsed.bookingRate} tone="ink" label={`${formatPercent(o.cueUsage.notUsed.bookingRate)} booked · ${o.cueUsage.notUsed.calls} ${o.cueUsage.notUsed.calls === 1 ? 'call' : 'calls'}`} />,
-                },
-              ]}
-            />
-          </PaneSection>
-          <PaneSection label="By moment" meta={`${o.moments.length}`} hint="How often a suggestion was used and moved the call forward, by what the prospect had just done.">
-            <DataTable label="Outcomes by moment" columns={momentCols} rows={o.moments} rowKey={(m) => m.moment} rowFamily={(m) => MOMENT_META[m.moment].family} minWidth={520} empty={<p className="web-muted">No cards shown yet.</p>} />
-          </PaneSection>
-          <PaneSection label="Top lines" meta="by booked, then used">
-            <DataTable label="Top lines" columns={lineCols} rows={o.topLines} rowKey={(l) => l.lineId} rowFamily={(l) => MOMENT_META[l.moment].family} minWidth={520} empty={<p className="web-muted">No lines used yet.</p>} />
-          </PaneSection>
-          <PaneSection label="Pipeline" hint="Who wrote each suggestion: the AI (Mubit), the playbook rules as a fallback, or a saved answer.">
-            <KeyValue
-              items={[
-                { label: 'Lines written by', value: <Mix parts={[['Mubit', o.servedBy.cards.mubit], ['Playbook rules', o.servedBy.cards.rules], ['Saved', o.servedBy.cards.cache]]} /> },
-                { label: 'Moments read by', value: <Mix parts={[['Mubit', o.servedBy.reads.mubit], ['Playbook rules', o.servedBy.reads.rules]]} /> },
-                { label: 'How lines were written', value: <Mix parts={[['Early guess kept', o.writePath.speculative], ['Rewritten after the read', o.writePath.rewritten], ['Written once', o.writePath.direct]]} /> },
-                {
-                  label: 'Reviews',
-                  value: o.reviews.count
-                    ? `${o.reviews.count} reviewed${o.reviews.avgSuggestionImpact !== null ? ` · Cue helped ${formatPercent(o.reviews.avgSuggestionImpact)}` : ''}${o.reviews.avgRating !== null ? ` · rated ${o.reviews.avgRating.toFixed(1)}/5` : ''}`
-                    : 'None yet',
-                },
-              ]}
-            />
-          </PaneSection>
-        </>
-      )}
-    </Pane>
+      </Pane>
+    );
+  }
+  return (
+    <>
+      <Pane label="Cues used vs not" meta={`${o.calls.total} calls`} span={5} scroll={false} hint="Booking rate on calls where the rep used at least one suggestion, against calls where they didn't.">
+        <KeyValue
+          items={[
+            {
+              label: 'Used a cue',
+              value: <Bar value={o.cueUsage.used.bookingRate} tone="ok" label={`${formatPercent(o.cueUsage.used.bookingRate)} booked · ${o.cueUsage.used.calls} ${o.cueUsage.used.calls === 1 ? 'call' : 'calls'}`} />,
+            },
+            {
+              label: 'No cue used',
+              value: <Bar value={o.cueUsage.notUsed.bookingRate} tone="ink" label={`${formatPercent(o.cueUsage.notUsed.bookingRate)} booked · ${o.cueUsage.notUsed.calls} ${o.cueUsage.notUsed.calls === 1 ? 'call' : 'calls'}`} />,
+            },
+          ]}
+        />
+      </Pane>
+      <Pane label="Who wrote the suggestions" span={7} scroll={false} hint="The AI (Mubit), the playbook rules (the instant line, or the fallback), or a line saved from earlier.">
+        <KeyValue
+          items={[
+            { label: 'Lines written by', value: <Mix parts={[['Mubit', o.servedBy.cards.mubit], ['Playbook rules', o.servedBy.cards.rules], ['Saved', o.servedBy.cards.cache]]} /> },
+            { label: 'Moments read by', value: <Mix parts={[['Mubit', o.servedBy.reads.mubit], ['Playbook rules', o.servedBy.reads.rules]]} /> },
+            { label: 'How lines were written', value: <Mix parts={[['Early guess kept', o.writePath.speculative], ['Rewritten after the read', o.writePath.rewritten], ['Written once', o.writePath.direct]]} /> },
+            {
+              label: 'Reviews',
+              value: o.reviews.count
+                ? `${o.reviews.count} reviewed${o.reviews.avgSuggestionImpact !== null ? ` · Cue helped ${formatPercent(o.reviews.avgSuggestionImpact)}` : ''}${o.reviews.avgRating !== null ? ` · rated ${o.reviews.avgRating.toFixed(1)}/5` : ''}`
+                : 'None yet',
+            },
+          ]}
+        />
+      </Pane>
+      <Pane label="By moment" meta={`${o.moments.length}`} span={7} scroll="cap" pad="none" hint="How often a suggestion was used and moved the call forward, by what the prospect had just done.">
+        <DataTable label="Outcomes by moment" columns={momentCols} rows={o.moments} rowKey={(m) => m.moment} rowFamily={(m) => MOMENT_META[m.moment].family} minWidth={520} empty={<p className="web-muted web-pad">No cards shown yet.</p>} />
+      </Pane>
+      <Pane label="Top lines" meta="by booked, then used" span={5} scroll="cap" pad="none" hint="The lines behind the most meetings.">
+        <DataTable label="Top lines" columns={lineCols} rows={o.topLines} rowKey={(l) => l.lineId} rowFamily={(l) => MOMENT_META[l.moment].family} minWidth={420} empty={<p className="web-muted web-pad">No lines used yet.</p>} />
+      </Pane>
+    </>
   );
 }
 
@@ -220,21 +244,22 @@ function Tasks({ d }: { d: InsightsResponse | null }) {
       },
     },
   ];
+  if (!d) {
+    return (
+      <Pane label="Loading AI jobs" span={12} scroll={false}>
+        <Skeleton lines={6} />
+      </Pane>
+    );
+  }
   return (
-    <Pane label="Mubit tasks" meta={d ? `${d.tasks.length} jobs · per ${d.bucket}` : undefined} pad="none" className="web-insights-grid__tasks" hint="Each AI job Cue runs through Mubit: how many requests, how fast, what it cost and any errors.">
-      {!d ? (
-        <div className="web-pad">
-          <Skeleton lines={6} />
-        </div>
-      ) : (
-        <>
-          <PaneSection label="Activity" meta={`calls per ${d.bucket}`}>
-            <Activity d={d} />
-          </PaneSection>
-          <DataTable label="AI jobs" columns={cols} rows={d.tasks} rowKey={(t) => t.task} minWidth={620} />
-        </>
-      )}
-    </Pane>
+    <>
+      <Pane label="Activity" meta={`calls per ${d.bucket}`} span={4} scroll={false} hint={`How many AI requests Cue made each ${d.bucket}.`}>
+        <Activity d={d} />
+      </Pane>
+      <Pane label="Mubit tasks" meta={`${d.tasks.length} jobs`} span={8} scroll={false} pad="none">
+        <DataTable label="AI jobs" columns={cols} rows={d.tasks} rowKey={(t) => t.task} minWidth={620} />
+      </Pane>
+    </>
   );
 }
 
@@ -338,8 +363,6 @@ function Traces({ range }: { range: TraceRange }) {
           </>
         }
         pad="none"
-        className="web-insights-grid__traces"
-        hint="Every AI request, newest first. Pick one to see exactly what went in and what came back."
         footer={
           <ActionBar
             end={
@@ -399,7 +422,7 @@ function TraceDetailPane({ id }: { id: string | null }) {
   const detail = useResource((signal) => (id ? getApi().trace(id, { signal }) : Promise.resolve(null)), [id]);
   const t = detail.data;
   return (
-    <Pane label="Trace" meta={t ? t.id : undefined} as="aside" pad="none" className="web-insights-grid__trace" hint="One AI request in full: the job, model, timing, cost, input and output.">
+    <Pane label="Trace" meta={t ? t.id : undefined} as="aside" pad="none" hint="One AI request in full: the job, model, timing, cost, input and output.">
       {!id ? (
         <EmptyState compact title="Pick a trace">
           Select a row to see exactly what Cue sent Mubit and what came back.

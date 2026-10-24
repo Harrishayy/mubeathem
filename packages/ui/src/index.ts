@@ -51,3 +51,5 @@ export { OutcomeBar, type OutcomeBarProps } from './domain/OutcomeBar';
 export { CallTimeline, packRows, type CallTimelineProps } from './domain/CallTimeline';
 
 export { MASCOT_STATES, formatUsd, formatMs, type Connection, type MascotState } from './lib/core';
+export { Board, BoardSection, Screen, Toolbar, SectionNav, type BoardSectionProps, type SectionLink } from './primitives/Board';
+export { useChromeHeight } from './lib/useChromeHeight';

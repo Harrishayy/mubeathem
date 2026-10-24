@@ -1,5 +1,5 @@
 import type { MomentFamily, MubitTraceSummary, TaskStats } from '@cue/core';
-import { Bar, Chip, DataTable, EmptyState, ErrorState, Kpi, KpiStrip, Pane, Skeleton, TASK_COPY, formatMs, formatUsd, type ChipTone, type Column } from '@cue/ui';
+import { Bar, Board, BoardSection, Chip, DataTable, EmptyState, ErrorState, Kpi, KpiStrip, Pane, Skeleton, TASK_COPY, formatMs, formatUsd, type ChipTone, type Column } from '@cue/ui';
 import { useResource } from '../hooks/useResource';
 import { ADAPTER_THRESHOLD_DEFAULT } from '../shell/constants';
 import { getApi } from '../state/api';
@@ -122,7 +122,7 @@ export function ModelScreen() {
   ) : null;
 
   return (
-    <>
+    <Board>
       <h1 className="web-sr">Every call trains it</h1>
       <KpiStrip>
         <Kpi label="Mubit calls" value={s ? calls.toLocaleString() : '—'} note="Every AI request Cue makes goes through Mubit" />
@@ -130,8 +130,8 @@ export function ModelScreen() {
         <Kpi label="Spend" value={s ? formatUsd(spend) : '—'} note={h ? `Cheap models only: ${h.mubit.models.fast} and ${h.mubit.models.write}` : 'Cheap models only'} />
         <Kpi label="Custom models" value={s ? `${trained}/${tasks.length}` : '—'} note={`Jobs with ${tasks[0] ? threshold(tasks[0]) : ADAPTER_THRESHOLD_DEFAULT}+ good examples, enough for Mubit to train one (an adapter)`} tone={s && tasks.length > 0 && trained === tasks.length ? 'ok' : 'neutral'} />
       </KpiStrip>
-      <div className="cue-dash-grid web-model-grid">
-        <Pane label="Tasks" meta={s ? `${tasks.length} jobs` : undefined} actions={mubitTag} pad="none" className="web-model-grid__tasks" hint="Each AI job Cue does on a call. Once a job has enough good examples, Mubit can train a custom model (an adapter) on your team's calls.">
+      <BoardSection title="AI jobs" hint="Each AI job Cue does on a call. Once a job has enough good examples, Mubit can train a custom model (an adapter) on your team's calls.">
+        <Pane label="Tasks" meta={s ? `${tasks.length} jobs` : undefined} actions={mubitTag} pad="none" span={12} scroll={false}>
           {h && !h.mubit.configured && tasks.some((t) => t.calls > 0) && (
             <p className="web-note web-model-note" role="note">
               This server has no Mubit key, so new calls use the playbook rules instead of AI. The counts below are from earlier calls.
@@ -147,23 +147,10 @@ export function ModelScreen() {
             <DataTable label="Mubit tasks" columns={taskColumns} rows={tasks} rowKey={(t) => t.task} minWidth={760} empty={<EmptyState compact title="No AI jobs yet">They appear after the first call. Start one from Live or Contacts.</EmptyState>} />
           )}
         </Pane>
+      </BoardSection>
 
-        <Pane label="What every call sends Mubit" as="aside" pad="none" className="web-model-grid__record" hint="The labelled record each finished call becomes. This is what teaches the AI what works.">
-          <ul className="web-record">
-            {RECORD.map((r) => (
-              <li key={r.field} className={`web-record__item cue-fam-${r.family}`}>
-                <span className="cue-index__key" aria-hidden />
-                <code className="web-record__field">{r.field}</code>
-                <span className="web-record__what">{r.what}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="web-model-note web-muted web-small">
-            Your debrief labels the whole call, so the call review (<code>review_call</code>) learns which lines book meetings. Requests are not stored by the model provider (<code>store: false</code>) and are grouped per call (<code>prompt_cache_key</code>).
-          </p>
-        </Pane>
-
-        <Pane label="Recent requests" meta="newest first" pad="none" className="web-model-grid__reqs" hint="The latest AI requests, each with its Mubit request id for tracing.">
+      <BoardSection title="How it learns" hint="The latest requests, and the labelled record each finished call becomes: what teaches the AI which lines work.">
+        <Pane label="Recent requests" meta="newest first" pad="none" span={8} scroll="cap" hint="Each AI request with its Mubit request id, for tracing. Full inputs and outputs are on Insights.">
           {traces.data ? (
             <DataTable
               label="Recent Mubit requests"
@@ -181,7 +168,22 @@ export function ModelScreen() {
             </div>
           )}
         </Pane>
-      </div>
-    </>
+
+        <Pane label="What every call sends Mubit" as="aside" pad="none" span={4} scroll={false}>
+          <ul className="web-record">
+            {RECORD.map((r) => (
+              <li key={r.field} className={`web-record__item cue-fam-${r.family}`}>
+                <span className="cue-index__key" aria-hidden />
+                <code className="web-record__field">{r.field}</code>
+                <span className="web-record__what">{r.what}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="web-model-note web-muted web-small">
+            Your debrief labels the whole call, so the call review (<code>review_call</code>) learns which lines book meetings. Requests are not stored by the model provider (<code>store: false</code>) and are grouped per call (<code>prompt_cache_key</code>).
+          </p>
+        </Pane>
+      </BoardSection>
+    </Board>
   );
 }
