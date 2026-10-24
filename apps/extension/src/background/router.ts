@@ -18,6 +18,8 @@ export interface Sender {
 const ok = <T>(data: T): UiResponse<T> => ({ ok: true, data });
 const fail = (e: unknown): UiResponse<never> => ({ ok: false, error: e instanceof Error ? e.message : String(e) });
 
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Math.round(Number.isFinite(n) ? n : lo)));
+
 function isOffscreen(msg: unknown): msg is OffscreenEvent {
   const t = (msg as { type?: unknown })?.type;
   return t === 'capture.turn' || t === 'capture.levels' || t === 'capture.status' || t === 'offscreen.ready';
@@ -53,7 +55,7 @@ export async function route(msg: unknown, sender: Sender, d: RouterDeps): Promis
       case 'session.get':
         return ok(d.session.snapshot);
       case 'session.start':
-        return ok(await d.session.start({ prospect: m.prospect, tabId: m.tabId ?? sender.tabId, source: m.source ?? 'cue' }));
+        return ok(await d.session.start({ prospect: m.prospect, tabId: m.tabId ?? sender.tabId, source: m.source ?? 'cue', ...(m.contactId ? { contactId: m.contactId } : {}) }));
       case 'session.end':
         return ok(await d.session.end(m.outcome));
       case 'session.turn': {
@@ -70,6 +72,9 @@ export async function route(msg: unknown, sender: Sender, d: RouterDeps): Promis
         return ok(d.session.snapshot);
       case 'capture.retry':
         await d.session.retryCapture();
+        return ok(null);
+      case 'capture.stop':
+        await d.session.stopCapture();
         return ok(null);
       case 'capture.micSpeaker':
         await d.session.setMicSpeaker(m.speaker);
@@ -94,6 +99,16 @@ export async function route(msg: unknown, sender: Sender, d: RouterDeps): Promis
         return ok(await d.api().trellusDispositions());
       case 'trellus.setDispositions':
         return ok(await d.api().setTrellusDispositions({ overrides: m.overrides }));
+      case 'contacts.search': {
+        const q = m.q?.trim().slice(0, 120);
+        return ok(await d.api().contacts({ ...(q ? { q } : {}), limit: clamp(m.limit ?? 20, 1, 100) }));
+      }
+      case 'contacts.create':
+        return ok(await d.api().createContact(m.contact));
+      case 'contacts.history':
+        return ok(await d.api().listCalls({ contactId: m.contactId, limit: clamp(m.limit ?? 3, 1, 20) }));
+      case 'research.warm':
+        return ok(await d.api().warmResearch('contactId' in m ? { contactId: m.contactId } : { prospect: m.prospect }));
       default:
         return undefined;
     }

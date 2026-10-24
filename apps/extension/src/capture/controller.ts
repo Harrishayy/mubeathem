@@ -6,8 +6,8 @@ import { createStreamingStt, type StreamingSttFactory } from './stt';
 
 type StartCommand = Extract<OffscreenCommand, { type: 'capture.start' }>;
 
-/** Interims are throttled per utterance; finals always go straight out. */
-export function interimGate(minGapMs = 700, now: () => number = Date.now) {
+/** Interims are throttled per utterance (250 ms, so the server can start a cue before the final lands); finals always go straight out. */
+export function interimGate(minGapMs = 250, now: () => number = Date.now) {
   const last = new Map<string, number>();
   return (t: TranscriberTurn): boolean => {
     if (t.final) {

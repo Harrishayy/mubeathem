@@ -1,7 +1,8 @@
 /*
- * Extension-only bits of the on-page overlay (the card under the overbar). Tokens only: every value
- * comes from @cue/ui's Night Shift direction. Lives inside the shadow root, so nothing here can
- * reach the host page and nothing on the host page can reach it.
+ * Extension-only bits of the on-page overlay: the small pane under the overbar. Tokens only; it reads
+ * as one of the dashboard's panes (cream body, a ruled head in margin capitals, square corners).
+ * Lives inside the shadow root, so nothing here can reach the host page and nothing on the host page
+ * can reach it.
  */
 :host {
   /* Belt and braces over WXT's `all: initial`: a page rule like `* { all: unset }` matches the host
@@ -14,19 +15,19 @@
   pointer-events: auto;
   width: 100%;
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-lg);
-  background: var(--glass);
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
-  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
-  box-shadow: var(--highlight), var(--shadow-2);
+  overflow: hidden;
+  border: 1px solid var(--pane-line);
+  border-radius: var(--radius-md);
+  background: var(--card-ground);
+  box-shadow: var(--shadow-2);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: var(--text-small);
   line-height: var(--leading-body);
   animation: cxo-in var(--dur-panel) var(--ease-out) both;
 }
+[data-dir='night'] .cxo-card { background: var(--surface-solid, var(--surface)); box-shadow: var(--highlight), var(--shadow-2); }
+[data-dir='signal'] .cxo-card { border-width: 2px; border-radius: var(--radius-sm); }
 
 @keyframes cxo-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -35,34 +36,34 @@
 @media (prefers-reduced-motion: reduce) {
   .cxo-card { animation: none; }
 }
+[data-motion='reduce'] .cxo-card { animation: none; }
+
+.cxo-head {
+  display: flex; align-items: center; gap: var(--space-2); min-height: 30px; padding: 4px 14px;
+  background: var(--pane-head); border-bottom: 1px solid var(--pane-line);
+}
+.cxo-kicker { color: var(--ink-2); }
+.cxo-body { display: grid; gap: var(--space-2); padding: var(--space-3) 14px; min-width: 0; }
 
 .cxo-row { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
 .cxo-row + .cxo-row { padding-top: var(--space-2); border-top: 1px solid var(--line); }
 .cxo-who { display: grid; min-width: 0; flex: 1; }
-.cxo-kicker {
-  font-size: var(--text-micro);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--accent-text);
-  font-weight: var(--weight-semibold);
-}
+/* Names and titles wrap rather than truncate: the rep must see who they are calling. */
 .cxo-name {
   font-family: var(--font-display);
   font-size: var(--text-lead);
   font-weight: var(--display-weight);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
-.cxo-meta { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cxo-meta { color: var(--ink-2); overflow-wrap: anywhere; }
 .cxo-note { flex: 1; min-width: 0; color: var(--ink-2); overflow-wrap: anywhere; }
-.cxo-actions { display: flex; align-items: center; gap: var(--space-1); flex: none; }
+.cxo-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1); flex: none; }
 .cxo-actions--end { justify-content: flex-end; }
 
-.cxo-form { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-3); }
+.cxo-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2) var(--space-3); }
 .cxo-form .cxo-actions { grid-column: 1 / -1; }
 
 @media (max-width: 480px) {
   .cxo-row { flex-wrap: wrap; }
-  .cxo-form { grid-template-columns: 1fr; }
+  .cxo-form { grid-template-columns: minmax(0, 1fr); }
 }

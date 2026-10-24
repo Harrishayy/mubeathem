@@ -1,15 +1,17 @@
 import { OUTCOME_LABEL, OUTCOMES, type Outcome } from '@cue/core';
-import { Button, Chip, Skeleton } from '@cue/ui';
+import { ActionBar, Button, Chip, DataTable, Pane, Skeleton, type Column } from '@cue/ui';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { request, type TrellusDispositions } from '../../src/messages';
 
 const VIA_LABEL = { default: 'default', keyword: 'guessed', override: 'yours', unmapped: 'not mapped' } as const;
 
+type Row = TrellusDispositions['learned'][number];
+
 /**
- * How each Trellus disposition maps to the outcome Cue learns from. Unmapped ones come first: an
- * unmapped "booked" disposition means Cue never hears that a line worked.
+ * How each Trellus disposition maps to the outcome Cue learns from, as a ruled table. Unmapped ones
+ * come first: an unmapped "booked" disposition means Cue never hears that a line worked.
  */
-export function DispositionsEditor() {
+export function DispositionsScreen({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [data, setData] = useState<TrellusDispositions | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [edits, setEdits] = useState<Record<string, Outcome>>({});
@@ -40,66 +42,99 @@ export function DispositionsEditor() {
     } else setError(r.error);
   };
 
-  if (!data && !error) return <Skeleton lines={3} />;
+  const columns: Column<Row>[] = [
+    {
+      key: 'raw',
+      header: 'Trellus disposition',
+      render: (row) => (
+        <label htmlFor={`dispo-${row.raw}`} className="sp-dispo__raw">
+          {row.raw}
+        </label>
+      ),
+    },
+    {
+      key: 'outcome',
+      header: 'Cue outcome',
+      width: '42%',
+      render: (row) => {
+        const value = edits[row.raw] ?? data!.map[row.raw] ?? '';
+        return (
+          <span className="sp-dispo__cell">
+            <select
+              id={`dispo-${row.raw}`}
+              className="sp-select"
+              value={value}
+              onChange={(e) => {
+                setSaved(false);
+                setEdits({ ...edits, [row.raw]: e.target.value as Outcome });
+              }}
+            >
+              {!value && <option value="">Not mapped</option>}
+              {OUTCOMES.map((o) => (
+                <option key={o} value={o}>
+                  {OUTCOME_LABEL[o]}
+                </option>
+              ))}
+            </select>
+            <Chip size="sm" tone={row.via === 'unmapped' && !edits[row.raw] ? 'warn' : edits[row.raw] || row.via === 'override' ? 'accent' : 'neutral'}>
+              {edits[row.raw] ? 'edited' : VIA_LABEL[row.via]}
+            </Chip>
+          </span>
+        );
+      },
+    },
+  ];
+
+  const unmappedCount = data ? data.unmapped.filter((u) => !edits[u]).length : 0;
+  const editCount = Object.keys(edits).length;
 
   return (
-    <form className="sp-dispo" onSubmit={save} aria-labelledby="set-dispo">
-      <h3 id="set-dispo" className="sp-label">
-        Dispositions to outcomes
-      </h3>
-      {data?.error && <p className="sp-hint">{data.error}</p>}
-      {error && (
-        <p className="sp-banner" role="alert">
-          {error}
-        </p>
-      )}
-      {data && rows.length === 0 && <p className="sp-hint">No dispositions yet. They appear once Trellus is connected.</p>}
-      {rows.length > 0 && (
-        <ul className="sp-dispo__list">
-          {rows.map((row) => {
-            const value = edits[row.raw] ?? data!.map[row.raw] ?? '';
-            const id = `dispo-${row.raw}`;
-            return (
-              <li key={row.raw} className="sp-dispo__row">
-                <label htmlFor={id} className="sp-dispo__raw">
-                  {row.raw}
-                </label>
-                <select
-                  id={id}
-                  className="sp-select"
-                  value={value}
-                  onChange={(e) => {
-                    setSaved(false);
-                    setEdits({ ...edits, [row.raw]: e.target.value as Outcome });
-                  }}
-                >
-                  {!value && <option value="">Not mapped</option>}
-                  {OUTCOMES.map((o) => (
-                    <option key={o} value={o}>
-                      {OUTCOME_LABEL[o]}
-                    </option>
-                  ))}
-                </select>
-                <Chip size="sm" tone={row.via === 'unmapped' && !edits[row.raw] ? 'warn' : edits[row.raw] || row.via === 'override' ? 'accent' : 'neutral'}>
-                  {edits[row.raw] ? 'edited' : VIA_LABEL[row.via]}
-                </Chip>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {rows.length > 0 && (
-        <div className="sp-row">
-          <Button type="submit" variant="secondary" loading={saving} disabled={Object.keys(edits).length === 0}>
-            Save mapping
-          </Button>
-          {saved && (
-            <Chip size="sm" tone="ok" icon="check">
-              Saved
-            </Chip>
-          )}
-        </div>
-      )}
+    <form onSubmit={save} className="sp-form" aria-label="Dispositions to outcomes">
+      <Pane
+        label="Dispositions to outcomes"
+        meta={data ? (unmappedCount > 0 ? `${unmappedCount} not mapped` : `${rows.length} mapped`) : undefined}
+        pad="none"
+        scroll={false}
+        footer={
+          rows.length > 0 ? (
+            <ActionBar
+              end={
+                saved ? (
+                  <Chip size="sm" tone="ok" icon="check">
+                    Saved
+                  </Chip>
+                ) : undefined
+              }
+            >
+              <Button type="submit" variant="primary" loading={saving} disabled={editCount === 0}>
+                {editCount > 0 ? `Save ${editCount} ${editCount === 1 ? 'change' : 'changes'}` : 'Save mapping'}
+              </Button>
+            </ActionBar>
+          ) : undefined
+        }
+      >
+        {!data && !error && (
+          <div className="sp-pad">
+            <Skeleton lines={3} />
+          </div>
+        )}
+        {(data?.error || error) && (
+          <p className="sp-banner sp-banner--inset" role="alert">
+            {error ?? data?.error}
+          </p>
+        )}
+        {data && rows.length === 0 && (
+          <div className="sp-pad sp-stack">
+            <p className="sp-hint">No dispositions yet. They appear here once Trellus is connected and has synced a call.</p>
+            <div>
+              <Button size="sm" variant="secondary" icon="settings" onClick={onOpenSettings}>
+                Connect Trellus
+              </Button>
+            </div>
+          </div>
+        )}
+        {rows.length > 0 && <DataTable label="Trellus dispositions" columns={columns} rows={rows} rowKey={(r) => r.raw} minWidth={0} />}
+      </Pane>
     </form>
   );
 }

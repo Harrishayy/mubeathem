@@ -1,4 +1,4 @@
-import type { CallView, FeedbackRequest, Outcome, Prospect, Speaker, SuggestionAction, TrellusDispositionsResponse, TrellusStatusResponse } from '@cue/core';
+import type { CallSummary, CallView, Contact, ContactInput, ContactListResponse, FeedbackRequest, Outcome, Prospect, ResearchWarmResponse, Speaker, SuggestionAction, TrellusDispositionsResponse, TrellusStatusResponse } from '@cue/core';
 import type { Connection, TranscriberTurn } from '@cue/client';
 import type { SttCredentials } from './capture/stt';
 import type { TrellusCallState } from './context/trellus';
@@ -46,13 +46,16 @@ export interface Levels {
 /** Requests from the side panel and the overlay to the background. */
 export type UiRequest =
   | { type: 'session.get' }
-  | { type: 'session.start'; prospect: Prospect; tabId?: number | null; source?: 'trellus' | 'cue' }
+  /** `contactId`: a saved contact; the server fills the prospect from it (typed fields win). */
+  | { type: 'session.start'; prospect: Prospect; tabId?: number | null; source?: 'trellus' | 'cue'; contactId?: string }
   | { type: 'session.end'; outcome?: Outcome }
   | { type: 'session.turn'; speaker: Speaker; text: string }
   | { type: 'session.action'; suggestionId: string; action: SuggestionAction; text?: string }
   | { type: 'session.feedback'; feedback: FeedbackRequest }
   | { type: 'session.reset' }
   | { type: 'capture.retry' }
+  /** Stop hearing the call (tab and mic) without ending it; `capture.retry` starts again. */
+  | { type: 'capture.stop' }
   /** Single-mic calls: who the mic is hearing right now (when the tab can't be transcribed). */
   | { type: 'capture.micSpeaker'; speaker: Speaker }
   | { type: 'page.context'; context: PageContext }
@@ -61,7 +64,15 @@ export type UiRequest =
   | { type: 'trellus.status' }
   | { type: 'trellus.setKey'; apiKey: string; teamId?: string }
   | { type: 'trellus.dispositions' }
-  | { type: 'trellus.setDispositions'; overrides: Record<string, Outcome> };
+  | { type: 'trellus.setDispositions'; overrides: Record<string, Outcome> }
+  /** Saved contacts, most recently called first; `q` matches name, title, company, phone or email. */
+  | { type: 'contacts.search'; q?: string; limit?: number }
+  | { type: 'contacts.create'; contact: ContactInput }
+  /** This contact's previous calls, newest first (for "Last time"). */
+  | { type: 'contacts.history'; contactId: string; limit?: number }
+  /** Starts the pre-call research now so the brief is instant when the call starts. */
+  | { type: 'research.warm'; contactId: string }
+  | { type: 'research.warm'; prospect: Prospect };
 
 export type UiResponse<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -86,6 +97,8 @@ export const UI_PORT = 'cue-ui';
 export type HealthSummary = { ok: boolean; mubit: boolean; trellus: boolean; message?: string };
 export type TrellusStatus = TrellusStatusResponse;
 export type TrellusDispositions = TrellusDispositionsResponse;
+export type ContactList = ContactListResponse;
+export type { CallSummary, Contact, ResearchWarmResponse };
 
 export function initialState(): SessionState {
   return {

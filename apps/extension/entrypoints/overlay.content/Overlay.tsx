@@ -22,8 +22,9 @@ export interface OverlayProps {
 type Override = Partial<Pick<Prospect, 'name' | 'title' | 'company' | 'phone'>>;
 
 /**
- * Cue on the dialer page: the Night Shift overbar pinned to the top, and a small card under it that
- * offers to start Cue (with the contact read from the page, editable), or explains what Cue needs.
+ * Cue on the dialer page: the overbar pinned to the top (collapsed by default, draggable sideways), and
+ * a small pane under it that offers to start Cue (with the contact read from the page, editable), or
+ * explains what Cue needs. It follows the side panel's look. Escape collapses it.
  */
 export function Overlay({ host, reading, tabId, shadow }: OverlayProps) {
   const { state, levels, connected } = useSession();
@@ -39,6 +40,27 @@ export function Overlay({ host, reading, tabId, shadow }: OverlayProps) {
   const cardRef = useRef<SuggestionCardHandle>(null);
   const scope = useCallback(() => shadow ?? null, [shadow]);
   useCardShortcuts(cardRef, scope);
+
+  // Escape collapses the panel and keeps focus in Cue on the expand button, or closes the contact
+  // form. The overbar collapses on Escape by itself too; this adds the focus return and the form.
+  useEffect(() => {
+    if (!shadow) return;
+    const onKey = (e: Event) => {
+      const k = e as KeyboardEvent;
+      if (k.key !== 'Escape' || k.defaultPrevented) return;
+      if (mode === 'expanded') {
+        k.preventDefault();
+        setMode('collapsed');
+        // Focus was inside the panel that just closed: keep it in Cue, on the expand button.
+        requestAnimationFrame(() => shadow.querySelector<HTMLElement>('.cue-bar__toggle')?.focus());
+      } else if (editing) {
+        k.preventDefault();
+        setEditing(false);
+      }
+    };
+    shadow.addEventListener('keydown', onKey);
+    return () => shadow.removeEventListener('keydown', onKey);
+  }, [shadow, mode, editing]);
 
   const prospect = useMemo(() => applyOverride(reading?.prospect ?? null, override), [reading?.prospect, override]);
   const trellusState = reading?.trellus.state ?? 'none';
@@ -76,10 +98,13 @@ export function Overlay({ host, reading, tabId, shadow }: OverlayProps) {
   const hasCard = mode === 'collapsed' && (showOffer || !!captureNote || (state.phase === 'ended' && mine) || !!note);
   const accessory = hasCard ? (
     <section className="cxo-card" aria-label="Cue">
+      <header className="cxo-head">
+        <span className="cue-label cxo-kicker">{onCall ? (state.phase === 'ended' ? 'Call ended' : 'On a call') : trellusState === 'connected' ? 'Trellus connected' : trellusState === 'dialing' ? 'Trellus dialling' : 'Ready to call'}</span>
+      </header>
+      <div className="cxo-body">
       {showOffer && !editing && (
         <div className="cxo-row">
           <div className="cxo-who">
-            <span className="cxo-kicker">{trellusState === 'connected' ? 'Trellus connected' : trellusState === 'dialing' ? 'Trellus dialling' : 'Ready to call'}</span>
             <span className="cxo-name">{prospect!.name || prospect!.phone || 'Unknown contact'}</span>
             {(prospect!.title || prospect!.company) && <span className="cxo-meta">{[prospect!.title, prospect!.company].filter(Boolean).join(' · ')}</span>}
           </div>
@@ -123,11 +148,12 @@ export function Overlay({ host, reading, tabId, shadow }: OverlayProps) {
           <IconButton icon="close" label="Dismiss" size="sm" onClick={() => setNote(null)} />
         </div>
       )}
+      </div>
     </section>
   ) : null;
 
   return (
-    <CueRoot direction="night" density="comfortable">
+    <CueRoot direction={settings.direction} theme={settings.theme} density="comfortable">
       <Overbar
         view={view}
         connection={connection}

@@ -28,6 +28,8 @@ interface Persisted {
   startedAt: number | null;
   source: 'trellus' | 'cue';
   prospect: Prospect | null;
+  /** The saved contact being called, when the call was started from one. */
+  contactId?: string | null;
   /** Final turns not yet acknowledged by the server, oldest first. */
   turns: { callId: string | null; turn: TurnInput & { id: string } }[];
   /** An end the server hasn't confirmed yet. */
@@ -64,6 +66,7 @@ export class Session {
   private startedAt: number | null = null;
   private source: 'trellus' | 'cue' = 'cue';
   private prospect: Prospect | null = null;
+  private contactId: string | null = null;
   /** Turns said before the server gave us a call id. */
   private preCall: (TurnInput & { id: string })[] = [];
   /** Final turns sent but not acknowledged, for persistence. */
@@ -105,12 +108,13 @@ export class Session {
     void this.buffer.flush();
   }
 
-  async start(input: { prospect: Prospect; tabId?: number | null; source?: 'trellus' | 'cue' }): Promise<SessionState> {
+  async start(input: { prospect: Prospect; tabId?: number | null; source?: 'trellus' | 'cue'; contactId?: string }): Promise<SessionState> {
     if (this.state.phase === 'starting' || this.state.phase === 'live') return this.state;
     this.reset(false);
     this.startedAt = this.now();
     this.source = input.source ?? 'cue';
     this.prospect = input.prospect;
+    this.contactId = input.contactId ?? null;
     this.set({ phase: 'starting', tabId: input.tabId ?? this.state.page?.tabId ?? null, error: null });
     void this.deps.startCapture(this.state.tabId, this.startedAt).catch((e) => this.captureStatus('tab', { state: 'error', message: message(e) }));
     await this.createCall();
@@ -147,6 +151,7 @@ export class Session {
     this.endPending = null;
     this.startedAt = null;
     this.prospect = null;
+    this.contactId = null;
     this.streamConn = 'live';
     const { page, micSpeaker } = this.state;
     this.state = { ...initialState(), page, micSpeaker };
@@ -223,6 +228,13 @@ export class Session {
     await this.deps.startCapture(this.state.tabId, this.startedAt ?? this.now());
   }
 
+  /** The rep paused listening: stop tab and mic capture but keep the call (typed turns still work). */
+  async stopCapture(): Promise<void> {
+    if (this.state.phase !== 'live' && this.state.phase !== 'starting') return;
+    await this.deps.stopCapture();
+    this.set({ capture: { tab: { state: 'off' }, mic: { state: 'off' } } });
+  }
+
   /** The overlay (top frame) or a Trellus frame reported what it sees. Merges, then auto-starts. */
   async pageContext(ctx: PageContext): Promise<void> {
     const prev = this.state.page;
@@ -276,6 +288,7 @@ export class Session {
         source: this.source,
         prospect: this.prospect,
         rep: { id: s.rep.id || 'rep_local', name: s.rep.name || 'Rep' },
+        ...(this.contactId ? { contactId: this.contactId } : {}),
       });
       if (this.state.phase !== 'starting') return; // ended while we waited
       this.retries = 0;
@@ -393,6 +406,7 @@ export class Session {
         startedAt: this.startedAt,
         source: this.source,
         prospect: this.prospect,
+        contactId: this.contactId,
         turns: [...this.preCall.map((turn) => ({ callId: null, turn })), ...this.unacked.values()],
         endPending: this.endPending,
       };
@@ -412,6 +426,7 @@ export class Session {
     this.startedAt = data.startedAt;
     this.source = data.source;
     this.prospect = data.prospect;
+    this.contactId = data.contactId ?? null;
     this.endPending = data.endPending;
     this.state = { ...this.state, phase: data.phase, callId: data.callId, tabId: data.tabId };
     if (!data.callId) {

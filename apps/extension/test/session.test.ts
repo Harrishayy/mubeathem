@@ -76,6 +76,20 @@ describe('Session', () => {
     expect(api.createCall).toHaveBeenCalledTimes(1);
   });
 
+  it('passes the saved contact to the server and keeps it across a worker restart', async () => {
+    const store = memoryStore();
+    const first = setup({}, fakeApi(), store);
+    first.api.createCall.mockRejectedValueOnce(offline());
+    await first.session.init();
+    await first.session.start({ prospect: { name: '', title: '', company: '', facts: {} }, tabId: 7, contactId: 'contact_1' });
+    expect(first.api.createCall).toHaveBeenLastCalledWith(expect.objectContaining({ contactId: 'contact_1' }));
+    await vi.advanceTimersByTimeAsync(60);
+    // The worker restarts before the server answered: the retry still names the contact.
+    const second = setup({}, fakeApi(), store);
+    await second.session.init();
+    expect(second.api.createCall).toHaveBeenCalledWith(expect.objectContaining({ contactId: 'contact_1' }));
+  });
+
   it('relays turns and drops interims before the call exists', async () => {
     const { session, api } = setup();
     await session.init();
@@ -182,6 +196,20 @@ describe('Session', () => {
     // Older views never roll the state back.
     subs[0]!.handlers.onView(view('call_1', { status: 'live', lastSeq: 2 }));
     expect(session.snapshot.phase).toBe('ended');
+  });
+
+  it('pauses and resumes listening without ending the call', async () => {
+    const { session, capture } = setup();
+    await session.init();
+    await session.stopCapture(); // idle: nothing to stop
+    expect(capture.stop).not.toHaveBeenCalled();
+    await session.start({ prospect: PROSPECT, tabId: 4 });
+    session.captureStatus('mic', { state: 'on' });
+    await session.stopCapture();
+    expect(capture.stop).toHaveBeenCalledTimes(1);
+    expect(session.snapshot).toMatchObject({ phase: 'live', capture: { tab: { state: 'off' }, mic: { state: 'off' } } });
+    await session.retryCapture();
+    expect(capture.start).toHaveBeenLastCalledWith(4, expect.any(Number));
   });
 
   it('auto-starts on a Trellus connect only when the setting is on', async () => {

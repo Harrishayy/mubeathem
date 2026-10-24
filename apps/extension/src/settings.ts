@@ -9,9 +9,11 @@ export type ThemePref = 'light' | 'dark' | 'system';
 export interface Settings {
   /** Cue server origin, e.g. `http://localhost:8787`. */
   serverUrl: string;
+  /** The Cue web app (history, contacts, team), for "Open in Cue" links. Empty: worked out from the server. */
+  webUrl: string;
   /** Shared secret sent as `x-cue-token`. Kept in storage.local (this device only), never synced. */
   token: string;
-  /** Look of the side panel. The on-page overbar is always Night Shift (it floats over any page). */
+  /** Look of the side panel and the on-page overbar. */
   direction: Direction;
   theme: ThemePref;
   /** Start Cue by itself when Trellus shows a connected call. */
@@ -33,6 +35,7 @@ export function defaultServer(): string {
 export function defaultSettings(): Settings {
   return {
     serverUrl: defaultServer(),
+    webUrl: '',
     token: '',
     direction: 'honey',
     theme: 'system',
@@ -75,6 +78,7 @@ export function normaliseSettings(raw: unknown, token: unknown): Settings {
   const rep = isObj(r.rep) ? r.rep : {};
   return {
     serverUrl: typeof r.serverUrl === 'string' && r.serverUrl.trim() ? serverOrigin(r.serverUrl.trim()) : d.serverUrl,
+    webUrl: typeof r.webUrl === 'string' && /^https?:\/\//i.test(r.webUrl.trim()) ? r.webUrl.trim().replace(/\/+$/, '').slice(0, 500) : d.webUrl,
     token: typeof token === 'string' ? token : '',
     direction: DIRECTIONS.includes(r.direction as Direction) ? (r.direction as Direction) : d.direction,
     theme: THEMES.includes(r.theme as ThemePref) ? (r.theme as ThemePref) : d.theme,
@@ -86,6 +90,27 @@ export function normaliseSettings(raw: unknown, token: unknown): Settings {
       name: typeof rep.name === 'string' ? rep.name.slice(0, 120) : d.rep.name,
     },
   };
+}
+
+/**
+ * Where the Cue web app lives: the saved URL, else the dev web server beside a local Cue server
+ * (:8787 → :5173), else the server's own origin (which serves the built app).
+ */
+/** A screen in the Cue web app (hash routes: `contacts`, `history`, `team`), with an optional query. */
+export function webAppRoute(s: Pick<Settings, 'serverUrl' | 'webUrl'>, route: 'contacts' | 'history' | 'team', query: Record<string, string> = {}): string {
+  const q = new URLSearchParams(query).toString();
+  return `${webAppUrl(s).replace(/\/+$/, '')}/#/${route}${q ? `?${q}` : ''}`;
+}
+
+export function webAppUrl(s: Pick<Settings, 'serverUrl' | 'webUrl'>): string {
+  if (s.webUrl) return s.webUrl;
+  try {
+    const u = new URL(s.serverUrl);
+    if ((u.hostname === 'localhost' || u.hostname === '127.0.0.1') && u.port === '8787') return `${u.protocol}//${u.hostname}:5173`;
+    return u.origin;
+  } catch {
+    return s.serverUrl;
+  }
 }
 
 export async function loadSettings(stores: SettingsStores = chromeStores()): Promise<Settings> {

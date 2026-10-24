@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { HOSTS } from '../src/hosts';
 import { DEFAULT_SERVER, serverOrigin } from '../src/manifest';
-import { defaultSettings, loadSettings, normaliseSettings, saveSettings, SETTINGS_KEYS, type StorageAreaLike } from '../src/settings';
+import { defaultSettings, loadSettings, normaliseSettings, saveSettings, SETTINGS_KEYS, webAppUrl, type StorageAreaLike } from '../src/settings';
 
 function area(fail = false): StorageAreaLike & { data: Record<string, unknown> } {
   const data: Record<string, unknown> = {};
@@ -74,5 +74,13 @@ describe('settings', () => {
 
   it('falls back to defaults when storage throws', async () => {
     expect(await loadSettings({ sync: area(true), local: area(true) })).toEqual(defaultSettings());
+  });
+
+  it('finds the web app from the saved URL, or beside the server', () => {
+    expect(webAppUrl({ serverUrl: 'http://localhost:8787', webUrl: '' })).toBe('http://localhost:5173');
+    expect(webAppUrl({ serverUrl: 'https://cue.example.com', webUrl: '' })).toBe('https://cue.example.com');
+    expect(webAppUrl({ serverUrl: 'http://localhost:8787', webUrl: 'https://app.example.com' })).toBe('https://app.example.com');
+    expect(normaliseSettings({ webUrl: 'javascript:alert(1)' }, '').webUrl).toBe('');
+    expect(normaliseSettings({ webUrl: 'https://app.example.com/' }, '').webUrl).toBe('https://app.example.com');
   });
 });

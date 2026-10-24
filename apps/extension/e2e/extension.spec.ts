@@ -124,6 +124,53 @@ async function settle(page: Page) {
   await page.waitForTimeout(700);
 }
 
+/**
+ * Page-level horizontal overflow, and any element that pokes out past the right edge (tables scroll
+ * inside their own box, so their cells are exempt). Empty when nothing overflows.
+ */
+async function pageOverflow(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    const doc = document.documentElement;
+    if (doc.scrollWidth > doc.clientWidth) out.push(`page ${doc.scrollWidth} > ${doc.clientWidth}`);
+    const w = doc.clientWidth;
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+      if (el.closest('.cue-table-wrap, .cue-appbar__tabs, .cue-layer, dialog:not([open])')) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.right > w + 1) out.push(`${el.tagName.toLowerCase()}.${el.className} right=${Math.round(r.right)}`);
+    }
+    return out.slice(0, 8);
+  });
+}
+
+const LOOKS = [
+  { direction: 'honey', theme: 'light' },
+  { direction: 'night', theme: 'dark' },
+] as const;
+
+/** Switches the side panel's look through synced settings, as the Settings tab does. */
+async function setLook(l: { direction: string; theme: string }) {
+  await sw.evaluate(async (look) => {
+    const cur = (await chrome.storage.sync.get('cue.settings'))['cue.settings'] as object;
+    await chrome.storage.sync.set({ 'cue.settings': { ...cur, ...look } });
+  }, l);
+}
+
+/** A request to the background, sent from an extension page (the worker can't message itself). */
+async function send(msg: unknown): Promise<unknown> {
+  const p = await context.newPage();
+  await p.goto(`chrome-extension://${extId}/permission.html`);
+  const r = await p.evaluate((m) => chrome.runtime.sendMessage(m), msg);
+  await p.close();
+  return r;
+}
+
+/** The call the background is following (the newest on the server). */
+async function latestCallId(): Promise<string> {
+  const [summary] = await (await fetch(`${serverUrl}/api/calls?limit=1`)).json();
+  return summary.id as string;
+}
+
 async function openContact(): Promise<Page> {
   const page = await context.newPage();
   const errors: string[] = [];
@@ -229,9 +276,9 @@ test('a call end to end: start from the page, a prospect turn, a card, end, debr
   const panel = await context.newPage();
   await panel.setViewportSize({ width: 400, height: 900 });
   await panel.goto(`chrome-extension://${extId}/sidepanel.html`);
-  await expect(panel.locator('.cue-overbar--inline')).toBeVisible();
+  await expect(panel.getByRole('region', { name: 'Cue', exact: true })).toBeVisible();
   await panel.getByLabel('Type what was said').fill("Sorry, what's this regarding?");
-  await panel.getByRole('button', { name: 'Add', exact: true }).click();
+  await panel.getByRole('button', { name: 'Add turn' }).click();
 
   // The card arrives on the page's overbar (rules engine) and in the panel.
   await expect(page.locator('.cue-bar__moment').first()).toBeVisible({ timeout: 20_000 });
@@ -260,9 +307,15 @@ test('a call end to end: start from the page, a prospect turn, a card, end, debr
   await settle(panel);
   await panel.screenshot({ path: join(shots, 'sidepanel-live.png'), fullPage: true });
 
-  // Booked from the panel's outcome bar: the call ends and the debrief shows.
+  // Booked from the panel's outcome bar: the call ends and the debrief opens as a dialog over it.
   await panel.getByRole('button', { name: 'Booked' }).click();
-  await expect(panel.getByRole('group', { name: 'Call outcome' }).or(panel.locator('.cue-debrief, form')).first()).toBeVisible();
+  const debrief = panel.getByRole('dialog', { name: 'How did it go?' });
+  await expect(debrief).toBeVisible();
+  // Escape closes it (the ended call stays); the pinned action bar opens it again.
+  await panel.keyboard.press('Escape');
+  await expect(debrief).toBeHidden();
+  await panel.getByRole('button', { name: 'Debrief', exact: true }).click();
+  await expect(debrief).toBeVisible();
   await expect(page.getByRole('button', { name: 'Debrief' })).toBeVisible();
   await settle(page);
   await page.screenshot({ path: join(shots, 'overlay-ended.png') });
@@ -270,10 +323,12 @@ test('a call end to end: start from the page, a prospect turn, a card, end, debr
   await panel.screenshot({ path: join(shots, 'sidepanel-debrief.png'), fullPage: true });
 
   // Submit the debrief: the server has the feedback and the panel moves on.
-  await panel.getByRole('button', { name: 'Save debrief' }).click();
-  await expect(panel.getByText('Booked. Nice work.')).toBeVisible();
+  await debrief.getByRole('button', { name: 'Save debrief' }).click();
+  await expect(panel.getByRole('dialog').getByText('Booked. Nice work.')).toBeVisible();
   await settle(panel);
   await panel.screenshot({ path: join(shots, 'sidepanel-after-debrief.png'), fullPage: true });
+  await panel.getByRole('dialog').getByRole('button', { name: 'Next call' }).click();
+  await expect(panel.getByRole('button', { name: 'Start Cue' })).toBeVisible();
 
   const call = await (await fetch(`${serverUrl}/api/calls?limit=1`)).json();
   expect(['ended', 'reviewing', 'reviewed']).toContain(call[0].status);
@@ -288,11 +343,297 @@ test('side panel settings render, and the Trellus key field never persists', asy
   await panel.goto(`chrome-extension://${extId}/sidepanel.html#settings`);
   await expect(panel.getByLabel('Server URL')).toHaveValue(serverUrl);
   await expect(panel.getByText('Trellus not connected')).toBeVisible();
-  await expect(panel.getByText('Dispositions to outcomes')).toBeVisible();
+  // The pane checks the server on open (Save and test would ask Chrome for the origin, a prompt).
+  await expect(panel.getByText('Playbook lines only (no Mubit key on the server)')).toBeVisible();
+  await settle(panel);
   await panel.screenshot({ path: join(shots, 'sidepanel-settings.png'), fullPage: true });
-  const overflow = await panel.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-  expect(overflow).toBeLessThanOrEqual(0);
+  expect(await pageOverflow(panel)).toEqual([]);
+
+  // Dispositions is its own tab: a ruled table of Trellus dispositions (the server's defaults until
+  // Trellus syncs), each mapped to an outcome; an edit is saved from the pane's pinned footer.
+  await panel.getByRole('link', { name: 'Dispositions' }).click();
+  const table = panel.getByRole('region', { name: 'Trellus dispositions' });
+  await expect(table.getByRole('columnheader', { name: 'Cue outcome' })).toBeVisible();
+  await table.getByRole('combobox').first().selectOption('follow_up');
+  await panel.getByRole('button', { name: 'Save 1 change' }).click();
+  await expect(panel.getByText('Saved', { exact: true })).toBeVisible();
+  await settle(panel);
+  await panel.screenshot({ path: join(shots, 'sidepanel-dispositions.png'), fullPage: true });
+  expect(await pageOverflow(panel)).toEqual([]);
   const stored = await sw.evaluate(async () => JSON.stringify([await chrome.storage.sync.get(null), await chrome.storage.local.get(null)]));
   expect(stored.toLowerCase()).not.toMatch(/apikey|api_key/);
   await panel.close();
+});
+
+test('side panel renders the cue for a live call driven through the server turn API, at 320 to 520 px', async () => {
+  const panel = await context.newPage();
+  const errors: string[] = [];
+  panel.on('pageerror', (e) => errors.push(e.message));
+  await panel.setViewportSize({ width: 360, height: 900 });
+  await panel.goto(`chrome-extension://${extId}/sidepanel.html`);
+
+  // Idle with no saved contacts yet: say so, and point at the Cue app.
+  await expect(panel.getByText('No saved contacts yet')).toBeVisible();
+  await expect(panel.getByRole('link', { name: 'Add contacts in Cue' })).toBeVisible();
+  for (const look of LOOKS) {
+    await setLook(look);
+    for (const width of [360, 420]) {
+      await panel.setViewportSize({ width, height: 900 });
+      await settle(panel);
+      expect(await pageOverflow(panel), `overflow at ${width}px ${look.direction}`).toEqual([]);
+      await panel.screenshot({ path: join(shots, `sidepanel-empty-contacts-${width}-${look.direction}.png`), fullPage: true });
+    }
+  }
+  await setLook(LOOKS[0]);
+  await panel.setViewportSize({ width: 360, height: 900 });
+
+  // Someone not saved: typed in (the start bar is pinned below), nothing overflowing.
+  await panel.getByLabel('Name', { exact: true }).fill('Jordan Okafor');
+  await panel.getByRole('textbox', { name: /^Company/ }).fill('Fernhill Freight');
+  await settle(panel);
+  await panel.screenshot({ path: join(shots, 'sidepanel-start-360.png'), fullPage: true });
+  expect(await pageOverflow(panel)).toEqual([]);
+  await panel.getByRole('button', { name: 'Start Cue' }).click();
+  await expect(panel.getByRole('link', { name: /^Call/ })).toBeVisible();
+  const cuePane = panel.getByRole('region', { name: 'Cue', exact: true });
+  await expect(cuePane).toBeVisible();
+  await expect(panel.getByText('On a call')).toBeVisible();
+
+  // Drive the call from outside the extension: a prospect turn posted straight to the server reaches
+  // the panel over the stream the background follows.
+  await expect.poll(async () => (await (await fetch(`${serverUrl}/api/calls?limit=1`)).json())[0]?.prospect?.name).toBe('Jordan Okafor');
+  const callId = await latestCallId();
+  const res = await fetch(`${serverUrl}/api/calls/${callId}/turns`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ speaker: 'prospect', text: "We already have a broker, we're fine.", via: 'typed' }),
+  });
+  expect(res.status).toBe(202);
+
+  await expect(panel.locator('.cue-stage--flush .cue-line')).toBeVisible({ timeout: 20_000 });
+  expect((await panel.locator('.cue-stage--flush .cue-line').innerText()).length).toBeGreaterThan(10);
+  await expect(panel.locator('section.cue-pane[aria-label="Transcript"]')).toContainText('already have a broker');
+  await expect(panel.getByRole('complementary', { name: 'Prospect' })).toContainText('Jordan Okafor');
+  await expect(panel.getByRole('region', { name: 'Brief' })).toBeVisible();
+  // Every action in reach without scrolling: the pinned bar.
+  const dock = panel.getByRole('contentinfo', { name: 'Call actions' }).or(panel.locator('.sp-dock'));
+  await expect(dock.getByRole('button', { name: 'End call' })).toBeInViewport();
+
+  // Stop listening from the pinned bar; Listen asks for capture again. (Here the "call tab" is the
+  // panel itself, which Chrome won't capture, so the Audio pane explains why instead.)
+  await expect(panel.getByRole('region', { name: 'Audio' })).toBeVisible();
+  const stop = dock.getByRole('button', { name: 'Stop listening' });
+  if (await stop.isVisible()) {
+    await stop.click();
+    await expect(panel.getByText(/^Not listening\./)).toBeVisible();
+  }
+  await expect(dock.getByRole('button', { name: 'Listen', exact: true })).toBeVisible();
+
+  for (const width of [320, 360, 420, 520]) {
+    await panel.setViewportSize({ width, height: 900 });
+    await settle(panel);
+    expect(await pageOverflow(panel), `overflow at ${width}px`).toEqual([]);
+    if (width !== 320) await panel.screenshot({ path: join(shots, `sidepanel-live-${width}.png`), fullPage: true });
+  }
+
+  // Dark Honey and the other two directions render the same panes without overflow.
+  for (const look of [{ direction: 'honey', theme: 'dark' }, { direction: 'night', theme: 'dark' }, { direction: 'signal', theme: 'light' }]) {
+    await sw.evaluate(async (l) => {
+      const cur = (await chrome.storage.sync.get('cue.settings'))['cue.settings'] as object;
+      await chrome.storage.sync.set({ 'cue.settings': { ...cur, ...l } });
+    }, look);
+    await expect(panel.locator(`[data-cue][data-dir="${look.direction}"][data-theme="${look.theme}"]`).first()).toBeAttached();
+    await panel.setViewportSize({ width: 360, height: 900 });
+    await settle(panel);
+    expect(await pageOverflow(panel), `overflow in ${look.direction}/${look.theme}`).toEqual([]);
+    await panel.screenshot({ path: join(shots, `sidepanel-live-${look.direction}-${look.theme}.png`), fullPage: true });
+  }
+  await sw.evaluate(async () => {
+    const cur = (await chrome.storage.sync.get('cue.settings'))['cue.settings'] as object;
+    await chrome.storage.sync.set({ 'cue.settings': { ...cur, direction: 'honey', theme: 'light' } });
+  });
+
+  // End without an outcome from the pinned bar: the debrief dialog asks for one.
+  await dock.getByRole('button', { name: 'End call' }).click();
+  const debrief = panel.getByRole('dialog', { name: 'How did it go?' });
+  await expect(debrief).toBeVisible();
+  await settle(panel);
+  await panel.screenshot({ path: join(shots, 'sidepanel-debrief-360.png') });
+  expect(await pageOverflow(panel)).toEqual([]);
+  await debrief.getByRole('button', { name: 'Skip' }).click();
+  await expect(debrief).toBeHidden();
+  await panel.getByRole('button', { name: 'Next call' }).click();
+  await expect(panel.getByRole('button', { name: 'Start Cue' })).toBeVisible();
+  expect(errors, 'panel errors').toEqual([]);
+  await panel.close();
+});
+
+test('overlay: collapsed by default in a shadow root, never blocks the page, drags, expands with a bounded panel, Esc collapses', async () => {
+  // Drive a call so the expanded panel has a card in it.
+  const page = await openContact();
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const host = page.locator('cue-overlay');
+  expect(await host.evaluate((el) => !!el.shadowRoot && el.shadowRoot.mode)).toBe('open');
+  await expect(page.locator('.cue-overbar')).toHaveAttribute('data-mode', 'collapsed');
+
+  // The page under and beside the bar still takes clicks.
+  const passThrough = await page.evaluate(() => {
+    const hit = document.elementFromPoint(40, 300);
+    const corner = document.elementFromPoint(1270, 590);
+    const host = document.querySelector('cue-overlay');
+    return { left: hit !== host, corner: corner !== host };
+  });
+  expect(passThrough).toEqual({ left: true, corner: true });
+
+  await page.getByRole('button', { name: 'Start Cue' }).click();
+  await expect(page.locator('.cue-bar__live-text')).toHaveText('Live');
+  await fetch(`${serverUrl}/api/calls/${await latestCallId()}/turns`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ speaker: 'prospect', text: 'Just send me an email.', via: 'typed' }),
+  });
+  await expect(page.locator('.cue-bar__moment').first()).toBeVisible({ timeout: 20_000 });
+
+  // Drag sideways by Sprout.
+  const before = (await page.locator('.cue-bar').first().boundingBox())!;
+  const handle = (await page.locator('.cue-bar__mascot').first().boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x - 120, handle.y + handle.height / 2, { steps: 8 });
+  await page.mouse.move(handle.x - 200, handle.y + handle.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const after = (await page.locator('.cue-bar').first().boundingBox())!;
+  expect(after.x).toBeLessThan(before.x - 100);
+  expect(Math.abs(after.y - before.y)).toBeLessThan(2);
+
+  // Expand: the panel is bounded by the viewport and scrolls inside itself.
+  await page.getByRole('button', { name: 'Expand' }).first().click();
+  const panel = page.locator('.cue-overbar__panel');
+  await expect(panel).toBeVisible();
+  await settle(page);
+  const box = (await panel.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(600);
+  const scrolls = await panel.evaluate((el) => ({ overflowY: getComputedStyle(el).overflowY, fits: el.scrollHeight <= el.clientHeight + 1 }));
+  expect(['auto', 'scroll']).toContain(scrolls.overflowY);
+  await page.screenshot({ path: join(shots, 'overlay-expanded-olive.png') });
+
+  // Escape (focus inside Cue) collapses it, and keys never reach the page's own shortcuts.
+  await page.evaluate(() => {
+    (window as unknown as { pageKeys: string[] }).pageKeys = [];
+    window.addEventListener('keydown', (e) => (window as unknown as { pageKeys: string[] }).pageKeys.push(e.key));
+  });
+  await page.getByRole('button', { name: 'Collapse' }).first().focus();
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(page.locator('.cue-overbar')).toHaveAttribute('data-mode', 'collapsed');
+  expect(await page.evaluate(() => (window as unknown as { pageKeys: string[] }).pageKeys)).toEqual([]);
+  await settle(page);
+  await page.screenshot({ path: join(shots, 'overlay-collapsed-olive.png') });
+
+  // Leave things clean for the next test.
+  await page.evaluate(() => localStorage.removeItem('cue.overbar.x'));
+  await send({ type: 'session.end' });
+  await send({ type: 'session.reset' });
+  await page.close();
+});
+
+test('a saved contact: search, pick by keyboard, research warms, the call carries the contact, and last time shows next time', async () => {
+  const post = async (path: string, body: unknown) => {
+    const r = await fetch(`${serverUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect(r.ok, `${path} ${r.status}`).toBe(true);
+    return r.json();
+  };
+  const contact = await post('/api/contacts', { name: 'Priya Natarajan', title: 'VP Operations', company: 'Harbourline Logistics', phone: '+14155550199', email: 'priya@harbourline.example', facts: { fleet: '140 trucks' }, notes: 'Asked to be called after their Q3 board meeting.' });
+  await post('/api/contacts', { name: 'Tomás Herrera', title: 'Founder', company: 'Brightwell Analytics', phone: '+14155550111', facts: {} });
+
+  // A previous call with Priya, reviewed by the rep, so "Last time" has something to say.
+  const prev = await post('/api/calls', { source: 'cue', contactId: contact.id, prospect: {}, rep: { id: 'rep_e2e', name: 'Alex Rivera' } });
+  await post(`/api/calls/${prev.id}/turns`, { speaker: 'prospect', text: 'We already have a broker for most lanes.', via: 'typed' });
+  await post(`/api/calls/${prev.id}/end`, { outcome: 'callback_requested' });
+  await post(`/api/calls/${prev.id}/feedback`, { outcome: 'callback_requested', rating: 4, whatWorked: 'She opened up about lane costs.', whatDidnt: 'I pitched before asking about the broker.' });
+
+  const panel = await context.newPage();
+  const errors: string[] = [];
+  panel.on('pageerror', (e) => errors.push(e.message));
+  await panel.setViewportSize({ width: 360, height: 900 });
+  await panel.goto(`chrome-extension://${extId}/sidepanel.html`);
+
+  const search = panel.getByRole('combobox', { name: 'Search contacts' });
+  await expect(search).toBeVisible();
+  const list = panel.getByRole('listbox', { name: 'Saved contacts' });
+  await expect(list.getByRole('option')).toHaveCount(2);
+  for (const look of LOOKS) {
+    await setLook(look);
+    for (const width of [360, 420]) {
+      await panel.setViewportSize({ width, height: 900 });
+      await settle(panel);
+      expect(await pageOverflow(panel), `overflow at ${width}px ${look.direction}`).toEqual([]);
+      await panel.screenshot({ path: join(shots, `sidepanel-start-contacts-${width}-${look.direction}.png`), fullPage: true });
+    }
+  }
+  await setLook(LOOKS[0]);
+  await panel.setViewportSize({ width: 360, height: 900 });
+
+  // Search as you type, then pick with the keyboard.
+  await search.fill('harbour');
+  await expect(list.getByRole('option')).toHaveCount(1);
+  await expect(list.getByRole('option').first()).toContainText('Priya Natarajan');
+  await expect(list.getByRole('option').first()).toContainText('VP Operations · Harbourline Logistics');
+  await search.press('ArrowDown');
+  await search.press('Enter');
+
+  const calling = panel.getByRole('complementary', { name: 'Calling' });
+  await expect(calling).toContainText('Priya Natarajan');
+  await expect(calling).toContainText('Callback requested');
+  await expect(calling.getByRole('status').first()).toBeVisible(); // research is warming
+  await expect(panel.getByText('Calling Priya Natarajan')).toBeVisible();
+
+  await panel.getByRole('button', { name: 'Start Cue' }).click();
+  await expect(panel.getByText('On a call')).toBeVisible();
+  await expect.poll(async () => (await (await fetch(`${serverUrl}/api/calls?limit=1`)).json())[0]?.contactId).toBe(contact.id);
+  const callId = await latestCallId();
+  expect(callId).not.toBe(prev.id);
+  // The server filled the prospect from the saved contact.
+  await expect(panel.getByRole('complementary', { name: 'Prospect' })).toContainText('Harbourline Logistics');
+  const lastTime = panel.getByRole('region', { name: 'Last time' });
+  await expect(lastTime).toContainText('Callback requested');
+  await expect(panel.getByRole('region', { name: 'Brief' }).locator('.cue-brief__summary')).toBeVisible({ timeout: 20_000 });
+  await post(`/api/calls/${callId}/turns`, { speaker: 'prospect', text: "Who is this? I've only got a minute.", via: 'typed' });
+  await expect(panel.locator('.cue-stage--flush .cue-line')).toBeVisible({ timeout: 20_000 });
+
+  for (const look of LOOKS) {
+    await setLook(look);
+    for (const width of [360, 420]) {
+      await panel.setViewportSize({ width, height: 900 });
+      await settle(panel);
+      expect(await pageOverflow(panel), `overflow at ${width}px ${look.direction}`).toEqual([]);
+      await panel.screenshot({ path: join(shots, `sidepanel-live-contact-${width}-${look.direction}.png`), fullPage: true });
+    }
+  }
+  await setLook(LOOKS[0]);
+
+  await send({ type: 'session.end' });
+  await send({ type: 'session.reset' });
+  await expect(panel.getByRole('button', { name: 'Start Cue' })).toBeVisible();
+  expect(errors, 'panel errors').toEqual([]);
+  await panel.close();
+});
+
+test('a person read from the page can be saved to contacts and called as one', async () => {
+  const page = await openContact();
+  const panel = await context.newPage();
+  await panel.setViewportSize({ width: 400, height: 900 });
+  await panel.goto(`chrome-extension://${extId}/sidepanel.html`);
+  const fromPage = panel.getByRole('region', { name: 'From this page' });
+  await expect(fromPage).toBeVisible();
+  await expect(panel.getByLabel('Name', { exact: true })).toHaveValue('Maya Chen');
+  await fromPage.getByRole('button', { name: 'Save to contacts' }).click();
+  await expect(panel.getByRole('complementary', { name: 'Calling' })).toContainText('Maya Chen');
+  const saved = await (await fetch(`${serverUrl}/api/contacts?q=Maya`)).json();
+  expect(saved.items.map((c: { name: string }) => c.name)).toContain('Maya Chen');
+  await settle(panel);
+  expect(await pageOverflow(panel)).toEqual([]);
+  await panel.close();
+  await page.close();
 });

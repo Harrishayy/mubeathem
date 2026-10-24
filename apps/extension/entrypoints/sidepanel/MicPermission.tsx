@@ -8,7 +8,7 @@ type Perm = 'granted' | 'denied' | 'prompt' | 'unknown';
  * here (a visible page) once; the grant then covers capture. Falls back to a tab when the side
  * panel can't prompt.
  */
-export function MicPermission({ compact }: { compact?: boolean }) {
+export function MicPermission({ compact, showGranted }: { compact?: boolean; showGranted?: boolean }) {
   const [perm, setPerm] = useState<Perm>('unknown');
   const [asking, setAsking] = useState(false);
 
@@ -26,7 +26,7 @@ export function MicPermission({ compact }: { compact?: boolean }) {
     return () => status?.removeEventListener('change', onChange);
   }, []);
 
-  if (perm === 'granted') return null;
+  if (perm === 'granted') return showGranted ? <span>Allowed. Cue hears your side.</span> : null;
 
   const ask = async () => {
     setAsking(true);
