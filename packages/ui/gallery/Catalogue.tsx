@@ -364,7 +364,7 @@ function OverbarSection({ views }: { views: Record<keyof typeof VIEWS, CallView>
       </div>
       <div className="g-grid g-grid--2">
         <Specimen label="Expanded · side panel width" className="g-spec--panel">
-          <Overbar view={views.cold} connection="live" mode={mode} onModeChange={setMode} onAction={noop} onEnd={noop} onOpenSettings={noop} placement="inline" />
+          <Overbar view={views.cold} connection="live" mode={mode} onModeChange={setMode} onAction={noop} onEnd={noop} onOpenSettings={noop} onPopOut={noop} placement="inline" />
         </Specimen>
         <Specimen label="Expanded · compliance">
           <Overbar view={views.compliance} connection="live" mode="expanded" onModeChange={noop} onAction={noop} placement="inline" drawers={{ flags: true }} />

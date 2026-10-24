@@ -34,6 +34,8 @@ export interface OverbarProps {
   onAction: OnSuggestionAction;
   onEnd?: () => void;
   onOpenSettings?: () => void;
+  /** Float the bar in an always-on-top window (Document Picture-in-Picture). Shown only when given. */
+  onPopOut?: () => void;
   placement?: OverbarPlacement;
   /** Prospect voice level 0..1, for Sprout's listening ring. */
   voiceLevel?: number;
@@ -257,7 +259,7 @@ interface BarProps extends OverbarProps {
 }
 
 /** The pill. Also the header row of the expanded panel. */
-function Bar({ view, connection, mascot, expanded, panelId, onToggle, voiceLevel, showLine, flat, onEnd, onOpenSettings, placement = 'top', now }: BarProps) {
+function Bar({ view, connection, mascot, expanded, panelId, onToggle, voiceLevel, showLine, flat, onEnd, onOpenSettings, onPopOut, placement = 'top', now }: BarProps) {
   const dragHandle = useContext(DragHandleContext);
   const line = barLine(view, connection);
   const current = view?.status === 'live' ? view.current : null;
@@ -329,6 +331,7 @@ function Bar({ view, connection, mascot, expanded, panelId, onToggle, voiceLevel
       )}
 
       <span className="cue-bar__actions">
+        {onPopOut && <IconButton icon="arrow-up-right" label="Pop out" size="sm" onClick={onPopOut} />}
         {expanded && onOpenSettings && <IconButton icon="settings" label="Settings" size="sm" onClick={onOpenSettings} />}
         {expanded && onEnd && live && <IconButton icon="phone-off" label="End call" size="sm" variant="danger" onClick={onEnd} />}
         {!flat && (
