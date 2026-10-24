@@ -26,7 +26,7 @@ export { Toast, ToastRegion, type ToastData, type ToastTone } from './primitives
 export { Skeleton, EmptyState, ErrorState, type EmptyStateProps, type ErrorStateProps } from './primitives/Feedback';
 export { Meter, Sparkline, type MeterProps, type SparklineProps } from './primitives/Meter';
 export { ScrollArea, type ScrollAreaProps } from './primitives/ScrollArea';
-export { Pane, PaneSection, Hint, Kpi, KpiStrip, KeyValue, StatGrid, ActionBar, Bar, type PaneProps, type KpiProps, type KeyValueItem } from './primitives/Pane';
+export { Pane, PaneSection, Hint, Kpi, KpiStrip, KeyValue, StatGrid, ActionBar, Bar, type PaneProps, type PaneTab, type KpiProps, type KeyValueItem } from './primitives/Pane';
 export { DataTable, type DataTableProps, type Column } from './primitives/DataTable';
 export { AppBar, BandTag, CueMark, type AppBarProps, type AppTab } from './primitives/AppBar';
 
@@ -46,10 +46,11 @@ export { FlagsView } from './domain/FlagsView';
 export { ConnectionPill } from './domain/ConnectionPill';
 export { DebriefForm, DEBRIEF_OUTCOMES, type DebriefFormProps } from './domain/DebriefForm';
 export { PlaybookBoard, type PlaybookBoardProps } from './domain/PlaybookBoard';
-export { ModelGrowthPanel, TASK_COPY, type ModelGrowthPanelProps } from './domain/ModelGrowthPanel';
+export { ModelGrowthPanel, TASK_COPY, TASK_LABEL, type ModelGrowthPanelProps } from './domain/ModelGrowthPanel';
 export { OutcomeBar, type OutcomeBarProps } from './domain/OutcomeBar';
 export { CallTimeline, packRows, type CallTimelineProps } from './domain/CallTimeline';
 
 export { MASCOT_STATES, formatUsd, formatMs, type Connection, type MascotState } from './lib/core';
 export { Board, BoardSection, Screen, Toolbar, SectionNav, type BoardSectionProps, type SectionLink } from './primitives/Board';
 export { useChromeHeight } from './lib/useChromeHeight';
+export { Workspace, FoldSideButton, useWorkspace, type WorkspaceProps, type WorkspaceSideProps, type WorkspaceApi, type WorkspaceSide } from './primitives/Workspace';

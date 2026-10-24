@@ -1,6 +1,6 @@
 import type { CallSummary, Contact } from '@cue/core';
-import { ActionBar, Button, Chip, DataTable, EmptyState, ErrorState, Hint, KeyValue, Pane, PaneSection, Skeleton, Sprout, type Column } from '@cue/ui';
-import { useEffect, useRef, useState } from 'react';
+import { ActionBar, Button, Chip, DataTable, EmptyState, ErrorState, Hint, KeyValue, Pane, PaneSection, Skeleton, Sprout, Toolbar, Workspace, type Column } from '@cue/ui';
+import { useEffect, useState } from 'react';
 import { useMedia } from '../hooks/useMedia';
 import { useDebounced } from '../hooks/useDebounced';
 import { reducedMotion } from '../lib/motion';
@@ -8,11 +8,12 @@ import { useResource } from '../hooks/useResource';
 import { getApi } from '../state/api';
 import { callStore } from '../state/call';
 import { callContact, warmResearch, whenLabel } from '../state/contacts';
-import { firstName } from '../state/settings';
+import { firstName, settingsStore } from '../state/settings';
 import { useStore } from '../state/store';
 import { openDebrief, toast } from '../state/ui';
 import { callStatus } from './History';
 import { ContactFormDialog, DeleteContactDialog, ImportDialog } from './contacts/ContactDialogs';
+import '../styles/screens/contacts.css';
 
 const PAGE = 100;
 
@@ -25,18 +26,20 @@ const role = (c: Pick<Contact, 'title' | 'company'>) => [c.title, c.company].fil
 export function Contacts() {
   const [q, setQ] = useState('');
   const query = useDebounced(q.trim());
+  const myId = useStore(settingsStore, (s) => s.repId);
+  const [mine, setMine] = useState(false);
+  const owner = mine && myId ? myId : undefined;
   const [extra, setExtra] = useState<Contact[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
-  const res = useResource((signal) => getApi().contacts({ q: query || undefined, limit: PAGE }, { signal }), [query]);
+  const res = useResource((signal) => getApi().contacts({ q: query || undefined, ownerRepId: owner, limit: PAGE }, { signal }), [query, owner]);
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<Contact | null | 'new'>(null);
   const [importing, setImporting] = useState(false);
   const [deleting, setDeleting] = useState<Contact | null>(null);
   const desktop = useMedia('(min-width: 1080px)');
   const narrow = useMedia('(max-width: 599.98px)');
-  const detailRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => setExtra([]), [query, res.data]);
+  useEffect(() => setExtra([]), [query, owner, res.data]);
   const items = res.data ? [...res.data.items, ...extra.filter((x) => !res.data!.items.some((y) => y.id === x.id))] : null;
   const total = res.data?.total ?? 0;
   const current = items?.find((c) => c.id === selected) ?? items?.[0] ?? null;
@@ -47,14 +50,14 @@ export function Contacts() {
 
   const select = (c: Contact) => {
     setSelected(c.id);
-    if (!desktop) requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }));
+    if (!desktop) requestAnimationFrame(() => document.getElementById('contact-detail')?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }));
   };
 
   const more = async () => {
     if (!items) return;
     setLoadingMore(true);
     try {
-      const r = await getApi().contacts({ q: query || undefined, limit: PAGE, offset: items.length });
+      const r = await getApi().contacts({ q: query || undefined, ownerRepId: owner, limit: PAGE, offset: items.length });
       setExtra((x) => [...x, ...r.items]);
     } catch (e) {
       toast({ tone: 'bad', title: 'Could not load more', description: e instanceof Error ? e.message : String(e) });
@@ -63,125 +66,141 @@ export function Contacts() {
     }
   };
 
-  const lastCalled = (c: Contact) =>
-    c.lastCalledAt ? (
-      <span className="web-hist-who">
-        <time className="web-small" dateTime={new Date(c.lastCalledAt).toISOString()}>
-          {whenLabel(c.lastCalledAt)}
-        </time>
-        {c.lastOutcome && <OutcomeChip outcome={c.lastOutcome} />}
-      </span>
-    ) : (
-      <span className="web-muted web-small">Not called yet</span>
-    );
   const allColumns: Column<Contact>[] = [
     {
       key: 'name',
       header: 'Name',
+      width: narrow ? undefined : '210px',
       render: (c) => (
         <span className="web-hist-who">
           <span className="web-hist-who__name">{c.name}</span>
-          <span className="web-muted web-small">{role(c) || 'No title or company yet'}</span>
-          {narrow && <span className="web-hist-who">{lastCalled(c)}</span>}
+          {narrow && <span className="web-muted web-small">{role(c) || 'No title or company yet'}</span>}
+          {narrow && <span className="web-small">{c.lastCalledAt ? `Last called ${whenLabel(c.lastCalledAt)}` : 'Not called yet'}</span>}
         </span>
       ),
     },
-    { key: 'last', header: 'Last called', width: '210px', render: lastCalled },
+    { key: 'role', header: 'Title · company', render: (c) => (role(c) ? <span className="web-small">{role(c)}</span> : <span className="web-muted web-small">Not saved</span>) },
+    {
+      key: 'last',
+      header: 'Last called',
+      width: '150px',
+      className: 'web-nowrap',
+      render: (c) =>
+        c.lastCalledAt ? (
+          <time className="web-small" dateTime={new Date(c.lastCalledAt).toISOString()}>
+            {whenLabel(c.lastCalledAt)}
+          </time>
+        ) : (
+          <span className="web-muted web-small">Not yet</span>
+        ),
+    },
+    { key: 'outcome', header: 'Last outcome', width: '184px', className: 'web-nowrap', render: (c) => (c.lastOutcome ? <OutcomeChip outcome={c.lastOutcome} /> : <span className="web-muted web-small">—</span>) },
     { key: 'calls', header: 'Calls', width: '64px', mono: true, align: 'end', render: (c) => c.calls },
   ];
-  const columns = narrow ? allColumns.filter((c) => c.key !== 'last') : allColumns;
+  const columns = narrow ? allColumns.filter((c) => c.key === 'name' || c.key === 'calls') : allColumns;
 
-  const noneAtAll = res.data && total === 0 && !query;
+  const noneAtAll = res.data && total === 0 && !query && !owner;
 
   return (
-    <div className="cue-dash-grid web-contacts-grid">
+    <div className="web-screen">
       <h1 className="web-sr">Contacts</h1>
-      <Pane
-        label="Contacts"
-        meta={res.data ? (query ? `${total} found` : String(total)) : undefined}
-        hint="The people you call. Pick one to see what you know and call them; Cue starts researching them as soon as you do."
-        pad="none"
-        className="web-contacts-grid__list"
-        footer={
-          noneAtAll ? undefined : (
-          <ActionBar
-            end={
-              items && items.length < total ? (
+      <Toolbar label="Contacts">
+        <label className="web-contacts-search">
+          <span className="web-sr">Search contacts</span>
+          <input type="search" className="web-input web-input--sm" placeholder="Search name, company, title or email" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search contacts" autoComplete="off" />
+        </label>
+        {myId && (
+          <span className="cue-filter" role="group" aria-label="Owner">
+            <button type="button" aria-pressed={!mine} onClick={() => setMine(false)}>
+              Everyone&rsquo;s
+            </button>
+            <button type="button" aria-pressed={mine} onClick={() => setMine(true)}>
+              Mine
+            </button>
+          </span>
+        )}
+        <span className="web-toolbar__end">
+          <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing('new')}>
+            Add contact
+          </Button>
+          <Button size="sm" variant="secondary" icon="upload" onClick={() => setImporting(true)}>
+            Import CSV
+          </Button>
+        </span>
+      </Toolbar>
+      <Workspace
+        storageKey="contacts"
+        drawer={{
+          label: 'Contact',
+          summary: current?.name,
+          children: <ContactDetail contact={current} onEdit={(c) => setEditing(c)} onDelete={setDeleting} empty={!!noneAtAll} />,
+        }}
+      >
+        <Pane
+          paneId="contacts"
+          label="Contacts"
+          focusable={false}
+          foldable={false}
+          meta={res.data ? (query ? `${total} found` : String(total)) : undefined}
+          hint="Pick someone to see what you know and call them. Cue starts reading up on them as soon as you do."
+          pad="none"
+          footer={
+            items && items.length < total ? (
+              <ActionBar>
                 <Button size="sm" variant="ghost" onClick={() => void more()} loading={loadingMore}>
                   {`Load more (${total - items.length} left)`}
                 </Button>
-              ) : undefined
-            }
-          >
-            <Button size="sm" variant="primary" icon="plus" onClick={() => setEditing('new')}>
-              Add contact
-            </Button>
-            <Button size="sm" variant="secondary" icon="upload" onClick={() => setImporting(true)}>
-              Import CSV
-            </Button>
-          </ActionBar>
-          )
-        }
-      >
-        {!noneAtAll && (
-        <div className="web-toolbar">
-          <label className="web-search">
-            <span className="web-sr">Search contacts</span>
-            <input
-              type="search"
-              className="web-input web-input--sm"
-              placeholder="Search name, company, title or email"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              aria-label="Search contacts"
-              autoComplete="off"
+              </ActionBar>
+            ) : undefined
+          }
+        >
+          {res.error && !items ? (
+            <ErrorState title="Can't load contacts" message={res.error.message} onRetry={res.reload} className="web-pane-pad" />
+          ) : !items ? (
+            <div className="web-pane-pad" aria-busy="true">
+              <Skeleton lines={6} height={20} />
+            </div>
+          ) : noneAtAll ? (
+            <EmptyState
+              art={<Sprout state="idle" size={72} />}
+              title="No contacts yet"
+              action={
+                <span className="web-chips">
+                  <Button variant="primary" icon="plus" onClick={() => setEditing('new')}>
+                    Add a contact
+                  </Button>
+                  <Button variant="secondary" icon="upload" onClick={() => setImporting(true)}>
+                    Import a CSV
+                  </Button>
+                </span>
+              }
+            >
+              Save the people you plan to call. Their details fill in the call for you, and Cue reads up on them before you dial.
+            </EmptyState>
+          ) : (
+            <DataTable
+              label="Saved contacts"
+              columns={columns}
+              rows={items}
+              rowKey={(c) => c.id}
+              selectedKey={current?.id}
+              onSelect={select}
+              minWidth={narrow ? 0 : 640}
+              empty={
+                query ? (
+                  <EmptyState compact title={`No one matches “${query}”`} action={<Button size="sm" variant="secondary" onClick={() => setQ('')}>Clear search</Button>}>
+                    Try part of a name or company, or add them as a new contact.
+                  </EmptyState>
+                ) : (
+                  <EmptyState compact title="No contacts of yours yet" action={<Button size="sm" variant="secondary" onClick={() => setMine(false)}>Show everyone&rsquo;s</Button>}>
+                    Contacts you add or import are marked as yours.
+                  </EmptyState>
+                )
+              }
             />
-          </label>
-        </div>
-        )}
-        {res.error && !items ? (
-          <ErrorState title="Can't load contacts" message={res.error.message} onRetry={res.reload} className="web-pane-pad" />
-        ) : !items ? (
-          <div className="web-pane-pad" aria-busy="true">
-            <Skeleton lines={6} height={20} />
-          </div>
-        ) : noneAtAll ? (
-          <EmptyState
-            art={<Sprout state="idle" size={72} />}
-            title="No contacts yet"
-            action={
-              <span className="web-chips">
-                <Button variant="primary" icon="plus" onClick={() => setEditing('new')}>
-                  Add a contact
-                </Button>
-                <Button variant="secondary" icon="upload" onClick={() => setImporting(true)}>
-                  Import a CSV
-                </Button>
-              </span>
-            }
-          >
-            Save the people you plan to call. Their details fill in the call for you, and Cue reads up on them before you dial.
-          </EmptyState>
-        ) : (
-          <DataTable
-            label="Saved contacts"
-            columns={columns}
-            rows={items}
-            rowKey={(c) => c.id}
-            selectedKey={current?.id}
-            onSelect={select}
-            minWidth={narrow ? 0 : 480}
-            empty={
-              <EmptyState compact title={`No one matches “${query}”`} action={<Button size="sm" variant="secondary" onClick={() => setQ('')}>Clear search</Button>}>
-                Try part of a name or company, or add them as a new contact.
-              </EmptyState>
-            }
-          />
-        )}
-      </Pane>
-      <div ref={detailRef} className="web-contacts-grid__detail">
-        <ContactDetail contact={current} onEdit={(c) => setEditing(c)} onDelete={setDeleting} empty={!!noneAtAll} />
-      </div>
+          )}
+        </Pane>
+      </Workspace>
 
       <ContactFormDialog
         open={editing !== null}
@@ -224,7 +243,7 @@ function ContactDetail({ contact, onEdit, onDelete, empty }: { contact: Contact 
 
   if (!contact) {
     return (
-      <Pane label="Contact" as="aside" className="web-fill">
+      <Pane label="Contact" as="aside" side="drawer" id="contact-detail">
         <EmptyState compact title={empty ? 'Your contacts show here' : 'Pick a contact'}>
           {empty ? 'Add someone or import a list, then pick them to see their details and call them.' : 'Select someone on the left to see their details, past calls and the Call button.'}
         </EmptyState>
@@ -250,8 +269,9 @@ function ContactDetail({ contact, onEdit, onDelete, empty }: { contact: Contact 
     <Pane
       label="Contact"
       as="aside"
+      side="drawer"
+      id="contact-detail"
       pad="none"
-      className="web-fill"
       footer={
         <ActionBar
           end={

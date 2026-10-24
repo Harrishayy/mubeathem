@@ -1,5 +1,5 @@
 import type { Contact, Prospect } from '@cue/core';
-import { ActionBar, Button, Chip, Hint, Kbd, Pane, TextField } from '@cue/ui';
+import { ActionBar, Button, Chip, Hint, Kbd, Pane, PaneSection, TextField, Workspace, useWorkspace } from '@cue/ui';
 import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { useDebounced } from '../../hooks/useDebounced';
 import { useResource } from '../../hooks/useResource';
@@ -11,6 +11,7 @@ import { useStore } from '../../state/store';
 import { toast } from '../../state/ui';
 import { callStatus } from '../History';
 import { ContactFormDialog, ImportDialog } from '../contacts/ContactDialogs';
+import '../../styles/screens/live.css';
 
 const MOD = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
 
@@ -18,8 +19,8 @@ const EMPTY = { name: '', title: '', company: '', phone: '', facts: '' };
 const role = (c: Pick<Contact, 'title' | 'company'>) => [c.title, c.company].filter(Boolean).join(' · ');
 
 /**
- * Before a call: pick a saved contact (search as you type) or type someone new, with a short
- * how-it-works note the first time and the call shortcuts.
+ * Before a call: pick a saved contact (search as you type) or type someone new. The drawer holds the
+ * how-it-works note (open the first time) and the call shortcuts.
  */
 export function NewCall() {
   const seenHint = useStore(settingsStore, (s) => s.seenLiveHint);
@@ -100,9 +101,21 @@ export function NewCall() {
   const first = picked ? firstName(picked.name) || picked.name : '';
 
   return (
-    <div className={`cue-dash-grid web-start-grid${seenHint ? ' is-two' : ''}`}>
+    <Workspace
+      storageKey="live-new"
+      className="web-newcall"
+      drawer={{
+        label: 'How Cue works',
+        defaultOpen: !seenHint,
+        summary: 'and shortcuts',
+        children: <HowItWorks seen={seenHint} />,
+      }}
+    >
       <Pane
+        paneId="new-call"
         label="New call"
+        foldable={false}
+        focusable={false}
         hint="Pick who you're calling. Cue reads up on them, then suggests what to say as the call goes."
         footer={
           picked && !showTyped ? (
@@ -120,7 +133,7 @@ export function NewCall() {
           ) : undefined
         }
       >
-        <div className="web-stack">
+        <div className="web-newcall__body">
           <h1 className="web-start__title">Know exactly what to say next.</h1>
           {none ? (
             <div className="web-callout">
@@ -175,43 +188,6 @@ export function NewCall() {
         </div>
       </Pane>
 
-      {!seenHint && (
-        <Pane
-          label="How Cue works"
-          hint="Thirty seconds, once."
-          footer={
-            <ActionBar>
-              <Button size="sm" variant="secondary" icon="check" onClick={() => updateSettings({ seenLiveHint: true })}>
-                Got it
-              </Button>
-            </ActionBar>
-          }
-        >
-          <ol className="web-steps">
-            <li>
-              <b>Pick who you&rsquo;re calling.</b> Cue researches the person and company and writes a short brief with an opener.
-            </li>
-            <li>
-              <b>Talk as usual.</b> Cue listens to what the prospect says, works out the moment (a brush-off, an objection, interest) and shows one line to say next.
-            </li>
-            <li>
-              <b>Tap Used or Skip.</b> After the call, a 30-second debrief tells Cue what worked, so the suggestions get better for the whole team.
-            </li>
-          </ol>
-        </Pane>
-      )}
-
-      <Pane label="Shortcuts" meta="during a call" as="aside">
-        <ul className="web-keys" aria-label="Shortcuts during a call">
-          <li><Kbd keys={[MOD, '.']} /> show the full suggestion</li>
-          <li><Kbd keys={['U']} /> I used it</li>
-          <li><Kbd keys={['D']} /> skip it</li>
-          <li><Kbd keys={['E']} /> edit the line</li>
-          <li><Kbd keys={['B']} /> meeting booked</li>
-          <li><Kbd keys={['Space']} /> hold while you talk</li>
-        </ul>
-      </Pane>
-
       <ContactFormDialog
         open={adding}
         contact={null}
@@ -223,7 +199,59 @@ export function NewCall() {
         }}
       />
       <ImportDialog open={importing} onClose={() => setImporting(false)} onImported={all.reload} />
-    </div>
+    </Workspace>
+  );
+}
+
+/** The drawer before a call: the three steps (with "Got it" the first time) and the call shortcuts. */
+function HowItWorks({ seen }: { seen: boolean }) {
+  const ws = useWorkspace();
+  return (
+    <Pane
+      label="How Cue works"
+      side="drawer"
+      as="aside"
+      pad="none"
+      footer={
+        seen ? undefined : (
+          <ActionBar>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon="check"
+              onClick={() => {
+                updateSettings({ seenLiveHint: true });
+                ws?.toggleSide('drawer', false);
+              }}
+            >
+              Got it
+            </Button>
+          </ActionBar>
+        )
+      }
+    >
+      <ol className="web-steps">
+        <li>
+          <b>Pick who you&rsquo;re calling.</b> Cue researches the person and company and writes a short brief with an opener.
+        </li>
+        <li>
+          <b>Talk as usual.</b> Cue listens to what the prospect says, works out the moment (a brush-off, an objection, interest) and shows one line to say next.
+        </li>
+        <li>
+          <b>Tap Used or Skip.</b> After the call, a 30-second debrief tells Cue what worked, so the suggestions get better for the whole team.
+        </li>
+      </ol>
+      <PaneSection label="Shortcuts" meta="during a call">
+        <ul className="web-keys" aria-label="Shortcuts during a call">
+          <li><Kbd keys={[MOD, '.']} /> show the full suggestion</li>
+          <li><Kbd keys={['U']} /> I used it</li>
+          <li><Kbd keys={['D']} /> skip it</li>
+          <li><Kbd keys={['E']} /> edit the line</li>
+          <li><Kbd keys={['B']} /> meeting booked</li>
+          <li><Kbd keys={['Space']} /> hold while you talk</li>
+        </ul>
+      </PaneSection>
+    </Pane>
   );
 }
 

@@ -64,6 +64,7 @@ import {
   Screen,
   SectionNav,
   Toolbar,
+  Workspace,
   type Column,
 } from '../src';
 import { CARD_SPECS, suggestionFrom } from '../src/fixtures/demo';
@@ -124,6 +125,30 @@ export function Catalogue({ state: s, playback, only }: { state: GalleryState; p
   );
 }
 
+function WorkspaceSpecimen({ stress, rows, long }: { stress: boolean; rows: typeof TABLE_ROWS; long: string }) {
+  const [tab, setTab] = useState('lines');
+  return (
+    <div className="cue-dash" style={{ minHeight: 0, height: 460 }}>
+      <Workspace
+        rail={{ label: 'Filters', summary: stress ? long : '2 on', children: <Pane label="Filters" side="rail">{stress ? long : 'Moment, rep, outcome.'}</Pane> }}
+        drawer={{ label: 'Detail', count: 3, width: 'minmax(220px, 26%)', children: <Pane label="Detail" side="drawer">{stress ? long : 'The selected row in full.'}</Pane> }}
+      >
+        <KpiStrip foldId="g-kpis">
+          <Kpi label="Calls" value="751" />
+          <Kpi label="Booked" value="15%" tone="ok" />
+          <Kpi label="Spend" value="$0.62" />
+        </KpiStrip>
+        <Pane paneId="g-lines" label="Lines" summary={stress ? long : '3 ranked · best 62%'} pad="none" grow={1.4} tabs={[{ id: 'lines', label: 'Ranked', count: rows.length }, { id: 'queue', label: 'Waiting', count: 2 }]} tab={tab} onTab={setTab}>
+          <DataTable label="Workspace lines" columns={TABLE_COLUMNS} rows={rows} rowKey={(r) => r.id} minWidth={420} />
+        </Pane>
+        <Pane paneId="g-jobs" label="AI jobs" summary="13 timeouts">
+          {stress ? long : 'Folds to its head; the summary stays.'}
+        </Pane>
+      </Workspace>
+    </div>
+  );
+}
+
 const TABLE_COLUMNS: Column<(typeof TABLE_ROWS)[number]>[] = [
   { key: 'rank', header: '#', width: '48px', mono: true, render: (r) => r.rank },
   { key: 'text', header: 'Line', render: (r) => <span className="cue-table__line">{r.text}</span> },
@@ -158,6 +183,9 @@ function DashboardSection({ views, stress }: { views: Record<keyof typeof VIEWS,
           onNavigate={(_, e) => e.preventDefault()}
           end={<BandTag>Mubit · 6/6 adapters</BandTag>}
         />
+      </Specimen>
+      <Specimen label="Workspace · rail, centre, drawer; panes fold, focus and hold tabs ([ ] and Esc)" wide>
+        <WorkspaceSpecimen stress={stress} rows={rows} long={long} />
       </Specimen>
       <Specimen label="Toolbar · SectionNav · Board · BoardSection · Screen (the page layout)" wide>
         <div className="cue-dash" style={{ minHeight: 0 }}>

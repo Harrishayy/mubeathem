@@ -1,20 +1,36 @@
-import { OUTCOMES, OUTCOME_LABEL, type Outcome } from '@cue/core';
-import { ActionBar, Button, Chip, IconButton, KeyValue, Pane, PaneSection, SegmentedControl, Switch, TextField } from '@cue/ui';
+import { OUTCOMES, OUTCOME_LABEL, type Outcome, type TrellusStatusResponse } from '@cue/core';
+import { ActionBar, Button, Chip, Hint, IconButton, KeyValue, Pane, PaneSection, SegmentedControl, Switch, TextField, Workspace } from '@cue/ui';
 import { useState, type FormEvent } from 'react';
-import { useResource } from '../hooks/useResource';
+import { useResource, type Resource } from '../hooks/useResource';
 import { getApi } from '../state/api';
 import { repIdFor, settingsStore, updateSettings, type Density, type Direction, type ThemePref, type TranscriberKind } from '../state/settings';
 import { useStore } from '../state/store';
 import { toast } from '../state/ui';
+import '../styles/screens/settings.css';
 
-/** You, the look, capture, server and Trellus. Everything but the Trellus key stays in this browser. */
+type Section = 'you' | 'listening' | 'trellus' | 'data';
+
+const SECTIONS: { id: Section; label: string; note: string }[] = [
+  { id: 'you', label: 'You and appearance', note: 'Your name, the look, light or dark' },
+  { id: 'listening', label: 'Listening', note: 'How Cue hears the call' },
+  { id: 'trellus', label: 'Trellus', note: 'The dialer and its outcomes' },
+  { id: 'data', label: 'Data and privacy', note: 'Server, add-ons, export' },
+];
+
+/**
+ * You, the look, capture, server and Trellus, as one pane with a tab per section; the rail lists the
+ * sections with their state. Everything but the Trellus key and disposition map stays in this browser.
+ */
 export function SettingsScreen() {
   const s = useStore(settingsStore);
+  const [section, setSection] = useState<Section>('you');
   const [server, setServer] = useState(s.serverUrl);
   const [token, setToken] = useState(s.token);
   const health = useResource((signal) => getApi().health({ signal }), [s.serverUrl, s.token]);
   const team = useResource((signal) => getApi().team({}, { signal }), [s.serverUrl, s.token]);
+  const trellus = useResource((signal) => getApi().trellusStatus({ signal }), []);
   const members = team.data?.members ?? [];
+  const st = trellus.data;
 
   const saveServer = (e: FormEvent) => {
     e.preventDefault();
@@ -22,140 +38,187 @@ export function SettingsScreen() {
     toast({ tone: 'ok', title: 'Server saved' });
   };
 
+  const healthChip = (
+    <Chip size="sm" tone={health.data?.ok ? 'ok' : health.loading ? 'neutral' : 'bad'} icon={health.data?.ok ? 'check' : health.loading ? 'dot' : 'wifi-off'}>
+      {health.data?.ok ? `Connected · v${health.data.version}` : health.loading ? 'Checking…' : 'Not reachable'}
+    </Chip>
+  );
+  const trellusChip = (
+    <Chip size="sm" tone={st?.configured ? (st.reachable === false ? 'bad' : 'ok') : 'neutral'}>
+      {!st ? 'Checking…' : st.configured ? (st.reachable === false ? 'Not reachable' : 'Connected') : 'Not connected'}
+    </Chip>
+  );
+  const state: Record<Section, string> = {
+    you: s.repName ? firstWord(s.repName) : 'no name',
+    listening: s.transcriber === 'webspeech' ? 'mic' : 'typed',
+    trellus: !st ? '…' : st.configured ? (st.reachable === false ? 'down' : 'on') : 'off',
+    data: health.data?.ok ? 'online' : health.loading ? '…' : 'offline',
+  };
+  const current = SECTIONS.find((x) => x.id === section)!;
+
   return (
-    <div className="cue-dash-grid web-set-grid">
+    <div className="web-screen">
       <h1 className="web-sr">Make Cue yours</h1>
-      <Pane label="You and appearance" hint="Your name marks the calls you make, so Team can show your own numbers." scroll={false} className="web-set-grid__general">
-        <div className="web-stack">
-          <TextField
-            label="Your name"
-            value={s.repName}
-            onChange={(e) => updateSettings({ repName: e.target.value, repId: repIdFor(e.target.value) })}
-            maxLength={120}
-            autoComplete="name"
-            hint={s.repId ? undefined : 'Add your name to see your own numbers on Team.'}
-            id="settings-rep-name"
-          />
-          {members.length > 0 && (
-            <label className="web-select">
-              <span className="cue-field__label">Or pick yourself from the team</span>
-              <select
-                className="web-input"
-                value={members.some((m) => m.rep.id === s.repId) ? s.repId : ''}
-                onChange={(e) => {
-                  const m = members.find((x) => x.rep.id === e.target.value);
-                  if (m) updateSettings({ repId: m.rep.id, repName: m.rep.name });
-                }}
-              >
-                <option value="">Someone new</option>
-                {members.map((m) => (
-                  <option key={m.rep.id} value={m.rep.id}>
-                    {m.rep.name || m.rep.id}
-                  </option>
+      <Workspace
+        storageKey="settings"
+        rail={{
+          label: 'Sections',
+          width: 'minmax(260px, 19vw)',
+          summary: current.label.toLowerCase(),
+          children: (
+            <Pane label="Sections" side="rail" pad="none" as="nav">
+              <ul className="cue-index web-set-index">
+                {SECTIONS.map((x) => (
+                  <li key={x.id}>
+                    <button type="button" className="cue-index__item" aria-current={section === x.id ? 'true' : undefined} onClick={() => setSection(x.id)}>
+                      <span className="cue-index__key" aria-hidden />
+                      <span className="cue-index__name">{x.label}</span>
+                      <span className="cue-index__fig">{state[x.id]}</span>
+                      <span className="cue-index__sub">{x.note}</span>
+                    </button>
+                  </li>
                 ))}
-              </select>
-            </label>
-          )}
-          <SegmentedControl<Direction>
-            label="Look"
-            showLabel
-            options={[
-              { value: 'honey', label: 'Honey' },
-              { value: 'night', label: 'Night Shift' },
-              { value: 'signal', label: 'Signal' },
-            ]}
-            value={s.direction}
-            onChange={(direction) => updateSettings({ direction })}
-          />
-          <div className="web-grid-2">
-            <SegmentedControl<ThemePref>
-              label="Light or dark"
-              showLabel
-              options={[
-                { value: 'system', label: 'System' },
-                { value: 'light', label: 'Light' },
-                { value: 'dark', label: 'Dark' },
-              ]}
-              value={s.theme}
-              onChange={(theme) => updateSettings({ theme })}
-            />
-            <SegmentedControl<Density>
-              label="Spacing"
-              showLabel
-              options={[
-                { value: 'comfortable', label: 'Comfortable' },
-                { value: 'compact', label: 'Compact' },
-              ]}
-              value={s.density}
-              onChange={(density) => updateSettings({ density })}
-            />
-          </div>
-          {s.direction === 'night' && <p className="web-muted web-small">Night Shift is always dark.</p>}
-        </div>
-      </Pane>
-
-      <Pane label="Listening" hint="How Cue hears the call. Browser speech uses your mic; typed only means you enter what was said." scroll={false} className="web-set-grid__capture">
-        <div className="web-stack">
-          <SegmentedControl<TranscriberKind>
-            label="Transcriber"
-            showLabel
-            options={[
-              { value: 'webspeech', label: 'Browser speech' },
-              { value: 'typed', label: 'Typed only' },
-            ]}
-            value={s.transcriber}
-            onChange={(transcriber) => updateSettings({ transcriber })}
-          />
-          <Switch label="Show how each line was made" description="Adds who wrote it (Mubit or the playbook rules), how long it took and the Mubit request id under each line." checked={s.debug} onCheckedChange={(debug) => updateSettings({ debug })} />
-          <Switch label="Show the Live tips again" description="The short how-it-works note on the Live screen." checked={!s.seenLiveHint} onCheckedChange={(on) => updateSettings({ seenLiveHint: !on })} />
-        </div>
-      </Pane>
-
-      <Trellus />
-
-      <Pane
-        label="Data and privacy"
-        hint="Which server Cue talks to and which add-ons it has switched on."
-        scroll={false}
-        className="web-set-grid__data"
-        actions={
-          <Chip size="sm" tone={health.data?.ok ? 'ok' : health.loading ? 'neutral' : 'bad'} icon={health.data?.ok ? 'check' : health.loading ? 'dot' : 'wifi-off'}>
-            {health.data?.ok ? `Connected · v${health.data.version}` : health.loading ? 'Checking…' : 'Not reachable'}
-          </Chip>
-        }
-        footer={
-          <ActionBar end={<a className="cue-btn cue-btn--ghost cue-btn--md" href={getApi().exportUrl()} download>Export calls (JSONL)</a>}>
-            <Button type="submit" form="set-server" variant="primary">
-              Save
-            </Button>
-          </ActionBar>
-        }
+              </ul>
+              <p className="cue-hint web-pad web-pad--tight">Everything here stays in this browser, except the Trellus key and the disposition map, which live on the server.</p>
+            </Pane>
+          ),
+        }}
       >
-        <form id="set-server" className="web-stack" onSubmit={saveServer} aria-label="Server">
-          <p className="web-muted web-small">Everything on this page stays in this browser, except the Trellus key and the disposition map, which live on the server. Provider keys never reach the browser.</p>
-          <div className="web-grid-2">
-            <TextField label="Server URL" value={server} onChange={(e) => setServer(e.target.value)} placeholder="Same origin" hint="Leave empty to use this site's /api (the dev server proxies it)." inputMode="url" autoComplete="off" />
-            <TextField label="Access token" optional type="password" value={token} onChange={(e) => setToken(e.target.value)} hint="Sent as x-cue-token when the server asks for one." autoComplete="off" />
-          </div>
-          {health.data && (
-            <KeyValue
-              items={[
-                { label: 'Mubit (AI)', value: health.data.mubit.configured ? 'On' : 'Off: lines come straight from the playbook' },
-                { label: 'Sapling (tone)', value: health.data.sapling.configured ? 'On' : 'Off' },
-                { label: 'Exa (web research)', value: health.data.exa.configured ? 'On' : 'Off' },
-                ...(health.data.valyu ? [{ label: 'Valyu (web research)', value: health.data.valyu.configured ? 'On' : 'Off' }] : []),
-                { label: 'Calls stored', value: <span className="cue-num">{health.data.store.calls}</span> },
-              ]}
-            />
+        <Pane
+          paneId="settings"
+          label="Settings"
+          foldable={false}
+          focusable={false}
+          pad="none"
+          tabs={SECTIONS.map((x) => ({ id: x.id, label: x.label }))}
+          tab={section}
+          onTab={(t) => setSection(t as Section)}
+          actions={section === 'trellus' ? trellusChip : section === 'data' ? healthChip : undefined}
+          footer={
+            section === 'data' ? (
+              <ActionBar end={<a className="cue-btn cue-btn--ghost cue-btn--md" href={getApi().exportUrl()} download>Export calls (JSONL)</a>}>
+                <Button type="submit" form="set-server" variant="primary">
+                  Save
+                </Button>
+              </ActionBar>
+            ) : undefined
+          }
+        >
+          {section === 'you' ? (
+            <div className="web-set-body" aria-label="You and appearance">
+              <Hint>Your name marks the calls you make, so Team can show your own numbers.</Hint>
+              <TextField
+                label="Your name"
+                value={s.repName}
+                onChange={(e) => updateSettings({ repName: e.target.value, repId: repIdFor(e.target.value) })}
+                maxLength={120}
+                autoComplete="name"
+                hint={s.repId ? undefined : 'Add your name to see your own numbers on Team.'}
+                id="settings-rep-name"
+              />
+              {members.length > 0 && (
+                <label className="web-select">
+                  <span className="cue-field__label">Or pick yourself from the team</span>
+                  <select
+                    className="web-input"
+                    value={members.some((m) => m.rep.id === s.repId) ? s.repId : ''}
+                    onChange={(e) => {
+                      const m = members.find((x) => x.rep.id === e.target.value);
+                      if (m) updateSettings({ repId: m.rep.id, repName: m.rep.name });
+                    }}
+                  >
+                    <option value="">Someone new</option>
+                    {members.map((m) => (
+                      <option key={m.rep.id} value={m.rep.id}>
+                        {m.rep.name || m.rep.id}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <SegmentedControl<Direction>
+                label="Look"
+                showLabel
+                options={[
+                  { value: 'honey', label: 'Honey' },
+                  { value: 'night', label: 'Night Shift' },
+                  { value: 'signal', label: 'Signal' },
+                ]}
+                value={s.direction}
+                onChange={(direction) => updateSettings({ direction })}
+              />
+              <div className="web-grid-2">
+                <SegmentedControl<ThemePref>
+                  label="Light or dark"
+                  showLabel
+                  options={[
+                    { value: 'system', label: 'System' },
+                    { value: 'light', label: 'Light' },
+                    { value: 'dark', label: 'Dark' },
+                  ]}
+                  value={s.theme}
+                  onChange={(theme) => updateSettings({ theme })}
+                />
+                <SegmentedControl<Density>
+                  label="Spacing"
+                  showLabel
+                  options={[
+                    { value: 'comfortable', label: 'Comfortable' },
+                    { value: 'compact', label: 'Compact' },
+                  ]}
+                  value={s.density}
+                  onChange={(density) => updateSettings({ density })}
+                />
+              </div>
+              {s.direction === 'night' && <p className="web-muted web-small">Night Shift is always dark.</p>}
+            </div>
+          ) : section === 'listening' ? (
+            <div className="web-set-body" aria-label="Listening">
+              <Hint>Browser speech uses your mic; typed only means you enter what was said.</Hint>
+              <SegmentedControl<TranscriberKind>
+                label="Transcriber"
+                showLabel
+                options={[
+                  { value: 'webspeech', label: 'Browser speech' },
+                  { value: 'typed', label: 'Typed only' },
+                ]}
+                value={s.transcriber}
+                onChange={(transcriber) => updateSettings({ transcriber })}
+              />
+              <Switch label="Show how each line was made" description="Adds who wrote it (Mubit or the playbook rules), how long it took and the Mubit request id under each line." checked={s.debug} onCheckedChange={(debug) => updateSettings({ debug })} />
+              <Switch label="Show the Live tips again" description="The short how-it-works note on the Live screen." checked={!s.seenLiveHint} onCheckedChange={(on) => updateSettings({ seenLiveHint: !on })} />
+            </div>
+          ) : section === 'trellus' ? (
+            <Trellus status={trellus} />
+          ) : (
+            <form id="set-server" className="web-set-body" onSubmit={saveServer} aria-label="Server">
+              <Hint>Which server Cue talks to and which add-ons it has switched on. Provider keys never reach the browser.</Hint>
+              <div className="web-grid-2">
+                <TextField label="Server URL" value={server} onChange={(e) => setServer(e.target.value)} placeholder="Same origin" hint="Leave empty to use this site's /api (the dev server proxies it)." inputMode="url" autoComplete="off" />
+                <TextField label="Access token" optional type="password" value={token} onChange={(e) => setToken(e.target.value)} hint="Sent as x-cue-token when the server asks for one." autoComplete="off" />
+              </div>
+              {health.data && (
+                <KeyValue
+                  items={[
+                    { label: 'Mubit (AI)', value: health.data.mubit.configured ? 'On' : 'Off: lines come straight from the playbook' },
+                    { label: 'Sapling (tone)', value: health.data.sapling.configured ? 'On' : 'Off' },
+                    { label: 'Exa (web research)', value: health.data.exa.configured ? 'On' : 'Off' },
+                    ...(health.data.valyu ? [{ label: 'Valyu (web research)', value: health.data.valyu.configured ? 'On' : 'Off' }] : []),
+                    { label: 'Calls stored', value: <span className="cue-num">{health.data.store.calls}</span> },
+                  ]}
+                />
+              )}
+            </form>
           )}
-        </form>
-      </Pane>
+        </Pane>
+      </Workspace>
     </div>
   );
 }
 
-function Trellus() {
-  const status = useResource((signal) => getApi().trellusStatus({ signal }), []);
+const firstWord = (name: string) => name.trim().split(/\s+/)[0] ?? name;
+
+function Trellus({ status }: { status: Resource<TrellusStatusResponse> }) {
   const [key, setKey] = useState('');
   const [team, setTeam] = useState('');
   const [busy, setBusy] = useState<'key' | 'sync' | null>(null);
@@ -191,18 +254,8 @@ function Trellus() {
   };
 
   return (
-    <Pane
-      label="Trellus"
-      hint="Trellus is the dialer. Connect it and Cue picks up each call's outcome on its own."
-      scroll={false}
-      pad="none"
-      className="web-set-grid__trellus"
-      actions={
-        <Chip size="sm" tone={st?.configured ? (st.reachable === false ? 'bad' : 'ok') : 'neutral'}>
-          {!st ? 'Checking…' : st.configured ? (st.reachable === false ? 'Not reachable' : 'Connected') : 'Trellus not connected'}
-        </Chip>
-      }
-    >
+    <div aria-label="Trellus" className="web-set-sections">
+      <p className="cue-hint web-pad web-pad--tight">Trellus is the dialer. Connect it and Cue picks up each call&rsquo;s outcome on its own.</p>
       <PaneSection label="Connection">
         <div className="web-stack">
           <p className="web-muted web-small">
@@ -227,7 +280,7 @@ function Trellus() {
         </div>
       </PaneSection>
       <Dispositions />
-    </Pane>
+    </div>
   );
 }
 

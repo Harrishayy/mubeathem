@@ -64,8 +64,8 @@ test('history: filters by rep from the URL and shows what went well', async ({ p
 
   await settings(page, {});
   await page.goto(`/#/history?rep=${rep}&outcome=meeting_booked`);
-  await expect(page.getByRole('combobox', { name: 'Rep' })).toHaveValue(rep);
-  await expect(page.getByRole('combobox', { name: 'Outcome' })).toHaveValue('meeting_booked');
+  await expect(page.getByRole('group', { name: 'Rep' }).getByRole('radio', { name: new RegExp(`^Hana ${tag()}`) })).toBeChecked();
+  await expect(page.getByRole('group', { name: 'Outcome' }).getByRole('radio', { name: 'Meeting booked' })).toBeChecked();
   const table = page.getByRole('region', { name: 'Past calls' });
   await expect(table.getByText(prospect)).toBeVisible();
   await expect(table.locator('tbody tr')).toHaveCount(1);
@@ -75,7 +75,7 @@ test('history: filters by rep from the URL and shows what went well', async ({ p
   await noOverflow(page, 'history filtered');
 
   // A filter that matches nothing says so and can be cleared back to the URL without filters.
-  await page.getByRole('combobox', { name: 'Outcome' }).selectOption('no_answer');
+  await page.getByRole('group', { name: 'Outcome' }).getByRole('radio', { name: 'No answer' }).check();
   await expect(page).toHaveURL(/outcome=no_answer/);
   await expect(page.getByText('No calls match these filters')).toBeVisible();
   await page.getByRole('button', { name: 'Clear filters' }).first().click();
@@ -94,8 +94,8 @@ test('team: You and Team views, empty state and leaderboard', async ({ page, req
   const v = await (await request.post('/api/calls', { data: { source: 'cue', prospect: { name: 'Ola Berg', title: 'CEO', company: 'Berg AB', facts: {} }, rep: { id: rep, name: me } } })).json();
   await request.post(`/api/calls/${v.id}/end`, { data: { outcome: 'meeting_booked' } });
   await page.reload();
-  await expect(page.getByText('Your booking rate')).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Your trend' })).toBeVisible();
+  await expect(page.getByText('Booking rate', { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Weekly trend' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Coaching' })).toBeVisible();
   await noOverflow(page, 'team you');
 
@@ -104,7 +104,9 @@ test('team: You and Team views, empty state and leaderboard', async ({ page, req
   const board = page.getByRole('region', { name: 'Team leaderboard' });
   await expect(board.getByText(me).first()).toBeVisible();
   await noOverflow(page, 'team board');
+  // Picking a rep opens them in the drawer; their calls are one link away.
   await board.getByText(me).first().click();
+  await page.getByRole('complementary', { name: 'Rep' }).getByRole('link', { name: /in History/ }).click();
   await expect(page).toHaveURL(new RegExp(`#/history\\?rep=${rep}`));
 });
 

@@ -1,5 +1,5 @@
 import { OUTCOMES, OUTCOME_LABEL, formatDuration, type CallListQuery, type CallSummary, type CallView, type SuggestionAction } from '@cue/core';
-import { ActionBar, Button, Chip, DataTable, EmptyState, ErrorState, KeyValue, MomentChip, Pane, PaneSection, Skeleton, Sprout, type ChipTone, type Column } from '@cue/ui';
+import { ActionBar, Button, Chip, DataTable, EmptyState, ErrorState, KeyValue, MomentChip, Pane, PaneSection, Skeleton, Sprout, Toolbar, Workspace, type ChipTone, type Column } from '@cue/ui';
 import { useEffect, useState } from 'react';
 import { useMedia } from '../hooks/useMedia';
 import { useResource } from '../hooks/useResource';
@@ -8,8 +8,11 @@ import { getApi } from '../state/api';
 import { openDebrief, toast } from '../state/ui';
 import { useDebounced } from '../hooks/useDebounced';
 import { reducedMotion } from '../lib/motion';
+import '../styles/screens/history.css';
 
 const DATE = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+/** Short and fixed-width for the table: "Oct 24 14:05". */
+const WHEN = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 export function callStatus(c: { status: CallSummary['status']; outcome: string | null }): { label: string; tone: ChipTone } {
   if (c.status === 'live') return { label: 'Live', tone: 'warn' };
@@ -115,6 +118,11 @@ export function History() {
     }
   };
 
+  const clear = () => {
+    setText('');
+    replaceHash(hrefFor({ name: 'history' }));
+  };
+
   const allColumns: Column<CallSummary>[] = [
     {
       key: 'prospect',
@@ -127,11 +135,12 @@ export function History() {
         </span>
       ),
     },
-    { key: 'rep', header: 'Rep', width: '130px', render: (c) => <span className="web-small">{c.rep?.name || <span className="web-muted">—</span>}</span> },
+    { key: 'rep', header: 'Rep', width: '120px', className: 'web-nowrap', render: (c) => <span className="web-small">{c.rep?.name || <span className="web-muted">—</span>}</span> },
     {
       key: 'outcome',
       header: 'Outcome',
-      width: '170px',
+      width: '184px',
+      className: 'web-nowrap',
       render: (c) => {
         const st = callStatus(c);
         return (
@@ -141,74 +150,110 @@ export function History() {
         );
       },
     },
-    { key: 'rating', header: 'Rating', width: '68px', mono: true, align: 'end', render: (c) => (c.rating != null ? `${c.rating}/5` : <span className="web-muted">—</span>) },
-    { key: 'used', header: 'Used', width: '64px', mono: true, align: 'end', render: (c) => `${c.used}/${c.suggestions}` },
-    { key: 'date', header: 'When', width: '150px', mono: true, render: (c) => <time dateTime={new Date(c.startedAt).toISOString()}>{DATE.format(c.startedAt)}</time> },
+    { key: 'rating', header: 'Rating', width: '64px', mono: true, align: 'end', render: (c) => (c.rating != null ? `${c.rating}/5` : <span className="web-muted">—</span>) },
+    { key: 'used', header: 'Used', width: '60px', mono: true, align: 'end', render: (c) => `${c.used}/${c.suggestions}` },
+    { key: 'date', header: 'When', width: '112px', mono: true, render: (c) => <time dateTime={new Date(c.startedAt).toISOString()}>{WHEN.format(c.startedAt)}</time> },
   ];
   const columns = narrow ? allColumns.filter((c) => c.key === 'prospect' || c.key === 'outcome').map((c) => (c.key === 'outcome' ? { ...c, width: undefined } : c)) : allColumns;
+  const totalCalls = team.data?.totals?.calls;
+  const railSummary = filtered ? [repName, outcome ? (outcome === 'none' ? 'no outcome' : OUTCOME_LABEL[outcome].toLowerCase()) : null, range !== 'all' ? RANGES.find((r) => r.value === range)!.label.toLowerCase() : null, onlyDebriefed ? 'debriefed' : null, hq.contact ? 'one contact' : null].filter(Boolean).join(' · ') || 'search' : 'all calls';
 
   return (
-    <div className="web-hist">
+    <div className="web-screen">
       <h1 className="web-sr">Past calls</h1>
-      <div className="web-filterbar" role="search" aria-label="Filter calls">
-        <label className="web-filterbar__field">
-          <span className="cue-label">Rep</span>
-          <select className="web-input web-input--sm" value={rep} onChange={(e) => setFilter({ rep: e.target.value || undefined })} aria-label="Rep">
-            <option value="">Everyone</option>
-            {rep && !members.some((m) => m.rep.id === rep) && <option value={rep}>{rep}</option>}
-            {members.map((m) => (
-              <option key={m.rep.id} value={m.rep.id}>
-                {m.rep.name || m.rep.id}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="web-filterbar__field">
-          <span className="cue-label">Outcome</span>
-          <select className="web-input web-input--sm" value={outcome ?? ''} onChange={(e) => setFilter({ outcome: e.target.value || undefined })} aria-label="Outcome">
-            <option value="">Any outcome</option>
-            {OUTCOME_FILTERS.map((o) => (
-              <option key={o} value={o}>
-                {o === 'none' ? 'No outcome yet' : OUTCOME_LABEL[o]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="web-filterbar__field">
-          <span className="cue-label" id="hist-range">When</span>
-          <span className="cue-filter" role="group" aria-labelledby="hist-range">
-            {RANGES.map((r) => (
-              <button key={r.value} type="button" aria-pressed={range === r.value} onClick={() => setFilter({ range: r.value === 'all' ? undefined : r.value })}>
-                {r.label}
-              </button>
-            ))}
-          </span>
-        </span>
-        <label className="web-filterbar__field web-filterbar__search">
-          <span className="cue-label">Search</span>
+      <Toolbar label="Search calls">
+        <label className="web-hist-search" role="search">
+          <span className="web-sr">Search calls</span>
           <input type="search" className="web-input web-input--sm" value={text} onChange={(e) => setText(e.target.value)} placeholder="Prospect, company or rep" aria-label="Search calls" autoComplete="off" />
         </label>
-        <span className="web-filterbar__field">
-          <span className="cue-filter" role="group" aria-label="Debriefed">
-            <button type="button" aria-pressed={onlyDebriefed} onClick={() => setFilter({ debriefed: onlyDebriefed ? undefined : '1' })}>
-              Debriefed only
-            </button>
-          </span>
-        </span>
-        {hq.contact && <span className="cue-label">One contact's calls</span>}
         {filtered && (
-          <Button size="sm" variant="ghost" icon="close" onClick={() => { setText(''); replaceHash(hrefFor({ name: 'history' })); }}>
+          <Button size="sm" variant="ghost" icon="close" onClick={clear}>
             Clear filters
           </Button>
         )}
-      </div>
-      <div className="cue-dash-grid web-hist-grid">
+      </Toolbar>
+      <Workspace
+        storageKey="history"
+        rail={{
+          label: 'Filters',
+          summary: railSummary,
+          children: (
+            <Pane label="Filters" side="rail" pad="none" className="web-hist-rail" hint="Narrow the list. Filters stay in the link, so you can share it.">
+              {hq.contact && (
+                <div className="web-railsec">
+                  <span className="cue-label">One contact&rsquo;s calls</span>
+                  <span className="web-muted web-small">Showing the calls with one saved contact.</span>
+                  <Button size="sm" variant="secondary" onClick={() => setFilter({ contact: undefined })}>
+                    Show everyone
+                  </Button>
+                </div>
+              )}
+              <fieldset className="web-railsec">
+                <legend className="cue-label">Rep</legend>
+                <label className="web-check">
+                  <input type="radio" name="hist-rep" checked={!rep} onChange={() => setFilter({ rep: undefined })} />
+                  Everyone
+                  <span className="cue-pane__meta">{totalCalls ?? ''}</span>
+                </label>
+                {rep && !members.some((m) => m.rep.id === rep) && (
+                  <label className="web-check">
+                    <input type="radio" name="hist-rep" checked readOnly />
+                    {rep}
+                  </label>
+                )}
+                {members.map((m) => (
+                  <label key={m.rep.id} className="web-check">
+                    <input type="radio" name="hist-rep" checked={rep === m.rep.id} onChange={() => setFilter({ rep: m.rep.id })} />
+                    {m.rep.name || m.rep.id}
+                    <span className="cue-pane__meta">{m.calls}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset className="web-railsec">
+                <legend className="cue-label">Outcome</legend>
+                <label className="web-check">
+                  <input type="radio" name="hist-outcome" checked={!outcome} onChange={() => setFilter({ outcome: undefined })} />
+                  Any outcome
+                </label>
+                {OUTCOME_FILTERS.map((o) => (
+                  <label key={o} className="web-check">
+                    <input type="radio" name="hist-outcome" checked={outcome === o} onChange={() => setFilter({ outcome: o })} />
+                    {o === 'none' ? 'No outcome yet' : OUTCOME_LABEL[o]}
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset className="web-railsec">
+                <legend className="cue-label">When</legend>
+                {RANGES.map((r) => (
+                  <label key={r.value} className="web-check">
+                    <input type="radio" name="hist-range" checked={range === r.value} onChange={() => setFilter({ range: r.value === 'all' ? undefined : r.value })} />
+                    {r.label}
+                  </label>
+                ))}
+              </fieldset>
+              <div className="web-railsec">
+                <label className="web-check">
+                  <input type="checkbox" checked={onlyDebriefed} onChange={() => setFilter({ debriefed: onlyDebriefed ? undefined : '1' })} />
+                  Debriefed only
+                </label>
+              </div>
+            </Pane>
+          ),
+        }}
+        drawer={{
+          label: 'Call',
+          summary: current ? who(current.prospect) : undefined,
+          children: <CallDetail call={current} />,
+        }}
+      >
         <Pane
+          paneId="calls"
           label="Calls"
+          focusable={false}
+          foldable={false}
           meta={calls ? `${calls.length}${canMore ? '+' : ''}${repName ? ` · ${repName}` : ''}` : undefined}
-          hint="Every call, newest first. Pick one to see what went well and what didn't; open it to debrief."
+          hint="Newest first. Pick one to see how it went; open it to debrief."
           pad="none"
-          className="web-hist-grid__list"
           footer={
             canMore ? (
               <ActionBar>
@@ -236,10 +281,10 @@ export function History() {
                 setSelected(c.id);
                 if (!matchMedia('(min-width: 1080px)').matches) requestAnimationFrame(() => document.getElementById('history-detail')?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' }));
               }}
-              minWidth={narrow ? 0 : 760}
+              minWidth={narrow ? 0 : 640}
               empty={
                 filtered ? (
-                  <EmptyState compact title="No calls match these filters" action={<Button size="sm" variant="secondary" onClick={() => { setText(''); replaceHash(hrefFor({ name: 'history' })); }}>Clear filters</Button>}>
+                  <EmptyState compact title="No calls match these filters" action={<Button size="sm" variant="secondary" onClick={clear}>Clear filters</Button>}>
                     Try a wider date range or another rep.
                   </EmptyState>
                 ) : (
@@ -251,8 +296,7 @@ export function History() {
             />
           )}
         </Pane>
-        <CallDetail call={current} />
-      </div>
+      </Workspace>
     </div>
   );
 }
@@ -263,7 +307,7 @@ function CallDetail({ call }: { call: CallSummary | null }) {
   const view: CallView | null = res.data && res.data.id === id ? res.data : null;
   if (!call) {
     return (
-      <Pane label="Call" as="aside" className="web-hist-grid__detail">
+      <Pane label="Call" as="aside" side="drawer">
         <EmptyState compact title="No call selected">
           Pick a call to see Cue&rsquo;s review, what went well and what didn&rsquo;t.
         </EmptyState>
@@ -281,8 +325,8 @@ function CallDetail({ call }: { call: CallSummary | null }) {
       label="Call"
       id="history-detail"
       as="aside"
+      side="drawer"
       pad="none"
-      className="web-hist-grid__detail"
       actions={
         <Chip size="sm" tone={st.tone}>
           {st.label}

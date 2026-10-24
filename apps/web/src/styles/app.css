@@ -185,7 +185,7 @@ select.web-input { appearance: auto; }
 [data-dir='night'] .web-pb-queue td:last-child { background: var(--surface); }
 [data-dir='night'] .web-pb-queue tr.is-selected td:last-child { background: linear-gradient(var(--row-on), var(--row-on)), var(--surface); }
 /* Just learned: a pane above the grid after a review. */
-.web-learned { flex: none; margin: 8px 8px 0; border-color: color-mix(in oklab, var(--ok) 45%, var(--pane-line)); }
+.web-learned { border-color: color-mix(in oklab, var(--ok) 45%, var(--pane-line)); }
 .web-learned h2 { margin: 0; }
 .web-learned__list { display: grid; max-height: 24vh; overflow: auto; overscroll-behavior: contain; padding: 0 14px; }
 .web-learned__item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 0; border-bottom: 1px solid var(--line); min-width: 0; }
@@ -195,19 +195,12 @@ select.web-input { appearance: auto; }
 @media (max-width: 1079.98px) { .web-learned__list { max-height: none; } }
 
 /* Model */
-.web-model-grid { --dash-cols: minmax(0, 1fr) minmax(300px, 26vw); --dash-rows: minmax(0, 1.4fr) minmax(170px, 1fr); }
-.web-model-grid__tasks { grid-column: 1; grid-row: 1; }
-.web-model-grid__record { grid-column: 2; grid-row: 1 / -1; }
-.web-model-grid__reqs { grid-column: 1; grid-row: 2; }
 .web-model-note { margin: 0; padding: 10px 14px; }
 .web-note.web-model-note { margin: 10px 14px 0; padding: var(--space-2) var(--space-3); }
-.web-model-task { display: grid; gap: 2px; min-width: 0; }
-.web-model-task__id { font-family: var(--font-mono); font-size: 13px; font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
 .web-record { display: grid; }
 .web-record__item { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 3px 10px; align-items: baseline; padding: 11px 16px; border-bottom: 1px solid var(--line); }
 .web-record__field { font-family: var(--font-mono); font-size: 12px; font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
 .web-record__what { grid-column: 2; font-size: var(--text-caption); color: var(--ink-2); overflow-wrap: anywhere; }
-.web-model-grid code { overflow-wrap: anywhere; }
 
 /* History */
 .web-hist-grid { --dash-cols: minmax(0, 1fr) minmax(320px, 30vw); }
@@ -322,7 +315,6 @@ select.web-input { appearance: auto; }
 .web-wins > .cue-pane-sec { border-top: 0; box-shadow: 1px 0 0 var(--line), 0 1px 0 var(--line); min-width: 0; }
 
 /* Team */
-.web-team { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .web-themes { display: grid; gap: 0; }
 .web-themes__item { display: flex; align-items: baseline; gap: 10px; padding: 8px 0 8px 16px; border-bottom: 1px solid var(--line); position: relative; font-size: var(--text-small); min-width: 0; }
 .web-themes__item:last-child { border-bottom: 0; }
@@ -353,3 +345,26 @@ select.web-input { appearance: auto; }
 .web-trend__key.is-you { background: var(--accent-text); }
 .web-trend__key.is-team { background: var(--line-strong); }
 @media (prefers-reduced-motion: reduce) { .web-trend__bar { transition: none; } }
+
+/* ── Workspace screens (rail · centre · drawer) ── */
+.web-screen { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.web-railsec { display: grid; gap: 6px; margin: 0; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.web-railsec > legend { padding: 0; margin-bottom: 6px; float: left; width: 100%; }
+.web-railsec .cue-btn { justify-self: start; }
+.web-check { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: var(--text-small); min-width: 0; cursor: pointer; overflow-wrap: anywhere; }
+.web-check input { width: 16px; height: 16px; margin: 0; flex: none; accent-color: var(--band); }
+.web-check .cue-pane__meta { margin-inline-start: auto; }
+.web-split { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.web-split__top, .web-split__bottom { flex: 1 1 0; min-height: 0; overflow: auto; }
+.web-split__bottom { border-top: 1px solid var(--pane-line); }
+.web-pad--tight { padding: 10px 14px 4px; }
+.web-json--inset { margin: 0 14px 12px; }
+.web-job { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.web-nowrap { white-space: nowrap; }
+.web-kv-inset { padding: 0 14px; }
+.web-kv-inset .cue-num { font-size: var(--text-caption); }
+.web-job__name { font-weight: var(--weight-semibold); white-space: nowrap; }
+@media (max-width: 1079.98px) {
+  .web-split { height: auto; }
+  .web-split__top, .web-split__bottom { flex: none; max-height: 60vh; }
+}

@@ -33,7 +33,7 @@ const TITLES: Record<string, string> = {
 };
 
 /** Screens laid out as fixed-height dashboards on laptops (panes scroll inside themselves). */
-const FIT = new Set(['live', 'contacts', 'history']);
+const FIT = new Set(['live', 'contacts', 'history', 'team', 'playbook', 'model', 'insights', 'settings']);
 
 export function App() {
   const route = useRoute();

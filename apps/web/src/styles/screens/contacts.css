@@ -1,0 +1,4 @@
+/* Contacts: search, owner and the add/import actions in the toolbar; the table in the centre; the contact in the drawer. */
+.web-contacts-search { display: flex; flex: 0 1 380px; min-width: 0; }
+.web-contacts-search .web-input { width: 100%; }
+@media (max-width: 720px) { .web-contacts-search { flex: 1 1 100%; } }

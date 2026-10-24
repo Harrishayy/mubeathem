@@ -1,0 +1,24 @@
+/* ── Team (workspace: people · numbers · calls) ── */
+.web-team-note { margin: 0; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.web-team-who { font-weight: var(--weight-semibold); white-space: nowrap; }
+.web-team-name { font-weight: var(--weight-semibold); font-size: var(--text-body, 15px); overflow-wrap: anywhere; }
+.web-team-rep .cue-index__sub { white-space: nowrap; }
+.web-team-themes { padding: 0 14px; }
+.web-team-call__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding-bottom: 8px; }
+.web-team-call__summary { margin: 8px 14px 4px; font-size: var(--text-small); line-height: 1.45; color: var(--ink-2); overflow-wrap: anywhere; }
+
+/* The weekly trend fills its pane: two charts side by side, sized to the pane, not the window. */
+.web-team-trend { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
+.web-team-trend .web-trend__charts { flex: 1 1 auto; min-height: 120px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.web-team-trend .web-trend { grid-template-rows: auto minmax(0, 1fr); }
+.web-team-trend .web-trend__cols { height: auto; min-height: 100px; }
+.web-team-trend .web-trend__wk { white-space: nowrap; overflow-wrap: normal; }
+@media (max-width: 1079.98px) {
+  .web-team-trend { height: auto; }
+  .web-team-trend .web-trend__charts { grid-template-columns: minmax(0, 1fr); }
+  .web-team-trend .web-trend__cols { height: 180px; }
+}
+
+/* Five figures fit across the centre at 1280 px with the rail and drawer open. */
+.web-team .cue-table th, .web-team .cue-table td { padding-inline: 8px; }
+.web-team .cue-table th:first-child, .web-team .cue-table td:first-child { padding-inline-start: 14px; }

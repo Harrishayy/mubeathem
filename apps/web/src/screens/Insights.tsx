@@ -1,9 +1,6 @@
 import { MOMENT_META, formatPercent, type InsightsResponse, type MubitTraceSummary, type TaskId, type TraceRange } from '@cue/core';
 import {
-  ActionBar,
   Bar,
-  Board,
-  BoardSection,
   Button,
   Chip,
   DataTable,
@@ -14,12 +11,12 @@ import {
   KpiStrip,
   MomentChip,
   Pane,
-  PaneSection,
-  Screen,
-  SectionNav,
   Skeleton,
   Sprout,
+  StatGrid,
+  TASK_LABEL,
   Toolbar,
+  Workspace,
   formatMs,
   formatUsd,
   type Column,
@@ -35,23 +32,34 @@ const RANGES: { value: TraceRange; label: string }[] = [
   { value: 'all', label: 'All' },
 ];
 
-const TIME = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 const BUCKET_TIME = { hour: new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }), day: new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }) };
+const TASKS: TaskId[] = ['read_moment', 'write_line', 'check_claim', 'research_brief', 'review_call', 'simulate_prospect'];
+
+type OutcomeTab = 'moment' | 'lines' | 'who';
+type JobsTab = 'jobs' | 'activity';
 
 /**
- * Insights over every Mubit trace and every call outcome: what books meetings (cues used vs not, per
- * moment, top lines), how each Mubit task is running, and the raw traces with their full input and
- * output, exportable as JSONL, OpenAI fine-tune rows or a Langfuse batch.
+ * Insights over every Mubit trace and every call outcome. Rail: which requests to list and the
+ * exports. Centre: headline numbers, what books meetings (by moment, top lines, who wrote them) and
+ * the AI jobs. Drawer: the requests, newest first, with the chosen one in full.
  */
 export function Insights() {
   const [range, setRange] = useState<TraceRange>('7d');
+  const [task, setTask] = useState<TaskId | 'all'>('all');
+  const [failed, setFailed] = useState(false);
+  const [outTab, setOutTab] = useState<OutcomeTab>('moment');
+  const [jobsTab, setJobsTab] = useState<JobsTab>('jobs');
   const insights = useResource((signal) => getApi().insights(range, { signal }), [range], 30_000);
   const d = insights.data;
+  const rangeWords = RANGES.find((r) => r.value === range)!.label.toLowerCase();
+  const api = getApi();
+  const exportHref = (format: 'jsonl' | 'openai' | 'langfuse') => api.traceExportUrl({ format, range, ...(task === 'all' ? {} : { task }) });
 
   return (
-    <div className="web-insights">
+    <div className="web-screen">
       <h1 className="web-sr">Insights</h1>
-      <Toolbar label="Insights">
+      <Toolbar label="Insights range">
         <span className="cue-label">Range</span>
         <span className="cue-filter" role="group" aria-label="Range">
           {RANGES.map((r) => (
@@ -61,36 +69,71 @@ export function Insights() {
           ))}
         </span>
         {d && <span className="cue-pane__meta">{`${BUCKET_TIME.day.format(d.since)} → ${BUCKET_TIME.day.format(d.until)}`}</span>}
-        <span className="web-toolbar__end">
-          <SectionNav
-            links={[
-              { id: 'ins-outcomes', label: 'What books meetings' },
-              { id: 'ins-jobs', label: 'AI jobs' },
-              { id: 'ins-requests', label: 'Requests' },
-            ]}
-          />
-        </span>
       </Toolbar>
-      {insights.error && !d ? (
-        <Board>
+      <Workspace
+        storageKey="insights"
+        rail={{
+          label: 'Filters',
+          summary: task === 'all' && !failed ? 'all requests' : [task === 'all' ? null : TASK_LABEL[task], failed ? 'failed only' : null].filter(Boolean).join(', '),
+          children: (
+            <Pane label="Filters" side="rail" pad="none" hint="Which requests the drawer lists, and what the exports contain.">
+              <fieldset className="web-railsec">
+                <legend className="cue-label">AI job</legend>
+                <label className="web-check">
+                  <input type="radio" name="ins-task" checked={task === 'all'} onChange={() => setTask('all')} />
+                  All AI jobs
+                </label>
+                {TASKS.map((t) => (
+                  <label key={t} className="web-check">
+                    <input type="radio" name="ins-task" checked={task === t} onChange={() => setTask(t)} />
+                    {TASK_LABEL[t]}
+                    <span className="cue-pane__meta">{d?.tasks.find((x) => x.task === t)?.calls ?? ''}</span>
+                  </label>
+                ))}
+              </fieldset>
+              <fieldset className="web-railsec">
+                <legend className="cue-label">Result</legend>
+                <label className="web-check">
+                  <input type="radio" name="ins-res" checked={!failed} onChange={() => setFailed(false)} />
+                  Everything
+                </label>
+                <label className="web-check">
+                  <input type="radio" name="ins-res" checked={failed} onChange={() => setFailed(true)} />
+                  Failed only
+                </label>
+              </fieldset>
+              <div className="web-railsec">
+                <span className="cue-label">{`Export ${rangeWords}`}</span>
+                <span className="web-muted web-small">Every request with its input and output, for training or analysis.</span>
+                <a className="cue-btn cue-btn--secondary cue-btn--sm" href={exportHref('jsonl')} download>
+                  JSONL
+                </a>
+                <a className="cue-btn cue-btn--secondary cue-btn--sm" href={exportHref('openai')} download>
+                  OpenAI fine-tune
+                </a>
+                <a className="cue-btn cue-btn--secondary cue-btn--sm" href={exportHref('langfuse')} download>
+                  Langfuse
+                </a>
+              </div>
+            </Pane>
+          ),
+        }}
+        drawer={{
+          label: 'Requests',
+          summary: failed ? 'failed only' : 'newest first',
+          children: <Requests task={task} failed={failed} />,
+        }}
+      >
+        {insights.error && !d ? (
           <ErrorState title="Can't load insights" message={insights.error.message} onRetry={insights.reload} />
-        </Board>
-      ) : (
-        <Board>
-          <Headline d={d} />
-          <BoardSection id="ins-outcomes" title="What books meetings" hint="Which suggestions turn into meetings: calls where a line was used against calls where none was, each moment, and the lines that book.">
-            <Outcomes d={d} />
-          </BoardSection>
-          <BoardSection id="ins-jobs" title="AI jobs" hint="Each job Cue runs through Mubit: how many requests, how fast, what it cost and any errors.">
-            <Tasks d={d} />
-          </BoardSection>
-          <BoardSection id="ins-requests" title="Requests" hint="Every AI request, newest first. Pick one to see exactly what went in and what came back.">
-            <Screen cols="minmax(0, 1.5fr) minmax(340px, 1fr)">
-              <Traces range={range} />
-            </Screen>
-          </BoardSection>
-        </Board>
-      )}
+        ) : (
+          <>
+            <Headline d={d} />
+            <Outcomes d={d} tab={outTab} onTab={setOutTab} />
+            <Jobs d={d} tab={jobsTab} onTab={setJobsTab} />
+          </>
+        )}
+      </Workspace>
     </div>
   );
 }
@@ -99,8 +142,8 @@ function Headline({ d }: { d: InsightsResponse | null }) {
   if (!d) {
     return (
       <KpiStrip>
-        {['Mubit calls', 'Succeeded', 'Spend', 'Booking rate', 'Time to a suggestion'].map((l) => (
-          <Kpi key={l} label={l} value={<Skeleton width="60%" height={26} />} />
+        {['Mubit calls', 'Succeeded', 'Spend', 'Booking rate', 'To a suggestion'].map((l) => (
+          <Kpi key={l} label={l} value={<Skeleton width="60%" height={24} />} />
         ))}
       </KpiStrip>
     );
@@ -108,97 +151,94 @@ function Headline({ d }: { d: InsightsResponse | null }) {
   const o = d.outcomes;
   const lift = o.cueUsage.used.calls > 0 && o.cueUsage.notUsed.calls > 0 ? o.cueUsage.used.bookingRate - o.cueUsage.notUsed.bookingRate : null;
   return (
-    <KpiStrip>
-      <Kpi label="Mubit calls" value={d.totals.calls.toLocaleString()} note={`AI requests · ${(d.totals.inputTokens + d.totals.outputTokens).toLocaleString()} tokens`} />
-      <Kpi label="Succeeded" value={d.totals.calls ? formatPercent(d.totals.ok / d.totals.calls) : '—'} tone={d.totals.calls && d.totals.ok / d.totals.calls < 0.95 ? 'warn' : 'neutral'} note={`${d.totals.calls - d.totals.ok} failed or cancelled (Cue fell back to playbook rules)`} />
-      <Kpi label="Spend" value={formatUsd(d.totals.costUsd)} note="At list price, cheap models only" />
+    <KpiStrip foldId="kpis">
+      <Kpi label="Mubit calls" value={d.totals.calls.toLocaleString()} note={`${compact(d.totals.inputTokens + d.totals.outputTokens)} tokens`} />
+      <Kpi label="Succeeded" value={d.totals.calls ? formatPercent(d.totals.ok / d.totals.calls) : '—'} tone={d.totals.calls && d.totals.ok / d.totals.calls < 0.95 ? 'warn' : 'neutral'} note={`${d.totals.calls - d.totals.ok} fell back to rules`} />
+      <Kpi label="Spend" value={formatUsd(d.totals.costUsd)} note="cheap models only" />
       <Kpi
         label="Booking rate"
         value={o.calls.withOutcome ? formatPercent(o.calls.bookingRate) : '—'}
-        note={lift === null ? `${o.calls.booked} booked of ${o.calls.withOutcome} with an outcome` : `${lift >= 0 ? '+' : '−'}${Math.round(Math.abs(lift) * 100)} pts when a cue was used`}
+        note={lift === null ? `${o.calls.booked} of ${o.calls.withOutcome} calls` : `${lift >= 0 ? '+' : '−'}${Math.round(Math.abs(lift) * 100)} pts with a cue`}
         tone={lift !== null && lift > 0 ? 'ok' : 'neutral'}
       />
-      <Kpi label="Time to a suggestion" value={o.latency.cards ? formatMs(o.latency.p50Ms) : '—'} note={o.latency.cards ? `Typical, from the prospect speaking to a line on screen. Slowest 5%: ${formatMs(o.latency.p95Ms)} over ${o.latency.cards} suggestions` : 'No suggestions yet'} />
+      <Kpi label="To a suggestion" value={o.latency.cards ? formatMs(o.latency.p50Ms) : '—'} note={o.latency.cards ? `slowest 5% ${formatMs(o.latency.p95Ms)}` : 'No suggestions yet'} />
     </KpiStrip>
   );
 }
 
+const compact = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
+
 type MomentRow = InsightsResponse['outcomes']['moments'][number];
 type LineRow = InsightsResponse['outcomes']['topLines'][number];
 
-function Outcomes({ d }: { d: InsightsResponse | null }) {
+const MOMENT_COLS: Column<MomentRow>[] = [
+  { key: 'moment', header: 'Moment', width: '190px', render: (m) => <MomentChip moment={m.moment} size="sm" /> },
+  { key: 'shown', header: 'Shown', width: '80px', mono: true, align: 'end', render: (m) => m.shown },
+  { key: 'used', header: 'Used', render: (m) => <Bar value={m.usedRate} label={formatPercent(m.usedRate)} tone="accent" /> },
+  { key: 'step', header: 'Moved forward', render: (m) => (m.judged ? <Bar value={m.stepWinRate} label={formatPercent(m.stepWinRate)} tone="ok" /> : <span className="web-muted">—</span>) },
+  { key: 'booked', header: 'Booked', width: '90px', mono: true, align: 'end', render: (m) => (m.shown ? formatPercent(m.bookedRate) : '—') },
+];
+
+const LINE_COLS: Column<LineRow>[] = [
+  { key: 'line', header: 'Line', render: (l) => <span className="cue-table__line">{l.text}</span> },
+  { key: 'moment', header: 'Moment', width: '180px', render: (l) => <MomentChip moment={l.moment} size="sm" /> },
+  { key: 'used', header: 'Used', width: '84px', mono: true, align: 'end', render: (l) => `${l.used}/${l.shown}` },
+  { key: 'booked', header: 'Booked', width: '90px', mono: true, align: 'end', render: (l) => l.booked },
+];
+
+function Outcomes({ d, tab, onTab }: { d: InsightsResponse | null; tab: OutcomeTab; onTab: (t: OutcomeTab) => void }) {
   const o = d?.outcomes;
-  const momentCols: Column<MomentRow>[] = [
-    { key: 'moment', header: 'Moment', render: (m) => <MomentChip moment={m.moment} size="sm" /> },
-    { key: 'shown', header: 'Shown', width: '64px', mono: true, render: (m) => m.shown },
-    { key: 'used', header: 'Used', width: '22%', render: (m) => <Bar value={m.usedRate} label={formatPercent(m.usedRate)} tone="accent" /> },
-    { key: 'step', header: 'Moved forward', width: '20%', render: (m) => (m.judged ? <Bar value={m.stepWinRate} label={formatPercent(m.stepWinRate)} tone="ok" /> : <span className="web-muted">—</span>) },
-    { key: 'booked', header: 'Booked', width: '74px', mono: true, render: (m) => (m.shown ? formatPercent(m.bookedRate) : '—') },
-  ];
-  const lineCols: Column<LineRow>[] = [
-    { key: 'line', header: 'Line', render: (l) => <span className="cue-table__line">{l.text}</span> },
-    { key: 'moment', header: 'Moment', width: '130px', render: (l) => <MomentChip moment={l.moment} size="sm" /> },
-    { key: 'used', header: 'Used', width: '84px', mono: true, render: (l) => `${l.used}/${l.shown}` },
-    { key: 'booked', header: 'Booked', width: '74px', mono: true, render: (l) => l.booked },
-  ];
-  if (!o) {
-    return (
-      <Pane label="Loading outcomes" span={12} scroll={false}>
-        <Skeleton lines={6} />
-      </Pane>
-    );
-  }
-  if (o.calls.total === 0) {
-    return (
-      <Pane label="No calls yet" span={12} scroll={false} pad="none">
-        <EmptyState art={<Sprout state="idle" size={64} />} title="No calls in this range">
-          Make a call from Live (or Contacts) and its outcome shows up here. Try a wider range above.
-        </EmptyState>
-      </Pane>
-    );
-  }
+  const best = o?.moments.filter((m) => m.shown > 0).sort((a, b) => b.bookedRate - a.bookedRate)[0];
+  const summary = o
+    ? `${formatPercent(o.cueUsage.used.bookingRate)} booked with a cue, ${formatPercent(o.cueUsage.notUsed.bookingRate)} without${best ? ` · ${MOMENT_META[best.moment].label.toLowerCase()} books ${formatPercent(best.bookedRate)}` : ''}`
+    : undefined;
   return (
-    <>
-      <Pane label="Cues used vs not" meta={`${o.calls.total} calls`} span={5} scroll={false} hint="Booking rate on calls where the rep used at least one suggestion, against calls where they didn't.">
-        <KeyValue
+    <Pane
+      paneId="outcomes"
+      label="What books meetings"
+      grow={1.3}
+      pad="none"
+      summary={summary}
+      tabs={[
+        { id: 'moment', label: 'By moment', count: o?.moments.length },
+        { id: 'lines', label: 'Top lines', count: o?.topLines.length },
+        { id: 'who', label: 'Who wrote them' },
+      ]}
+      tab={tab}
+      onTab={(t) => onTab(t as OutcomeTab)}
+    >
+      {!o ? (
+        <div className="web-pad">
+          <Skeleton lines={6} />
+        </div>
+      ) : o.calls.total === 0 ? (
+        <EmptyState art={<Sprout state="idle" size={64} />} title="No calls in this range">
+          Make a call from Live or Contacts and its outcome shows up here. Try a wider range.
+        </EmptyState>
+      ) : tab === 'moment' ? (
+        <DataTable label="Outcomes by moment" columns={MOMENT_COLS} rows={o.moments} rowKey={(m) => m.moment} rowFamily={(m) => MOMENT_META[m.moment].family} minWidth={640} empty={<p className="web-muted web-pad">No cards shown yet.</p>} />
+      ) : tab === 'lines' ? (
+        <DataTable label="Top lines" columns={LINE_COLS} rows={o.topLines} rowKey={(l) => l.lineId} rowFamily={(l) => MOMENT_META[l.moment].family} minWidth={600} empty={<p className="web-muted web-pad">No lines used yet.</p>} />
+      ) : (
+        <StatGrid
+          columns={2}
           items={[
+            { label: 'Booked when a cue was used', value: formatPercent(o.cueUsage.used.bookingRate), note: `${o.cueUsage.used.calls} calls. Without a cue: ${formatPercent(o.cueUsage.notUsed.bookingRate)} over ${o.cueUsage.notUsed.calls}.` },
             {
-              label: 'Used a cue',
-              value: <Bar value={o.cueUsage.used.bookingRate} tone="ok" label={`${formatPercent(o.cueUsage.used.bookingRate)} booked · ${o.cueUsage.used.calls} ${o.cueUsage.used.calls === 1 ? 'call' : 'calls'}`} />,
+              label: 'Cue helped, by review',
+              value: o.reviews.avgSuggestionImpact !== null ? formatPercent(o.reviews.avgSuggestionImpact) : '—',
+              note: o.reviews.count ? `${o.reviews.count} calls reviewed${o.reviews.avgRating !== null ? ` · reps rated them ${o.reviews.avgRating.toFixed(1)}/5` : ''}` : 'No reviews yet',
             },
-            {
-              label: 'No cue used',
-              value: <Bar value={o.cueUsage.notUsed.bookingRate} tone="ink" label={`${formatPercent(o.cueUsage.notUsed.bookingRate)} booked · ${o.cueUsage.notUsed.calls} ${o.cueUsage.notUsed.calls === 1 ? 'call' : 'calls'}`} />,
-            },
+            { label: 'Lines written by', value: <Mix parts={[['Mubit', o.servedBy.cards.mubit], ['Playbook rules', o.servedBy.cards.rules], ['Saved', o.servedBy.cards.cache]]} />, note: 'Playbook rules write the instant line and cover when Mubit is slow' },
+            { label: 'How lines were written', value: <Mix parts={[['Early guess kept', o.writePath.speculative], ['Rewritten after the read', o.writePath.rewritten], ['Written once', o.writePath.direct]]} />, note: `Moments read by Mubit ${o.servedBy.reads.mubit}, by rules ${o.servedBy.reads.rules}` },
           ]}
         />
-      </Pane>
-      <Pane label="Who wrote the suggestions" span={7} scroll={false} hint="The AI (Mubit), the playbook rules (the instant line, or the fallback), or a line saved from earlier.">
-        <KeyValue
-          items={[
-            { label: 'Lines written by', value: <Mix parts={[['Mubit', o.servedBy.cards.mubit], ['Playbook rules', o.servedBy.cards.rules], ['Saved', o.servedBy.cards.cache]]} /> },
-            { label: 'Moments read by', value: <Mix parts={[['Mubit', o.servedBy.reads.mubit], ['Playbook rules', o.servedBy.reads.rules]]} /> },
-            { label: 'How lines were written', value: <Mix parts={[['Early guess kept', o.writePath.speculative], ['Rewritten after the read', o.writePath.rewritten], ['Written once', o.writePath.direct]]} /> },
-            {
-              label: 'Reviews',
-              value: o.reviews.count
-                ? `${o.reviews.count} reviewed${o.reviews.avgSuggestionImpact !== null ? ` · Cue helped ${formatPercent(o.reviews.avgSuggestionImpact)}` : ''}${o.reviews.avgRating !== null ? ` · rated ${o.reviews.avgRating.toFixed(1)}/5` : ''}`
-                : 'None yet',
-            },
-          ]}
-        />
-      </Pane>
-      <Pane label="By moment" meta={`${o.moments.length}`} span={7} scroll="cap" pad="none" hint="How often a suggestion was used and moved the call forward, by what the prospect had just done.">
-        <DataTable label="Outcomes by moment" columns={momentCols} rows={o.moments} rowKey={(m) => m.moment} rowFamily={(m) => MOMENT_META[m.moment].family} minWidth={520} empty={<p className="web-muted web-pad">No cards shown yet.</p>} />
-      </Pane>
-      <Pane label="Top lines" meta="by booked, then used" span={5} scroll="cap" pad="none" hint="The lines behind the most meetings.">
-        <DataTable label="Top lines" columns={lineCols} rows={o.topLines} rowKey={(l) => l.lineId} rowFamily={(l) => MOMENT_META[l.moment].family} minWidth={420} empty={<p className="web-muted web-pad">No lines used yet.</p>} />
-      </Pane>
-    </>
+      )}
+    </Pane>
   );
 }
 
-/** "Mubit 12 · Rules 2": counts as words, the largest first. */
+/** "Mubit 99% · Rules 1%": shares as words, the largest first. */
 function Mix({ parts }: { parts: [string, number][] }) {
   const total = parts.reduce((n, [, v]) => n + v, 0);
   if (!total) return <span className="web-muted">—</span>;
@@ -209,7 +249,7 @@ function Mix({ parts }: { parts: [string, number][] }) {
         .sort((a, b) => b[1] - a[1])
         .map(([k, v]) => (
           <span key={k}>
-            {k} <span className="cue-num">{v}</span> <span className="web-muted cue-num">({formatPercent(v / total)})</span>
+            {k} <span className="cue-num">{formatPercent(v / total)}</span>
           </span>
         ))}
     </span>
@@ -218,48 +258,68 @@ function Mix({ parts }: { parts: [string, number][] }) {
 
 type TaskRow = InsightsResponse['tasks'][number];
 
-function Tasks({ d }: { d: InsightsResponse | null }) {
-  const cols: Column<TaskRow>[] = [
-    { key: 'task', header: 'AI job', render: (t) => <code className="web-task">{t.task}</code> },
-    { key: 'calls', header: 'Calls', width: '64px', mono: true, render: (t) => t.calls },
-    { key: 'ok', header: 'OK', width: '64px', mono: true, render: (t) => (t.calls ? formatPercent(t.ok / t.calls) : '—') },
-    { key: 'p50', header: 'Typical', width: '76px', mono: true, render: (t) => (t.ok ? formatMs(t.p50Ms) : '—') },
-    { key: 'p95', header: 'Slowest 5%', width: '86px', mono: true, render: (t) => (t.ok ? formatMs(t.p95Ms) : '—') },
-    { key: 'cost', header: 'Cost', width: '80px', mono: true, render: (t) => formatUsd(t.costUsd) },
-    {
-      key: 'errors',
-      header: 'Errors',
-      width: '24%',
-      render: (t) => {
-        const e = Object.entries(t.errorsByCode);
-        return e.length ? (
-          <span className="web-chips">
-            {e.map(([code, n]) => (
-              <Chip key={code} size="sm" tone={code === 'aborted' ? 'neutral' : 'bad'}>{`${code} ${n}`}</Chip>
-            ))}
-          </span>
-        ) : (
-          <span className="web-muted">None</span>
-        );
-      },
+const JOB_COLS: Column<TaskRow>[] = [
+  {
+    key: 'task',
+    header: 'AI job',
+    render: (t) => (
+      <span className="web-job__name" title={t.task}>
+        {TASK_LABEL[t.task]}
+      </span>
+    ),
+  },
+  { key: 'calls', header: 'Calls', width: '80px', mono: true, align: 'end', render: (t) => t.calls },
+  { key: 'ok', header: 'OK', width: '72px', mono: true, align: 'end', render: (t) => (t.calls ? formatPercent(t.ok / t.calls) : '—') },
+  { key: 'p50', header: 'Typical', width: '84px', mono: true, align: 'end', render: (t) => (t.ok ? formatMs(t.p50Ms) : '—') },
+  { key: 'p95', header: 'Slowest 5%', width: '104px', mono: true, align: 'end', render: (t) => (t.ok ? formatMs(t.p95Ms) : '—') },
+  { key: 'cost', header: 'Cost', width: '84px', mono: true, align: 'end', render: (t) => formatUsd(t.costUsd) },
+  {
+    key: 'errors',
+    header: 'Errors',
+    width: '170px',
+    render: (t) => {
+      const e = Object.entries(t.errorsByCode);
+      return e.length ? (
+        <span className="web-chips">
+          {e.map(([code, n]) => (
+            <Chip key={code} size="sm" tone={code === 'aborted' ? 'neutral' : 'bad'}>{`${code === 'aborted' ? 'cancelled' : code} ${n}`}</Chip>
+          ))}
+        </span>
+      ) : (
+        <span className="web-muted">None</span>
+      );
     },
-  ];
-  if (!d) {
-    return (
-      <Pane label="Loading AI jobs" span={12} scroll={false}>
-        <Skeleton lines={6} />
-      </Pane>
-    );
-  }
+  },
+];
+
+function Jobs({ d, tab, onTab }: { d: InsightsResponse | null; tab: JobsTab; onTab: (t: JobsTab) => void }) {
+  const errors = d ? d.tasks.reduce((n, t) => n + Object.entries(t.errorsByCode).reduce((m, [code, c]) => m + (code === 'aborted' ? 0 : c), 0), 0) : 0;
+  const slowest = d?.tasks.filter((t) => t.ok).sort((a, b) => b.p95Ms - a.p95Ms)[0];
   return (
-    <>
-      <Pane label="Activity" meta={`calls per ${d.bucket}`} span={4} scroll={false} hint={`How many AI requests Cue made each ${d.bucket}.`}>
-        <Activity d={d} />
-      </Pane>
-      <Pane label="Mubit tasks" meta={`${d.tasks.length} jobs`} span={8} scroll={false} pad="none">
-        <DataTable label="AI jobs" columns={cols} rows={d.tasks} rowKey={(t) => t.task} minWidth={620} />
-      </Pane>
-    </>
+    <Pane
+      paneId="jobs"
+      label="AI jobs"
+      pad="none"
+      summary={d ? `${errors} errors · slowest ${slowest ? `${TASK_LABEL[slowest.task].toLowerCase()} ${formatMs(slowest.p95Ms)}` : '—'} · ${formatUsd(d.totals.costUsd)}` : undefined}
+      tabs={[
+        { id: 'jobs', label: 'Jobs', count: d?.tasks.length },
+        { id: 'activity', label: `Requests per ${d?.bucket ?? 'day'}` },
+      ]}
+      tab={tab}
+      onTab={(t) => onTab(t as JobsTab)}
+    >
+      {!d ? (
+        <div className="web-pad">
+          <Skeleton lines={5} />
+        </div>
+      ) : tab === 'jobs' ? (
+        <DataTable label="AI jobs" columns={JOB_COLS} rows={d.tasks} rowKey={(t) => t.task} minWidth={760} empty={<p className="web-muted web-pad">No AI requests in this range.</p>} />
+      ) : (
+        <div className="web-pad">
+          <Activity d={d} />
+        </div>
+      )}
+    </Pane>
   );
 }
 
@@ -295,11 +355,15 @@ function Activity({ d }: { d: InsightsResponse }) {
   );
 }
 
-const TASK_FILTER: (TaskId | 'all')[] = ['all', 'read_moment', 'write_line', 'check_claim', 'research_brief', 'review_call', 'simulate_prospect'];
+const TRACE_COLS: Column<MubitTraceSummary>[] = [
+  { key: 'at', header: 'Time', width: '76px', mono: true, render: (t) => TIME.format(t.at) },
+  { key: 'task', header: 'Job', className: 'web-nowrap', render: (t) => TASK_LABEL[t.task] ?? t.task },
+  { key: 'ok', header: 'Result', width: '96px', render: (t) => <Chip size="sm" tone={t.ok ? 'ok' : t.aborted ? 'neutral' : 'bad'}>{t.ok ? 'OK' : t.aborted ? 'Cancelled' : (t.errorCode ?? 'Failed')}</Chip> },
+  { key: 'ms', header: 'Took', width: '70px', mono: true, align: 'end', render: (t) => formatMs(t.latencyMs) },
+];
 
-function Traces({ range }: { range: TraceRange }) {
-  const [task, setTask] = useState<TaskId | 'all'>('all');
-  const [failed, setFailed] = useState(false);
+/** The drawer: requests, newest first, with the chosen one in full below. */
+function Requests({ task, failed }: { task: TaskId | 'all'; failed: boolean }) {
   const [pages, setPages] = useState<MubitTraceSummary[][]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -312,13 +376,15 @@ function Traces({ range }: { range: TraceRange }) {
     setCursor(first.data.nextCursor);
   }, [first.data]);
   const rows = pages.flat();
-  const api = getApi();
+  useEffect(() => {
+    if (!selected && rows[0]) setSelected(rows[0].id);
+  }, [rows, selected]);
 
   const more = async () => {
     if (!cursor) return;
     setLoadingMore(true);
     try {
-      const r = await api.traces({ ...q, before: cursor });
+      const r = await getApi().traces({ ...q, before: cursor });
       setPages((p) => [...p, r.items]);
       setCursor(r.nextCursor);
     } finally {
@@ -326,145 +392,98 @@ function Traces({ range }: { range: TraceRange }) {
     }
   };
 
-  const cols: Column<MubitTraceSummary>[] = [
-    { key: 'at', header: 'Time', width: '128px', mono: true, render: (t) => TIME.format(t.at) },
-    { key: 'task', header: 'AI job', width: '140px', render: (t) => <code className="web-task">{t.task}</code> },
-    { key: 'ok', header: 'Result', width: '96px', render: (t) => <Chip size="sm" tone={t.ok ? 'ok' : t.aborted ? 'neutral' : 'bad'}>{t.ok ? 'OK' : t.aborted ? 'Cancelled' : t.errorCode ?? 'Failed'}</Chip> },
-    { key: 'ms', header: 'Took', width: '76px', mono: true, render: (t) => formatMs(t.latencyMs) },
-    { key: 'tok', header: 'Tokens', width: '96px', mono: true, render: (t) => `${t.inputTokens}/${t.outputTokens}` },
-    { key: 'req', header: 'Request', mono: true, render: (t) => t.requestId ?? <span className="web-muted">—</span> },
-  ];
-
   return (
-    <>
-      <Pane
-        label="Traces"
-        meta={`${rows.length}${cursor ? '+' : ''} · ${RANGES.find((r) => r.value === range)!.label.toLowerCase()} totals above`}
-        actions={
-          <>
-            <label className="web-sr" htmlFor="trace-task">
-              AI job
-            </label>
-            <select id="trace-task" className="web-input web-input--sm" value={task} onChange={(e) => setTask(e.target.value as TaskId | 'all')}>
-              {TASK_FILTER.map((t) => (
-                <option key={t} value={t}>
-                  {t === 'all' ? 'All AI jobs' : t}
-                </option>
-              ))}
-            </select>
-            <span className="cue-filter" role="group" aria-label="Result">
-              <button type="button" aria-pressed={!failed} onClick={() => setFailed(false)}>
-                All
-              </button>
-              <button type="button" aria-pressed={failed} onClick={() => setFailed(true)}>
-                Failed
-              </button>
-            </span>
-          </>
-        }
-        pad="none"
-        footer={
-          <ActionBar
-            end={
-              <>
-                <span className="cue-label">Export {RANGES.find((r) => r.value === range)!.label.toLowerCase()}</span>
-                <a className="cue-btn cue-btn--secondary cue-btn--sm" href={api.traceExportUrl({ format: 'jsonl', range, ...(task === 'all' ? {} : { task }) })} download>
-                  JSONL
-                </a>
-                <a className="cue-btn cue-btn--secondary cue-btn--sm" href={api.traceExportUrl({ format: 'openai', range, ...(task === 'all' ? {} : { task }) })} download>
-                  OpenAI fine-tune
-                </a>
-                <a className="cue-btn cue-btn--secondary cue-btn--sm" href={api.traceExportUrl({ format: 'langfuse', range, ...(task === 'all' ? {} : { task }) })} download>
-                  Langfuse
-                </a>
-              </>
-            }
-          >
-            {cursor && (
-              <Button size="sm" variant="ghost" onClick={() => void more()} loading={loadingMore}>
-                Load older
-              </Button>
-            )}
-          </ActionBar>
-        }
-      >
-        {first.error && rows.length === 0 ? (
-          <div className="web-pad">
-            <ErrorState compact title="Can't load traces" message={first.error.message} onRetry={first.reload} />
-          </div>
-        ) : !first.data && rows.length === 0 ? (
-          <div className="web-pad">
-            <Skeleton lines={8} />
-          </div>
-        ) : (
-          <DataTable
-            label="Mubit traces"
-            columns={cols}
-            rows={rows}
-            rowKey={(t) => t.id}
-            selectedKey={selected}
-            onSelect={(t) => setSelected(t.id)}
-            minWidth={720}
-            empty={
-              <EmptyState compact title="No traces yet">
-                Each AI request lands here with its input and output once you make a call.
-              </EmptyState>
-            }
-          />
-        )}
-      </Pane>
-      <TraceDetailPane id={selected} />
-    </>
-  );
-}
-
-function TraceDetailPane({ id }: { id: string | null }) {
-  const detail = useResource((signal) => (id ? getApi().trace(id, { signal }) : Promise.resolve(null)), [id]);
-  const t = detail.data;
-  return (
-    <Pane label="Trace" meta={t ? t.id : undefined} as="aside" pad="none" hint="One AI request in full: the job, model, timing, cost, input and output.">
-      {!id ? (
-        <EmptyState compact title="Pick a trace">
-          Select a row to see exactly what Cue sent Mubit and what came back.
-        </EmptyState>
-      ) : detail.error ? (
-        <div className="web-pad">
-          <ErrorState compact title="Can't load the trace" message={detail.error.message} onRetry={detail.reload} />
+    <Pane label="Requests" side="drawer" pad="none" meta={`${rows.length}${cursor ? '+' : ''}`} as="aside">
+      <div className="web-split">
+        <div className="web-split__top">
+          {first.error && rows.length === 0 ? (
+            <div className="web-pad">
+              <ErrorState compact title="Can't load requests" message={first.error.message} onRetry={first.reload} />
+            </div>
+          ) : !first.data && rows.length === 0 ? (
+            <div className="web-pad">
+              <Skeleton lines={8} />
+            </div>
+          ) : (
+            <>
+              <DataTable
+                label="Mubit requests"
+                columns={TRACE_COLS}
+                rows={rows}
+                rowKey={(t) => t.id}
+                selectedKey={selected}
+                onSelect={(t) => setSelected(t.id)}
+                minWidth={330}
+                empty={
+                  <EmptyState compact title="No requests yet">
+                    Each AI request lands here with its input and output once you make a call.
+                  </EmptyState>
+                }
+              />
+              {cursor && (
+                <div className="web-pad web-pad--tight">
+                  <Button size="sm" variant="ghost" onClick={() => void more()} loading={loadingMore}>
+                    Load older requests
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </div>
-      ) : !t ? (
-        <div className="web-pad">
-          <Skeleton lines={6} />
+        <div className="web-split__bottom">
+          <TraceDetail id={selected} />
         </div>
-      ) : (
-        <>
-          <div className="web-pad">
-            <KeyValue
-              items={[
-                { label: 'AI job', value: <code className="web-task">{`${t.task} · v${t.instructionsVersion}`}</code> },
-                { label: 'Model', value: <span className="cue-num">{t.model}</span> },
-                { label: 'Request', value: <span className="cue-num">{t.requestId ?? '—'}</span> },
-                { label: 'Call', value: <span className="cue-num">{t.callId ?? t.sessionId}</span> },
-                ...(t.suggestionId ? [{ label: 'Suggestion', value: <span className="cue-num">{t.suggestionId}</span> }] : []),
-                { label: 'Result', value: t.ok ? 'OK' : `${t.errorCode ?? 'failed'}${t.errorMessage ? `: ${t.errorMessage}` : ''}` },
-                { label: 'Took', value: <span className="cue-num">{`${formatMs(t.latencyMs)} · ${t.attempts || '?'} attempt${t.attempts === 1 ? '' : 's'}`}</span> },
-                { label: 'Tokens', value: <span className="cue-num">{`${t.inputTokens} in · ${t.outputTokens} out · ${formatUsd(t.costUsd)}`}</span> },
-              ]}
-            />
-            {t.truncated && <p className="web-note web-note--warn">A body was over the size cap and is stored cut short.</p>}
-          </div>
-          <PaneSection label="Input">
-            <Json value={t.input} />
-          </PaneSection>
-          <PaneSection label="Output">
-            <Json value={t.output} />
-          </PaneSection>
-        </>
-      )}
+      </div>
     </Pane>
   );
 }
 
+function TraceDetail({ id }: { id: string | null }) {
+  const detail = useResource((signal) => (id ? getApi().trace(id, { signal }) : Promise.resolve(null)), [id]);
+  const t = detail.data;
+  if (!id) return <p className="web-muted web-small web-pad">Pick a request to see exactly what Cue sent Mubit and what came back.</p>;
+  if (detail.error)
+    return (
+      <div className="web-pad">
+        <ErrorState compact title="Can't load the request" message={detail.error.message} onRetry={detail.reload} />
+      </div>
+    );
+  if (!t)
+    return (
+      <div className="web-pad">
+        <Skeleton lines={5} />
+      </div>
+    );
+  return (
+    <section aria-label="Request detail">
+      <div className="web-pad web-pad--tight">
+        <span className="cue-label">{TASK_LABEL[t.task] ?? t.task}</span>
+      </div>
+      <KeyValue
+        className="web-kv-inset"
+        items={[
+          { label: 'Job', value: <code className="web-task">{`${t.task} · v${t.instructionsVersion}`}</code> },
+          { label: 'Model', value: <span className="cue-num">{t.model}</span> },
+          { label: 'Result', value: t.ok ? 'OK' : `${t.errorCode ?? 'failed'}${t.errorMessage ? `: ${t.errorMessage}` : ''}` },
+          { label: 'Took', value: <span className="cue-num">{`${formatMs(t.latencyMs)} · ${t.inputTokens} in · ${t.outputTokens} out · ${formatUsd(t.costUsd)}`}</span> },
+          { label: 'Request', value: <span className="cue-num">{t.requestId ?? '—'}</span> },
+          { label: 'Call', value: <span className="cue-num">{t.callId ?? t.sessionId}</span> },
+        ]}
+      />
+      {t.truncated && <p className="web-note web-note--warn">A body was over the size cap and is stored cut short.</p>}
+      <div className="web-pad web-pad--tight">
+        <span className="cue-label">Input</span>
+      </div>
+      <Json value={t.input} />
+      <div className="web-pad web-pad--tight">
+        <span className="cue-label">Output</span>
+      </div>
+      <Json value={t.output} />
+    </section>
+  );
+}
+
 function Json({ value }: { value: unknown }) {
-  if (value === null || value === undefined) return <p className="web-muted">Not kept (metadata mode, or the call failed).</p>;
-  return <pre className="web-json">{typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</pre>;
+  if (value === null || value === undefined) return <p className="web-muted web-small web-pad">Not kept (metadata mode, or the call failed).</p>;
+  return <pre className="web-json web-json--inset">{typeof value === 'string' ? value : JSON.stringify(value, null, 2)}</pre>;
 }

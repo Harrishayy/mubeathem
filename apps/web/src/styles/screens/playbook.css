@@ -1,0 +1,14 @@
+/* ── Playbook (workspace: moments · lines and queue · one line) ── */
+.cue-ws__centre > .cue-pane.web-learned { flex: var(--grow, 1) 1 0; margin: 0; }
+.cue-ws__centre > .cue-pane.web-learned.is-folded { flex: 0 0 auto; }
+.web-learned .web-learned__list { max-height: none; }
+.web-pb-queue-empty {
+  flex: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; min-height: 40px; padding: 10px 14px;
+  background: var(--surface); border: 1px solid var(--pane-line); border-radius: var(--radius-md);
+}
+.web-pb-queue .cue-table__actions { flex-wrap: nowrap; }
+.web-pb-tags .cue-chip { flex: none; }
+.cue-ws .web-pb-moment { overflow-wrap: anywhere; }
+/* The line's five figures: three across in the drawer so "Moved forward" stays on one line. */
+.web-pb .web-pb-detail .cue-stats { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+.web-pb .web-pb-detail .cue-stat .cue-label { white-space: nowrap; }

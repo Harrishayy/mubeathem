@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * Insights against a real @cue/server on the rules engine (no Mubit key, so no traces): the screen
+ * Insights against a real @cue/server on the rules engine (no Mubit key, so no requests): the screen
  * renders its KPIs and empty states, the range filter refetches, exports are real downloads, and
  * nothing overflows at any viewport.
  */
 
-test('insights: KPIs, outcomes, empty traces, range filter, exports', async ({ page, request }) => {
+test('insights: KPIs, outcomes, empty requests, range filter, exports', async ({ page, request }) => {
   // One finished call so "What books meetings" has data.
   const view = await (await request.post('/api/calls', { data: { source: 'cue', prospect: { name: 'Maya Chen', title: 'CEO', company: 'Lumen Labs', facts: {} }, rep: { id: 'rep_e2e', name: 'Alex' } } })).json();
   await request.post(`/api/calls/${view.id}/turns`, { data: { speaker: 'prospect', text: "We already have a broker, they set all that up.", final: true } });
@@ -15,15 +15,14 @@ test('insights: KPIs, outcomes, empty traces, range filter, exports', async ({ p
   await page.goto('/#/insights');
   await expect(page.getByRole('region', { name: 'What books meetings' })).toBeVisible();
   await expect(page.getByText('Mubit calls', { exact: true })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Traces' }).getByText('No traces yet')).toBeVisible();
-  await expect(page.getByRole('complementary', { name: 'Trace', exact: true }).getByText('Pick a trace')).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Requests' }).getByText('No requests yet')).toBeVisible();
 
   const all = page.getByRole('group', { name: 'Range' }).getByRole('button', { name: 'All' });
   const insights = page.waitForResponse((r) => r.url().includes('/api/insights?range=all') && r.ok());
   await all.click();
   await insights;
   await expect(all).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('region', { name: 'What books meetings' }).getByText(/booked/).first()).toBeVisible();
+  await expect(page.getByRole('region', { name: 'What books meetings' }).getByText(/booked/i).first()).toBeVisible();
 
   for (const [name, format] of [['JSONL', 'jsonl'], ['OpenAI fine-tune', 'openai'], ['Langfuse', 'langfuse']] as const) {
     const link = page.getByRole('link', { name });

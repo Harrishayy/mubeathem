@@ -14,6 +14,16 @@ export interface ModelGrowthPanelProps {
   className?: string;
 }
 
+/** Short plain names for each AI job, for tables and filters (the task id stays the technical name). */
+export const TASK_LABEL: Record<TaskStats['task'], string> = {
+  read_moment: 'Read the moment',
+  write_line: 'Write the line',
+  research_brief: 'Research brief',
+  check_claim: 'Check a claim',
+  review_call: 'Review the call',
+  simulate_prospect: 'Simulated prospect',
+};
+
 export const TASK_COPY: Record<TaskStats['task'], string> = {
   read_moment: "Works out who's on the line, their mood and what just happened",
   write_line: 'Writes the one line to say next',

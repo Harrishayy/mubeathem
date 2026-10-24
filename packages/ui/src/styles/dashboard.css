@@ -30,6 +30,76 @@
   .cue-dash-grid > * { grid-column: auto !important; grid-row: auto !important; }
 }
 
+/* ── Workspace: rail · centre · drawer, filling the window under the band ──
+   The page itself never scrolls on a laptop: the rail and drawer fold to labelled strips, centre
+   panes fold to their head (keeping a summary) or take focus and fill the centre. Below 1080 px
+   everything stacks and the page scrolls. */
+.cue-ws { flex: 1; min-height: 0; min-width: 0; display: grid; gap: 8px; padding: 8px; grid-template-columns: var(--ws-cols, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); }
+.cue-ws__centre, .cue-ws__side { display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+.cue-ws__centre--row { flex-direction: row; }
+.cue-ws__centre > .cue-pane, .cue-ws__side > .cue-pane { flex: var(--grow, 1) 1 0; }
+.cue-ws__centre > .cue-pane.is-folded, .cue-ws__side > .cue-pane.is-folded { flex: 0 0 auto; }
+.cue-ws__centre > .cue-kpis, .cue-ws__centre > .cue-ticker { flex: none; padding: 0; }
+.cue-ws[data-focus] .cue-ws__centre > .cue-pane:not(.is-focused) { display: none; }
+.cue-ws__strip {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 8px 0; min-height: 0; min-width: 0;
+  background: var(--surface); border: 1px solid var(--pane-line); border-radius: var(--radius-md); color: var(--ink-2); cursor: pointer; font: inherit;
+}
+.cue-ws__strip:hover { background: var(--row-on); color: var(--ink); }
+.cue-ws__strip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cue-ws__strip-count { font-family: var(--font-mono); font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.cue-ws__strip-label { writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--font-label); font-size: var(--label-size); font-weight: var(--label-weight); letter-spacing: var(--label-tracking); text-transform: var(--label-case); white-space: nowrap; }
+.cue-pane__tool {
+  width: 30px; height: 30px; display: inline-grid; place-items: center; flex: none; padding: 0;
+  border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-2); cursor: pointer;
+}
+.cue-pane__tool:hover { background: var(--row-on); color: var(--ink); }
+.cue-pane__tool:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cue-pane__head--tabs { align-items: stretch; }
+.cue-pane__head--tabs > .cue-pane__label, .cue-pane__head--tabs > .cue-pane__meta, .cue-pane__head--tabs > .cue-pane__summary, .cue-pane__head--tabs > .cue-pane__actions { align-self: center; }
+.cue-pane__tabs { display: flex; align-items: stretch; flex-wrap: wrap; min-width: 0; }
+.cue-pane__tab {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 10px; white-space: nowrap;
+  border: 0; border-bottom: 2px solid transparent; background: transparent; cursor: pointer;
+  font: inherit; font-size: var(--text-small); font-weight: var(--weight-semibold); color: var(--ink-2);
+}
+.cue-pane__tab:hover { color: var(--ink); }
+.cue-pane__tab.is-on { color: var(--ink); border-bottom-color: var(--accent-text); }
+.cue-pane__tab:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+.cue-pane__tab-count { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cue-pane__summary { font-family: var(--font-mono); font-size: 11px; color: var(--ink-2); min-width: 0; overflow-wrap: anywhere; }
+.cue-pane.is-folded > .cue-pane__head { border-bottom: 0; }
+.cue-kpis--foldable { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)) auto; }
+.cue-ws__centre > .cue-kpis { display: flex; flex-wrap: wrap; gap: 8px; }
+.cue-ws__centre > .cue-kpis > .cue-kpi { flex: 1 1 112px; }
+/* The rail and drawer are narrow: tighter cells so their tables fit without sideways scroll. */
+.cue-ws__side .cue-table th, .cue-ws__side .cue-table td { padding-inline: 8px; }
+.cue-ws__centre > .cue-kpis > .cue-kpis__fold { flex: none; }
+.cue-ws .cue-kpi { padding: 10px 14px; gap: 4px; }
+.cue-ws .cue-kpi__value { font-size: clamp(20px, 1.7vw, 26px); }
+.cue-kpis__fold { display: flex; align-items: flex-start; }
+.cue-ticker { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 22px; min-height: 40px; padding: 4px 4px 4px 14px; background: var(--surface); border: 1px solid var(--pane-line); border-radius: var(--radius-md); }
+.cue-ticker__item { display: inline-flex; align-items: baseline; gap: 8px; }
+.cue-ticker__value { font-family: var(--font-mono); font-size: 15px; font-weight: var(--weight-medium); color: var(--ink); font-variant-numeric: tabular-nums; }
+.cue-ticker__value.is-ok { color: var(--ok); }
+.cue-ticker__value.is-warn { color: var(--warn); }
+.cue-ticker__end { margin-inline-start: auto; }
+/* Tables in a workspace: fixed column plan, figures and labels never wrap, prose wraps. */
+.cue-ws .cue-table th { white-space: nowrap; }
+.cue-ws .cue-table .is-mono { white-space: nowrap; }
+@media (max-width: 1079.98px) {
+  .cue-ws { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none; }
+  .cue-ws__strip { flex-direction: row; justify-content: flex-start; padding: 10px 14px; min-height: 44px; }
+  .cue-ws__strip-label { writing-mode: horizontal-tb; transform: none; }
+  .cue-ws__strip svg { transform: rotate(90deg); }
+  .cue-ws__centre--row { flex-direction: column; }
+  .cue-ws__centre > .cue-pane, .cue-ws__side > .cue-pane { flex: none; }
+  .cue-ws__centre > .cue-pane:not(.is-folded) > .cue-pane__body, .cue-ws__side > .cue-pane:not(.is-folded) > .cue-pane__body { max-height: 75vh; overflow: auto; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cue-ws__centre > .cue-pane, .cue-ws__side > .cue-pane { transition: flex-grow var(--dur-ui) var(--ease-standard); }
+}
+
 /* ── Board: the page layout for every screen but the live console ──
    The page scrolls; the band and the toolbar stay pinned. Rows of panes on 12 columns take their
    content's height; a Screen (list + detail) fills the window under the pinned chrome. Two

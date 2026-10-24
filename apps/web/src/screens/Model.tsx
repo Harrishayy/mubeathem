@@ -1,8 +1,10 @@
 import type { MomentFamily, MubitTraceSummary, TaskStats } from '@cue/core';
-import { Bar, Board, BoardSection, Chip, DataTable, EmptyState, ErrorState, Kpi, KpiStrip, Pane, Skeleton, TASK_COPY, formatMs, formatUsd, type ChipTone, type Column } from '@cue/ui';
+import { Bar, Chip, DataTable, EmptyState, ErrorState, KeyValue, Kpi, KpiStrip, Pane, Skeleton, TASK_COPY, TASK_LABEL, Toolbar, Workspace, formatMs, formatUsd, type ChipTone, type Column } from '@cue/ui';
+import { useEffect, useState } from 'react';
 import { useResource } from '../hooks/useResource';
 import { ADAPTER_THRESHOLD_DEFAULT } from '../shell/constants';
 import { getApi } from '../state/api';
+import '../styles/screens/model.css';
 
 /** What one call's CallRecord carries to Mubit (architecture.md §4.3, packages/core CallRecord). */
 const RECORD: { field: string; what: string; family: MomentFamily }[] = [
@@ -16,7 +18,8 @@ const RECORD: { field: string; what: string; family: MomentFamily }[] = [
   { field: 'feedback', what: "The rep's debrief: rating, attitude, what worked, a better line", family: 'gatekeeper' },
 ];
 
-const TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const TIME_FULL = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 
 const threshold = (t: TaskStats) => t.adapterThreshold || ADAPTER_THRESHOLD_DEFAULT;
 
@@ -32,11 +35,13 @@ function traceStatus(t: MubitTraceSummary): { label: string; tone: ChipTone } {
   return { label: t.errorCode ?? 'Failed', tone: 'bad' };
 }
 
-/** "Every call trains it": Mubit spend and calls, each task against its adapter threshold, recent requests. */
+type JobsTab = 'progress' | 'record';
+
+/** "Every call trains it": Mubit spend and calls, each AI job against its adapter threshold, recent requests in the drawer. */
 export function ModelScreen() {
   const stats = useResource((signal) => getApi().stats({ signal }), [], 3_000);
   const health = useResource((signal) => getApi().health({ signal }), [], 15_000);
-  const traces = useResource((signal) => getApi().traces({ limit: 20 }, { signal }), [], 5_000);
+  const [tab, setTab] = useState<JobsTab>('progress');
   const h = health.data;
   const s = stats.data;
   const tasks = s?.tasks ?? [];
@@ -45,32 +50,28 @@ export function ModelScreen() {
   const spend = tasks.reduce((n, t) => n + t.costUsd, 0);
   const trained = tasks.filter((t) => t.ok >= threshold(t)).length;
   const scale = Math.max(...tasks.map((t) => t.ok), ...tasks.map((t) => threshold(t) * 2), 1);
+  const bar = tasks[0] ? threshold(tasks[0]) : ADAPTER_THRESHOLD_DEFAULT;
 
   const taskColumns: Column<TaskStats>[] = [
     {
       key: 'task',
       header: 'AI job',
       render: (t) => (
-        <span className="web-model-task">
-          <code className="web-model-task__id">{t.task}</code>
-          <span className="web-muted web-small">{TASK_COPY[t.task]}</span>
+        <span className="web-model-job" title={TASK_COPY[t.task]}>
+          <span className="web-job__name">{TASK_LABEL[t.task]}</span>
+          <code className="web-model-id">{t.task}</code>
         </span>
       ),
     },
-    { key: 'model', header: 'Model', width: '120px', mono: true, render: (t) => t.model },
-    {
-      key: 'examples',
-      header: `Good examples (custom model at ${tasks[0] ? threshold(tasks[0]) : ADAPTER_THRESHOLD_DEFAULT})`,
-      width: '210px',
-      render: (t) => <Bar value={t.ok / scale} mark={threshold(t) / scale} label={t.ok} tone="ok" />,
-    },
-    { key: 'ok', header: 'OK', width: '64px', mono: true, align: 'end', render: (t) => (t.calls ? `${Math.round((t.ok / t.calls) * 100)}%` : '—') },
+    { key: 'model', header: 'Model', width: '118px', mono: true, render: (t) => t.model },
+    { key: 'examples', header: 'Good examples', width: '190px', render: (t) => <Bar value={t.ok / scale} mark={threshold(t) / scale} label={t.ok} tone="ok" /> },
+    { key: 'ok', header: 'OK', width: '60px', mono: true, align: 'end', render: (t) => (t.calls ? `${Math.round((t.ok / t.calls) * 100)}%` : '—') },
     { key: 'p50', header: 'Typical', width: '76px', mono: true, align: 'end', render: (t) => (t.calls ? formatMs(t.p50Ms) : '—') },
-    { key: 'p95', header: 'Slowest 5%', width: '86px', mono: true, align: 'end', render: (t) => (t.calls ? formatMs(t.p95Ms) : '—') },
+    { key: 'p95', header: 'Slowest 5%', width: '96px', mono: true, align: 'end', render: (t) => (t.calls ? formatMs(t.p95Ms) : '—') },
     {
       key: 'status',
       header: 'Status',
-      width: '104px',
+      width: '128px',
       render: (t) => {
         const st = taskStatus(t);
         return (
@@ -80,35 +81,6 @@ export function ModelScreen() {
         );
       },
     },
-  ];
-
-  const traceColumns: Column<MubitTraceSummary>[] = [
-    { key: 'at', header: 'Time', width: '112px', mono: true, render: (t) => <time dateTime={new Date(t.at).toISOString()}>{TIME.format(t.at)}</time> },
-    { key: 'task', header: 'AI job', width: '172px', mono: true, render: (t) => t.task },
-    { key: 'session', header: 'Call', width: '200px', mono: true, render: (t) => <span className="web-muted">{t.callId ?? t.sessionId}</span> },
-    { key: 'req', header: 'Request', mono: true, render: (t) => t.requestId ?? <span className="web-muted">no request id</span> },
-    { key: 'ms', header: 'Took', width: '80px', mono: true, align: 'end', render: (t) => formatMs(t.latencyMs) },
-    {
-      key: 'ok',
-      header: 'Result',
-      width: '110px',
-      render: (t) => {
-        const st = traceStatus(t);
-        return (
-          <Chip size="sm" tone={st.tone}>
-            {st.label}
-          </Chip>
-        );
-      },
-    },
-  ];
-
-  // Without the traces endpoint (an older server) fall back to each task's last request id.
-  const lastPerTask = tasks.filter((t) => t.lastRequestId);
-  const lastColumns: Column<TaskStats>[] = [
-    { key: 'task', header: 'AI job', width: '160px', mono: true, render: (t) => t.task },
-    { key: 'req', header: 'Last request', mono: true, render: (t) => t.lastRequestId },
-    { key: 'p50', header: 'Typical', width: '80px', mono: true, align: 'end', render: (t) => formatMs(t.p50Ms) },
   ];
 
   const mubitTag = h ? (
@@ -122,68 +94,165 @@ export function ModelScreen() {
   ) : null;
 
   return (
-    <Board>
+    <div className="web-screen web-model">
       <h1 className="web-sr">Every call trains it</h1>
-      <KpiStrip>
-        <Kpi label="Mubit calls" value={s ? calls.toLocaleString() : '—'} note="Every AI request Cue makes goes through Mubit" />
-        <Kpi label="Calls seen" value={s ? sessions.toLocaleString() : '—'} note="Phone calls the AI has worked on" />
-        <Kpi label="Spend" value={s ? formatUsd(spend) : '—'} note={h ? `Cheap models only: ${h.mubit.models.fast} and ${h.mubit.models.write}` : 'Cheap models only'} />
-        <Kpi label="Custom models" value={s ? `${trained}/${tasks.length}` : '—'} note={`Jobs with ${tasks[0] ? threshold(tasks[0]) : ADAPTER_THRESHOLD_DEFAULT}+ good examples, enough for Mubit to train one (an adapter)`} tone={s && tasks.length > 0 && trained === tasks.length ? 'ok' : 'neutral'} />
-      </KpiStrip>
-      <BoardSection title="AI jobs" hint="Each AI job Cue does on a call. Once a job has enough good examples, Mubit can train a custom model (an adapter) on your team's calls.">
-        <Pane label="Tasks" meta={s ? `${tasks.length} jobs` : undefined} actions={mubitTag} pad="none" span={12} scroll={false}>
-          {h && !h.mubit.configured && tasks.some((t) => t.calls > 0) && (
-            <p className="web-note web-model-note" role="note">
-              This server has no Mubit key, so new calls use the playbook rules instead of AI. The counts below are from earlier calls.
-            </p>
-          )}
-          {stats.error && !s ? (
-            <ErrorState title="Can't load model stats" message={stats.error.message} onRetry={stats.reload} className="web-pane-pad" />
-          ) : !s ? (
-            <div className="web-pane-pad" aria-busy="true">
-              <Skeleton lines={5} />
-            </div>
+      <Toolbar label="Mubit status">
+        <span className="cue-label">Mubit</span>
+        {mubitTag}
+        <span className="web-muted web-small web-toolbar__note">{`Every AI request goes through Mubit. A job with ${bar} good examples can get its own trained model.`}</span>
+      </Toolbar>
+      <Workspace storageKey="model" drawer={{ label: 'Recent requests', summary: 'newest first', children: <Recent tasks={tasks} /> }}>
+        <KpiStrip foldId="kpis">
+          <Kpi label="Mubit calls" value={s ? calls.toLocaleString() : '—'} note="every AI request" />
+          <Kpi label="Calls seen" value={s ? sessions.toLocaleString() : '—'} note="phone calls worked on" />
+          <Kpi label="Spend" value={s ? formatUsd(spend) : '—'} note={h ? `${h.mubit.models.fast} · ${h.mubit.models.write}` : 'cheap models only'} />
+          <Kpi label="Custom models" value={s ? `${trained}/${tasks.length}` : '—'} note={`jobs with ${bar}+ good examples`} tone={s && tasks.length > 0 && trained === tasks.length ? 'ok' : 'neutral'} />
+        </KpiStrip>
+        <Pane
+          paneId="jobs"
+          label="AI jobs"
+          pad="none"
+          summary={s ? `${trained} of ${tasks.length} ready to train · ${formatUsd(spend)}` : undefined}
+          tabs={[
+            { id: 'progress', label: 'Training progress', count: s ? tasks.length : undefined },
+            { id: 'record', label: 'What each call sends', count: RECORD.length },
+          ]}
+          tab={tab}
+          onTab={(x) => setTab(x as JobsTab)}
+        >
+          {tab === 'progress' ? (
+            <>
+              <p className="cue-hint web-model-hint">{`Each job Cue does on a call. The tick on each bar is ${bar} good examples: enough for Mubit to train a custom model (an adapter) on your team's calls.`}</p>
+              {h && !h.mubit.configured && tasks.some((t) => t.calls > 0) && (
+                <p className="web-note web-model-note" role="note">
+                  This server has no Mubit key, so new calls use the playbook rules instead of AI. The counts below are from earlier calls.
+                </p>
+              )}
+              {stats.error && !s ? (
+                <ErrorState title="Can't load model stats" message={stats.error.message} onRetry={stats.reload} className="web-pane-pad" />
+              ) : !s ? (
+                <div className="web-pad" aria-busy="true">
+                  <Skeleton lines={5} />
+                </div>
+              ) : (
+                <DataTable label="AI jobs" columns={taskColumns} rows={tasks} rowKey={(t) => t.task} minWidth={760} empty={<EmptyState compact title="No AI jobs yet">They appear after the first call. Start one from Live or Contacts.</EmptyState>} />
+              )}
+            </>
           ) : (
-            <DataTable label="Mubit tasks" columns={taskColumns} rows={tasks} rowKey={(t) => t.task} minWidth={760} empty={<EmptyState compact title="No AI jobs yet">They appear after the first call. Start one from Live or Contacts.</EmptyState>} />
+            <>
+              <p className="cue-hint web-model-hint">What each finished call becomes: a labelled record that teaches the AI which lines work.</p>
+              <ul className="web-record web-model-record">
+                {RECORD.map((r) => (
+                  <li key={r.field} className={`web-record__item cue-fam-${r.family}`}>
+                    <span className="cue-index__key" aria-hidden />
+                    <code className="web-record__field">{r.field}</code>
+                    <span className="web-record__what">{r.what}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="web-model-foot web-muted web-small">
+                Your debrief labels the whole call, so the call review (<code>review_call</code>) learns which lines book meetings. Requests are not stored by the model provider (<code>store: false</code>) and are grouped per call (<code>prompt_cache_key</code>).
+              </p>
+            </>
           )}
         </Pane>
-      </BoardSection>
+      </Workspace>
+    </div>
+  );
+}
 
-      <BoardSection title="How it learns" hint="The latest requests, and the labelled record each finished call becomes: what teaches the AI which lines work.">
-        <Pane label="Recent requests" meta="newest first" pad="none" span={8} scroll="cap" hint="Each AI request with its Mubit request id, for tracing. Full inputs and outputs are on Insights.">
+const TRACE_COLS: Column<MubitTraceSummary>[] = [
+  { key: 'at', header: 'Time', width: '58px', mono: true, render: (t) => <time dateTime={new Date(t.at).toISOString()} title={TIME_FULL.format(t.at)}>{TIME.format(t.at)}</time> },
+  { key: 'task', header: 'Job', className: 'web-nowrap', render: (t) => TASK_LABEL[t.task] ?? t.task },
+  {
+    key: 'ok',
+    header: 'Result',
+    width: '88px',
+    render: (t) => {
+      const st = traceStatus(t);
+      return (
+        <Chip size="sm" tone={st.tone}>
+          {st.label}
+        </Chip>
+      );
+    },
+  },
+  { key: 'ms', header: 'Took', width: '66px', mono: true, align: 'end', render: (t) => formatMs(t.latencyMs) },
+];
+
+/** The drawer: the latest requests, with the picked one's ids below. */
+function Recent({ tasks }: { tasks: TaskStats[] }) {
+  const traces = useResource((signal) => getApi().traces({ limit: 30 }, { signal }), [], 5_000);
+  const [selected, setSelected] = useState<string | null>(null);
+  const rows = traces.data?.items ?? [];
+  useEffect(() => {
+    if (rows.length && !rows.some((t) => t.id === selected)) setSelected(rows[0]!.id);
+  }, [rows, selected]);
+  const current = rows.find((t) => t.id === selected) ?? null;
+  // Without the traces endpoint (an older server) fall back to each task's last request id.
+  const lastPerTask = tasks.filter((t) => t.lastRequestId);
+
+  return (
+    <Pane label="Recent requests" side="drawer" pad="none" as="aside" meta={traces.data ? String(rows.length) : undefined}>
+      <div className="web-split">
+        <div className="web-split__top">
           {traces.data ? (
             <DataTable
               label="Recent Mubit requests"
-              columns={traceColumns}
-              rows={traces.data.items}
+              columns={TRACE_COLS}
+              rows={rows}
               rowKey={(t) => t.id}
-              minWidth={760}
+              selectedKey={current?.id}
+              onSelect={(t) => setSelected(t.id)}
+              minWidth={300}
               empty={<EmptyState compact title="No requests yet">Each AI request shows up here once you make a call.</EmptyState>}
             />
           ) : traces.error ? (
-            <DataTable label="Last request per task" columns={lastColumns} rows={lastPerTask} rowKey={(t) => t.task} minWidth={520} empty={<EmptyState compact title="No requests yet">Each AI request shows up here once you make a call.</EmptyState>} />
+            <DataTable
+              label="Last request per job"
+              columns={[
+                { key: 'task', header: 'Job', className: 'web-nowrap', render: (t: TaskStats) => TASK_LABEL[t.task] },
+                { key: 'req', header: 'Last request', mono: true, render: (t: TaskStats) => t.lastRequestId },
+              ]}
+              rows={lastPerTask}
+              rowKey={(t) => t.task}
+              minWidth={300}
+              empty={<EmptyState compact title="No requests yet">Each AI request shows up here once you make a call.</EmptyState>}
+            />
           ) : (
-            <div className="web-pane-pad" aria-busy="true">
-              <Skeleton lines={3} />
+            <div className="web-pad" aria-busy="true">
+              <Skeleton lines={8} />
             </div>
           )}
-        </Pane>
-
-        <Pane label="What every call sends Mubit" as="aside" pad="none" span={4} scroll={false}>
-          <ul className="web-record">
-            {RECORD.map((r) => (
-              <li key={r.field} className={`web-record__item cue-fam-${r.family}`}>
-                <span className="cue-index__key" aria-hidden />
-                <code className="web-record__field">{r.field}</code>
-                <span className="web-record__what">{r.what}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="web-model-note web-muted web-small">
-            Your debrief labels the whole call, so the call review (<code>review_call</code>) learns which lines book meetings. Requests are not stored by the model provider (<code>store: false</code>) and are grouped per call (<code>prompt_cache_key</code>).
-          </p>
-        </Pane>
-      </BoardSection>
-    </Board>
+        </div>
+        <div className="web-split__bottom">
+          {!current ? (
+            <p className="web-muted web-small web-pad">Pick a request to see its ids, for tracing in the Mubit console.</p>
+          ) : (
+            <section aria-label="Request ids">
+              <div className="web-pad web-pad--tight">
+                <span className="cue-label">{TASK_LABEL[current.task] ?? current.task}</span>
+              </div>
+              <KeyValue
+                className="web-kv-inset"
+                items={[
+                  { label: 'Job', value: <code className="web-task">{`${current.task} · v${current.instructionsVersion}`}</code> },
+                  { label: 'Model', value: <span className="cue-num">{current.model}</span> },
+                  { label: 'Result', value: current.ok ? 'OK' : `${current.errorCode ?? (current.aborted ? 'cancelled' : 'failed')}${current.errorMessage ? `: ${current.errorMessage}` : ''}` },
+                  { label: 'Took', value: <span className="cue-num">{`${formatMs(current.latencyMs)} · ${current.inputTokens} in · ${current.outputTokens} out · ${formatUsd(current.costUsd)}`}</span> },
+                  { label: 'Request', value: <span className="cue-num">{current.requestId ?? 'no request id'}</span> },
+                  { label: 'Call', value: <span className="cue-num">{current.callId ?? current.sessionId}</span> },
+                ]}
+              />
+              <div className="web-pad web-pad--tight">
+                <a className="cue-btn cue-btn--secondary cue-btn--sm" href="#/insights">
+                  Full detail on Insights
+                </a>
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+    </Pane>
   );
 }

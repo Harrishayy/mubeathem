@@ -1,5 +1,13 @@
-import type { ReactNode } from 'react';
+import { Children, isValidElement, useState, type CSSProperties, type ReactNode } from 'react';
 import { cx } from '../lib/cx';
+import { FoldSideButton, useWorkspace, type WorkspaceSide } from './Workspace';
+
+export interface PaneTab {
+  id: string;
+  label: string;
+  /** A small figure after the label. */
+  count?: ReactNode;
+}
 
 export interface PaneProps {
   /** Margin-capitals name in the pane head ("Transcript"). Also the accessible name. */
@@ -27,24 +35,119 @@ export interface PaneProps {
   className?: string;
   bodyClassName?: string;
   id?: string;
+  /**
+   * In a `Workspace`: this pane's id, which lets it fold to its head (showing `summary`) and take
+   * focus (fill the centre). Fold state is remembered with the workspace.
+   */
+  paneId?: string;
+  /** What the folded head still says ("13 timeouts · slowest 6.2 s"). */
+  summary?: ReactNode;
+  /** Offer the focus button (centre panes in a workspace). Default true when `paneId` is set. */
+  focusable?: boolean;
+  /** Offer the fold button. Default true when `paneId` is set. */
+  foldable?: boolean;
+  /** Share of the centre's height (default 1). */
+  grow?: number;
+  /** This pane sits in the workspace's rail or drawer: its head gets the button that folds that side. */
+  side?: WorkspaceSide;
+  /** Views of the same subject as tabs in the head; the body shows the chosen one. */
+  tabs?: PaneTab[];
+  tab?: string;
+  onTab?: (id: string) => void;
+}
+
+const UP = 'M6 15l6-6 6 6';
+const DOWN = 'M6 9l6 6 6-6';
+const GROW = 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7';
+const SHRINK = 'M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7';
+
+function Tool({ d, label, onClick, expanded }: { d: string; label: string; onClick: () => void; expanded?: boolean }) {
+  return (
+    <button type="button" className="cue-pane__tool" onClick={onClick} aria-label={label} title={label} aria-expanded={expanded}>
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <path d={d} />
+      </svg>
+    </button>
+  );
 }
 
 /**
  * A dashboard panel: cream body on the olive ground, a pane head in margin capitals, an optional
  * pinned footer for actions. The body scrolls inside the pane so the page never does on a laptop;
- * on phones panes stack and grow. Text inside always wraps: nothing in a pane truncates.
+ * on phones panes stack and grow. Text inside always wraps: nothing in a pane truncates. In a
+ * `Workspace` a pane with a `paneId` folds to its head and can take focus; `tabs` put several views
+ * of one subject in one pane so each gets the full width.
  */
-export function Pane({ label, meta, actions, hint, footer, children, scroll = true, span, pad = 'md', as: As = 'section', className, bodyClassName, id }: PaneProps) {
+export function Pane({
+  label,
+  meta,
+  actions,
+  hint,
+  footer,
+  children,
+  scroll = true,
+  span,
+  pad = 'md',
+  as: As = 'section',
+  className,
+  bodyClassName,
+  id,
+  paneId,
+  summary,
+  focusable,
+  foldable,
+  grow,
+  side,
+  tabs,
+  tab,
+  onTab,
+}: PaneProps) {
+  const ws = useWorkspace();
+  const [localFold, setLocalFold] = useState(false);
+  const canFold = (foldable ?? !!paneId) && !side;
+  const canFocus = !!ws && !!paneId && (focusable ?? true) && !side;
+  const folded = canFold && (ws && paneId ? ws.isFolded(paneId) : localFold);
+  const focused = !!ws && !!paneId && ws.focus === paneId;
+  const toggleFold = () => (ws && paneId ? ws.toggleFold(paneId) : setLocalFold((f) => !f));
+  const tabId = (t: string) => `${paneId ?? label.replace(/\W+/g, '-')}-tab-${t}`;
   return (
-    <As className={cx('cue-pane', scroll === false && 'cue-pane--grow', scroll === 'cap' && 'cue-pane--cap', span && `cue-span-${span}`, className)} aria-label={label} id={id}>
-      <header className="cue-pane__head">
+    <As
+      className={cx('cue-pane', scroll === false && 'cue-pane--grow', scroll === 'cap' && 'cue-pane--cap', span && `cue-span-${span}`, folded && 'is-folded', focused && 'is-focused', className)}
+      aria-label={label}
+      id={id}
+      data-pane={paneId}
+      style={grow !== undefined ? ({ '--grow': grow } as CSSProperties) : undefined}
+    >
+      <header className={cx('cue-pane__head', tabs && 'cue-pane__head--tabs')}>
         <span className="cue-label cue-pane__label">{label}</span>
+        {tabs && !folded && (
+          <span className="cue-pane__tabs" role="tablist" aria-label={`${label} views`}>
+            {tabs.map((t) => (
+              <button key={t.id} type="button" role="tab" id={tabId(t.id)} aria-selected={t.id === tab} className={cx('cue-pane__tab', t.id === tab && 'is-on')} onClick={() => onTab?.(t.id)}>
+                {t.label}
+                {t.count !== undefined && t.count !== null && <span className="cue-pane__tab-count">{t.count}</span>}
+              </button>
+            ))}
+          </span>
+        )}
         {meta !== undefined && meta !== null && meta !== false && <span className="cue-pane__meta">{meta}</span>}
-        {actions && <span className="cue-pane__actions">{actions}</span>}
+        {folded && summary !== undefined && summary !== null && <span className="cue-pane__summary">{summary}</span>}
+        {(actions || canFold || canFocus || side) && (
+          <span className="cue-pane__actions">
+            {!folded && actions}
+            {canFocus && <Tool d={focused ? SHRINK : GROW} label={focused ? 'Show all panes' : `Focus ${label.toLowerCase()}`} onClick={() => ws!.setFocus(focused ? null : paneId!)} />}
+            {canFold && <Tool d={folded ? DOWN : UP} label={`${folded ? 'Open' : 'Fold'} ${label.toLowerCase()}`} onClick={toggleFold} expanded={!folded} />}
+            {side && <FoldSideButton side={side} label={label} />}
+          </span>
+        )}
       </header>
-      {hint && <p className="cue-hint cue-pane__hint">{hint}</p>}
-      <div className={cx('cue-pane__body', `cue-pane__body--${pad}`, bodyClassName)}>{children}</div>
-      {footer && <footer className="cue-pane__foot">{footer}</footer>}
+      {!folded && hint && <p className="cue-hint cue-pane__hint">{hint}</p>}
+      {!folded && (
+        <div className={cx('cue-pane__body', `cue-pane__body--${pad}`, bodyClassName)} {...(tabs && tab ? { role: 'tabpanel', 'aria-labelledby': tabId(tab) } : {})}>
+          {children}
+        </div>
+      )}
+      {!folded && footer && <footer className="cue-pane__foot">{footer}</footer>}
     </As>
   );
 }
@@ -104,9 +207,35 @@ export function Kpi({ label, value, note, tone = 'neutral', className }: KpiProp
   );
 }
 
-/** A row of KPIs that reflows: four across on a laptop, two on a tablet, one on a small phone. */
-export function KpiStrip({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx('cue-kpis', className)}>{children}</div>;
+/**
+ * A row of KPIs that reflows: four across on a laptop, two on a tablet, one on a small phone. In a
+ * `Workspace`, `foldId` lets it fold to a one-line ticker of the same figures.
+ */
+export function KpiStrip({ children, className, foldId }: { children: ReactNode; className?: string; foldId?: string }) {
+  const ws = useWorkspace();
+  const folded = !!foldId && !!ws?.isFolded(foldId);
+  if (foldId && ws?.focus) return null;
+  const fold = foldId && ws ? <Tool d={folded ? DOWN : UP} label={folded ? 'Show the numbers' : 'Fold the numbers'} onClick={() => ws.toggleFold(foldId)} expanded={!folded} /> : null;
+  if (folded) {
+    const items = Children.toArray(children).flatMap((c) => (isValidElement<KpiProps>(c) ? [c.props] : []));
+    return (
+      <div className={cx('cue-ticker', className)} role="group" aria-label="Headline numbers">
+        {items.map((k) => (
+          <span key={k.label} className="cue-ticker__item">
+            <span className="cue-label">{k.label}</span>
+            <span className={cx('cue-ticker__value', k.tone && `is-${k.tone}`)}>{k.value}</span>
+          </span>
+        ))}
+        <span className="cue-ticker__end">{fold}</span>
+      </div>
+    );
+  }
+  return (
+    <div className={cx('cue-kpis', fold && 'cue-kpis--foldable', className)}>
+      {children}
+      {fold && <span className="cue-kpis__fold">{fold}</span>}
+    </div>
+  );
 }
 
 export interface KeyValueItem {

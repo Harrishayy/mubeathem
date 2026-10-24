@@ -1,0 +1,27 @@
+/* Live on the workspace: transcript in the rail, the cue and the call timeline in the centre, the
+   prospect in the drawer. The cue pane takes most of the centre and stays its visual focus. */
+.web-live-standby { padding: var(--space-4) clamp(18px, 2.4vw, 36px) var(--space-5) calc(clamp(18px, 2.4vw, 36px) + 5px); }
+.web-live-note { margin: 0 var(--space-4) var(--space-4); }
+.web-live-transcript .cue-transcript__list { padding: var(--space-3) var(--space-4); }
+/* The transcript's own scroller fills the pane, so follow-latest and "Jump to latest" keep working. */
+.web-live-transcript > .cue-pane__body { overflow: hidden; display: flex; flex-direction: column; }
+.web-live-transcript .cue-transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.web-live-transcript .cue-scroll { flex: 1; min-height: 0; }
+/* The timeline is as tall as its lanes; the cue gets the rest. */
+.cue-ws__centre > .cue-pane.web-live-timeline:not(.is-focused) { flex: 0 0 auto; }
+.web-live-timeline > .cue-pane__body { overflow: visible; }
+
+/* Before a call: the form in the centre, how it works in the drawer. */
+.web-newcall__body { display: grid; gap: var(--gap-stack); max-width: 760px; }
+.web-newcall .web-steps { padding: var(--space-4); }
+.web-newcall__keys { padding: 0 var(--space-4) var(--space-3); }
+
+@media (max-width: 1079.98px) {
+  /* Phones and tablets: the cue first, then the transcript, then the prospect. */
+  .cue-ws:has(.web-live-cue) > .cue-ws__centre { order: -1; }
+  .web-live-transcript > .cue-pane__body { overflow: visible; }
+  .web-live-transcript .cue-scroll { max-height: 60dvh; }
+}
+/* The cue's moment and who wrote it sit in the hint band, so the pane head stays one line. */
+.web-live-cuehint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-width: 0; }
+.web-live-cuehint > :last-child { flex: 1 1 220px; min-width: 0; }

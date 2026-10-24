@@ -123,7 +123,7 @@ test('live call: card, use it, end, debrief, playbook learns', async ({ page, re
   await page.getByRole('button', { name: 'See the playbook' }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'What books meetings' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Just learned' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Just learned' })).toBeVisible();
   await noOverflow(page, 'playbook');
   await shot(page, '07-playbook');
 

@@ -8,14 +8,12 @@ import {
   EmptyState,
   ErrorState,
   MomentChip,
-  Board,
-  BoardSection,
   Pane,
-  Screen,
   PaneSection,
   Skeleton,
   Sprout,
   StatGrid,
+  Workspace,
   momentParts,
   type ChipTone,
   type Column,
@@ -25,6 +23,7 @@ import { useResource } from '../hooks/useResource';
 import { getApi } from '../state/api';
 import { useStore } from '../state/store';
 import { toast, uiStore } from '../state/ui';
+import '../styles/screens/playbook.css';
 
 const ZERO: LineStats = { shown: 0, used: 0, stepWins: 0, booked: 0, lost: 0 };
 const total = (l: PlaybookLine): LineStats => l.stats['*'] ?? ZERO;
@@ -199,13 +198,13 @@ export function Playbook() {
         </span>
       ),
     },
-    { key: 'rate', header: 'Win rate', width: '170px', render: (r) => <Bar value={r.rate ?? 0} label={pct(r.rate)} /> },
+    { key: 'rate', header: 'Win rate', width: '150px', render: (r) => <Bar value={r.rate ?? 0} label={pct(r.rate)} /> },
     { key: 'calls', header: 'Shown', width: '64px', mono: true, align: 'end', render: (r) => r.stats.shown },
     { key: 'used', header: 'Used', width: '64px', mono: true, align: 'end', render: (r) => r.stats.used },
     {
       key: 'status',
       header: 'Status',
-      width: '118px',
+      width: '120px',
       render: (r) => (
         <span className="web-pb-tags">
           <Chip size="sm" tone={r.trial ? 'warn' : 'ok'}>
@@ -222,27 +221,29 @@ export function Playbook() {
   ];
 
   const queueColumns: Column<PlaybookLine>[] = [
-    { key: 'moment', header: 'Moment', width: '140px', render: (l) => <MomentChip moment={l.moment} size="sm" /> },
     {
       key: 'line',
       header: 'Line',
       render: (l) => (
         <span className="web-pb-line">
+          <span className="web-pb-tags">
+            <MomentChip moment={l.moment} size="sm" />
+            {fresh.has(l.id) && (
+              <Chip size="sm" tone="ok" icon="leaf">
+                Just learned
+              </Chip>
+            )}
+          </span>
           <span className="cue-table__line">{l.text}</span>
           <span className="web-muted web-small">{l.minedFrom?.repName ? `From ${l.minedFrom.repName}'s call · ${DAY.format(l.createdAt)}` : `From a recent call · ${DAY.format(l.createdAt)}`}</span>
           {l.policy?.verdict === 'violation' && l.policy.note && <span className="web-muted web-small">{l.policy.note}</span>}
-          {fresh.has(l.id) && (
-            <Chip size="sm" tone="ok" icon="leaf">
-              Just learned
-            </Chip>
-          )}
         </span>
       ),
     },
     {
       key: 'policy',
       header: 'Policy',
-      width: '120px',
+      width: '128px',
       render: (l) => {
         const p = policyTag(l);
         return p ? (
@@ -250,86 +251,81 @@ export function Playbook() {
             {p.label}
           </Chip>
         ) : (
-          <span className="web-muted web-small">Not checked</span>
+          <span className="web-muted web-small web-nowrap">Not checked</span>
         );
       },
     },
     {
       key: 'decision',
       header: 'Decision',
-      width: '228px',
+      width: '206px',
       align: 'end',
       render: (l) => <Decision line={l} busy={deciding[l.id]} onDecide={(v) => void decide(l.id, v)} />,
     },
   ];
 
-  const learned = changes.length > 0 && (
-    <section className="cue-pane web-learned" aria-live="polite" aria-labelledby="learned-title">
-      <header className="cue-pane__head">
-        <Sprout state="learning" size={24} growth={0.6} decorative />
-        <h2 className="cue-label cue-pane__label" id="learned-title">
-          Just learned
-        </h2>
-        <span className="cue-pane__meta">{changes.length} {changes.length === 1 ? 'line' : 'lines'} from the last review</span>
-      </header>
-      <ul className="web-learned__list">
-        {changes.slice(0, 6).map((c) => (
-          <li key={c.line.id} className={`web-learned__item cue-fam-${MOMENT_META[c.line.moment].family}`}>
-            <MomentChip moment={c.line.moment} size="sm" />
-            <button type="button" className="web-learned__line" onClick={() => (setMoment(c.line.status === 'active' ? c.line.moment : moment), setSelected(c.line.id))}>
-              {c.line.text}
-            </button>
-            <Chip size="sm" tone={c.added ? 'accent' : c.delta.booked > 0 ? 'ok' : 'neutral'}>
-              {c.added ? 'New candidate' : c.totals ? `${c.delta.booked} booked · ${c.delta.used} used` : deltaText(c.delta)}
-            </Chip>
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-
   const momentLabel = moment === 'all' ? null : momentParts(moment);
+  const currentTrial = ranked.find((r) => r.line.id === current?.id)?.trial ?? false;
 
   return (
-    <Board>
-      {learned}
-      {candidates.length > 0 && (
-        <BoardSection title="Waiting for approval" hint="New lines Cue picked up from calls that went well. Approve to try them on live calls; reject to drop them.">
-            <Pane label="Waiting for approval" meta={String(candidates.length)} pad="none" span={12} scroll="cap">
-              {d && (
-                <DataTable
-                  label="Lines waiting for approval"
-                  className="web-pb-queue"
-                  columns={queueColumns}
-                  rows={candidates}
-                  rowKey={(l) => l.id}
-                  selectedKey={current?.id}
-                  onSelect={(l) => pick(l.id)}
-                  rowFamily={(l) => MOMENT_META[l.moment].family}
-                  minWidth={700}
-                  empty={
-                    <EmptyState compact title="Nothing to review">
-                      When a rep goes off-script and books, Cue proposes their line here.
-                    </EmptyState>
-                  }
-                />
-              )}
+    <div className="web-screen web-pb">
+      <h1 className="web-sr">What books meetings</h1>
+      <Workspace
+        storageKey="playbook"
+        rail={{
+          label: 'Moments',
+          summary: moment === 'all' ? 'all moments' : MOMENT_META[moment].label,
+          count: moments.length || undefined,
+          children: (
+            <Pane label="Moments" side="rail" as="nav" pad="none" hint="What the prospect just did. The bar is how often a line moved the call forward.">
+              <div className="cue-index">
+                <MomentItem name="All moments" count={active.length} rate={allRate} on={moment === 'all'} onClick={() => setMoment('all')} />
+                {moments.map((m) => (
+                  <MomentItem key={m.id} moment={m.id} name={MOMENT_META[m.id].label} count={m.count} rate={m.rate} on={moment === m.id} onClick={() => setMoment(m.id)} />
+                ))}
+              </div>
             </Pane>
-        </BoardSection>
-      )}
-      <BoardSection title="The playbook" hint="Pick what the prospect just did, then a line, to see how it performs. Lines are ranked by how often they moved the call forward when used.">
-        <Screen cols="minmax(220px, 18vw) minmax(0, 1fr) minmax(300px, 26vw)" className="web-pb-grid">
-        <Pane label="Moments" as="nav" pad="none" className="web-pb-grid__moments" actions={<span className="cue-label">Win rate</span>} hint="What the prospect just did. Pick one to see its lines; the bar is how often a line moved the call forward.">
-          <div className="cue-index">
-            <MomentItem name="All moments" count={active.length} rate={allRate} on={moment === 'all'} onClick={() => setMoment('all')} />
-            {moments.map((m) => (
-              <MomentItem key={m.id} moment={m.id} name={MOMENT_META[m.id].label} count={m.count} rate={m.rate} on={moment === m.id} onClick={() => setMoment(m.id)} />
-            ))}
-          </div>
-        </Pane>
-
+          ),
+        }}
+        drawer={{
+          label: 'Line',
+          summary: current ? (current.status === 'candidate' ? 'candidate' : rank >= 0 ? `rank ${String(rank + 1).padStart(2, '0')}` : 'picked') : 'none picked',
+          children: <LineDetail line={current} rank={rank} trial={currentTrial} busy={current ? deciding[current.id] : undefined} onDecide={(id, v) => void decide(id, v)} />,
+        }}
+      >
+        {changes.length > 0 && (
+          <Pane
+            paneId="learned"
+            label="Just learned"
+            grow={0.55}
+            pad="none"
+            meta={`${changes.length} ${changes.length === 1 ? 'line' : 'lines'} from the last review`}
+            summary={`${changes.length} ${changes.length === 1 ? 'line' : 'lines'} changed`}
+            focusable={false}
+            className="web-learned"
+          >
+            <div aria-live="polite">
+              <ul className="web-learned__list">
+                {changes.slice(0, 6).map((c) => (
+                  <li key={c.line.id} className={`web-learned__item cue-fam-${MOMENT_META[c.line.moment].family}`}>
+                    <MomentChip moment={c.line.moment} size="sm" />
+                    <button type="button" className="web-learned__line" onClick={() => (setMoment(c.line.status === 'active' ? c.line.moment : moment), setSelected(c.line.id))}>
+                      {c.line.text}
+                    </button>
+                    <Chip size="sm" tone={c.added ? 'accent' : c.delta.booked > 0 ? 'ok' : 'neutral'}>
+                      {c.added ? 'New candidate' : c.totals ? `${c.delta.booked} booked · ${c.delta.used} used` : deltaText(c.delta)}
+                    </Chip>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Pane>
+        )}
         <Pane
+          paneId="lines"
           label="Lines"
+          grow={2.2}
+          pad="none"
           meta={
             momentLabel ? (
               <span className="web-pb-moment">
@@ -339,6 +335,7 @@ export function Playbook() {
               `${ranked.length} active`
             )
           }
+          summary={`${ranked.length} lines${ranked[0] ? ` · best ${pct(ranked[0].rate)}` : ''}`}
           actions={
             <span className="cue-filter" role="group" aria-label="Who's on the line">
               {PERSONA_FILTERS.map((p) => (
@@ -348,11 +345,8 @@ export function Playbook() {
               ))}
             </span>
           }
-          pad="none"
-          className="web-pb-grid__lines"
-          hint="The team's best lines, ranked by how often they moved the call forward when used. Filter by who answered."
+          hint="Ranked by how often a line moved the call forward when used. Filter by who answered."
         >
-          <h1 className="web-sr">What books meetings</h1>
           {res.error && !d ? (
             <ErrorState title="Can't load the playbook" message={res.error.message} onRetry={res.reload} className="web-pane-pad" />
           ) : !d ? (
@@ -369,20 +363,46 @@ export function Playbook() {
               selectedKey={current?.id}
               onSelect={(r) => pick(r.line.id)}
               rowFamily={(r) => MOMENT_META[r.line.moment].family}
-              minWidth={620}
+              minWidth={600}
               empty={
-                <EmptyState art={<Sprout state="idle" size={72} />} title={d.lines.length === 0 ? 'No lines yet' : 'No lines here'}>
+                <EmptyState art={<Sprout state="idle" size={64} />} title={d.lines.length === 0 ? 'No lines yet' : 'No lines here'}>
                   {d.lines.length === 0 ? 'Lines appear here as calls are debriefed. Make a call from Live, then save its debrief.' : 'No active line fits this moment and this kind of person yet. Try All.'}
                 </EmptyState>
               }
             />
           )}
         </Pane>
-
-        <LineDetail line={current} rank={rank} trial={ranked.find((r) => r.line.id === current?.id)?.trial ?? false} busy={current ? deciding[current.id] : undefined} onDecide={(id, v) => void decide(id, v)} />
-        </Screen>
-      </BoardSection>
-    </Board>
+        {d && candidates.length === 0 ? (
+          <div className="web-pb-queue-empty" role="note">
+            <span className="cue-label">Waiting for approval</span>
+            <span className="web-muted web-small">Nothing to review. When a rep goes off-script and books, Cue proposes their line here.</span>
+          </div>
+        ) : (
+          d && (
+            <Pane
+              paneId="queue"
+              label="Waiting for approval"
+              pad="none"
+              meta={String(candidates.length)}
+              summary={`${candidates.length} waiting`}
+              hint="Lines Cue picked up from calls that went well. Approve to try them live; reject to drop them."
+            >
+              <DataTable
+                label="Lines waiting for approval"
+                className="web-pb-queue"
+                columns={queueColumns}
+                rows={candidates}
+                rowKey={(l) => l.id}
+                selectedKey={current?.id}
+                onSelect={(l) => pick(l.id)}
+                rowFamily={(l) => MOMENT_META[l.moment].family}
+                minWidth={560}
+              />
+            </Pane>
+          )
+        )}
+      </Workspace>
+    </div>
   );
 }
 
@@ -425,7 +445,7 @@ function LineDetail({ line, rank, trial, busy, onDecide }: { line: PlaybookLine 
   const [copied, setCopied] = useState(false);
   if (!line) {
     return (
-      <Pane label="Line" as="aside" className="web-pb-grid__detail">
+      <Pane label="Line" side="drawer" as="aside">
         <EmptyState compact title="Pick a line">
           Choose a line to see how it does with each kind of person who answers.
         </EmptyState>
@@ -458,7 +478,8 @@ function LineDetail({ line, rank, trial, busy, onDecide }: { line: PlaybookLine 
       id="pb-line-detail"
       as="aside"
       pad="none"
-      className={`web-pb-grid__detail cue-fam-${MOMENT_META[line.moment].family}`}
+      side="drawer"
+      className={`cue-fam-${MOMENT_META[line.moment].family}`}
       hint="One line in full: how often it was shown, used, moved the call forward and ended in a meeting."
       actions={
         policy && (

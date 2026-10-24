@@ -1,0 +1,8 @@
+/* ── Model (workspace: numbers · AI jobs · recent requests) ── */
+.web-model-hint { margin: 0; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+.web-model-id { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--ink-3); white-space: nowrap; }
+.web-model-record .web-record__item { padding: 9px 16px; }
+.web-model-foot { margin: 0; padding: 10px 14px 14px; overflow-wrap: anywhere; }
+.web-model-foot code { overflow-wrap: anywhere; }
+.web-model-job { display: grid; gap: 2px; min-width: 0; }
+.web-model .cue-ws__side .cue-table th:first-child, .web-model .cue-ws__side .cue-table td:first-child { padding-inline-start: 14px; }

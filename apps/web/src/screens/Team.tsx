@@ -1,6 +1,23 @@
 import { formatPercent, type CallSummary, type TeamMember, type TeamResponse } from '@cue/core';
-import { Bar, Board, BoardSection, Button, Chip, DataTable, EmptyState, ErrorState, Kpi, KpiStrip, Pane, SegmentedControl, Skeleton, Sprout, Toolbar, type Column } from '@cue/ui';
-import { useState } from 'react';
+import {
+  Bar,
+  Button,
+  Chip,
+  DataTable,
+  EmptyState,
+  ErrorState,
+  KeyValue,
+  Kpi,
+  KpiStrip,
+  Pane,
+  SegmentedControl,
+  Skeleton,
+  Sprout,
+  Toolbar,
+  Workspace,
+  type Column,
+} from '@cue/ui';
+import { useEffect, useState } from 'react';
 import { useResource } from '../hooks/useResource';
 import { hrefFor, navigate, replaceHash, useHashQuery } from '../router';
 import { getApi } from '../state/api';
@@ -9,6 +26,7 @@ import { settingsStore } from '../state/settings';
 import { useStore } from '../state/store';
 import { openDebrief } from '../state/ui';
 import { callStatus, type HistoryRange } from './History';
+import '../styles/screens/team.css';
 
 type View = 'you' | 'team';
 type Range = '7d' | '30d' | '90d' | 'all';
@@ -26,10 +44,9 @@ const WEEK_FMT = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'nume
 const historyRange = (r: Range): HistoryRange | undefined => (r === '7d' || r === '30d' ? r : undefined);
 
 const pct = (n: number, d: number) => (d > 0 ? n / d : 0);
-const pts = (a: number, b: number) => {
-  const d = Math.round((a - b) * 100);
-  return d === 0 ? 'level with' : `${Math.abs(d)} pts ${d > 0 ? 'above' : 'below'}`;
-};
+const fmtRating = (n: number | null | undefined) => (n != null ? `${n.toFixed(1)}/5` : '—');
+const repName = (m: { rep: { id: string; name: string } }) => m.rep.name || m.rep.id;
+const firstName = (name: string) => name.split(/\s+/)[0] || name;
 
 /** The most frequent items first ("Built rapport fast ×3"), case- and punctuation-insensitive. */
 export function topThemes(lists: (string[] | undefined)[], max = 5): { text: string; count: number }[] {
@@ -46,32 +63,52 @@ export function topThemes(lists: (string[] | undefined)[], max = 5): { text: str
   return [...seen.values()].sort((a, b) => b.count - a.count).slice(0, max);
 }
 
+type ThemeTab = 'good' | 'bad';
+type BoardTab = 'reps' | 'trend';
+
 /**
- * How you're doing and how the team is doing: You compares your numbers with the team over the same
- * window, with your weekly trend and the themes from your reviews; Team is the board, one row per rep,
- * each opening History filtered to them. View and range live in the URL (`#/team?view=team&range=7d`).
+ * How you and the team are doing. Rail: the reps. You view: one rep's numbers against the team, their
+ * weekly trend and coaching themes, their calls in the drawer. Team view: the leaderboard and what the
+ * team is learning, with the chosen rep in the drawer. View, period and rep live in the URL
+ * (`#/team?view=team&range=7d&rep=rep_sam`); with no rep it's you.
  */
 export function Team() {
   const hq = useHashQuery();
+  const me = useStore(settingsStore, (s) => s.repId);
   const view: View = hq.view === 'team' ? 'team' : 'you';
   const range: Range = isRange(hq.range) ? hq.range : '30d';
+  const rep = hq.rep || me;
+  const isMe = !!rep && rep === me;
   const set = (patch: Record<string, string | undefined>) => replaceHash(hrefFor({ name: 'team' }, { ...hq, ...patch }));
+  const pickRep = (id: string, v: View = view) => set({ rep: id === me ? undefined : id, view: v === 'you' ? undefined : v });
   const r = RANGES.find((x) => x.value === range)!;
   const [now] = useState(() => Date.now());
   const from = r.days ? now - r.days * 86_400_000 : undefined;
   const team = useResource((signal) => getApi().team({ ...(from !== undefined ? { from } : {}), weeks: WEEKS }, { signal }), [range], 60_000);
   // The trend always covers the last 8 weeks, whatever the range.
   const trend = useResource((signal) => getApi().team({ weeks: WEEKS }, { signal }), [], 60_000);
+  const repCalls = useResource(
+    (signal) => (rep ? getApi().listCalls({ repId: rep, limit: 50, ...(from !== undefined ? { from } : {}) }, { signal }) : Promise.resolve([] as CallSummary[])),
+    [rep, range],
+    60_000,
+  );
+  const allCalls = useResource((signal) => (view === 'team' ? getApi().listCalls({ limit: 100, ...(from !== undefined ? { from } : {}) }, { signal }) : Promise.resolve(null)), [view, range], 60_000);
+
+  const d = team.data;
+  const members = d?.members ?? [];
+  const chosen = members.find((m) => m.rep.id === rep) ?? null;
+  const name = chosen ? repName(chosen) : rep === me ? 'You' : rep;
+  const youLabel = isMe || !rep ? 'You' : name;
 
   return (
-    <div className="web-team">
+    <div className="web-screen web-team">
       <h1 className="web-sr">How you and the team are doing</h1>
       <Toolbar label="Team filters">
         <SegmentedControl<View>
           label="Show"
           size="sm"
           options={[
-            { value: 'you', label: 'You' },
+            { value: 'you', label: youLabel },
             { value: 'team', label: 'Team' },
           ]}
           value={view}
@@ -87,18 +124,69 @@ export function Team() {
             </button>
           ))}
         </span>
-        <span className="web-muted web-small web-toolbar__note">{view === 'you' ? `Your numbers next to the team's, ${r.words}.` : `Everyone on the team, ${r.words}. Pick a rep to see their calls.`}</span>
+        <span className="web-muted web-small web-toolbar__note">
+          {view === 'you' ? `${isMe ? 'Your' : `${firstName(name)}'s`} numbers next to the team's, ${r.words}.` : `Everyone on the team, ${r.words}. Pick a rep to see their calls.`}
+        </span>
       </Toolbar>
-      <Board>
-        {team.error && !team.data ? (
+      <Workspace
+        storageKey="team"
+        rail={{
+          label: 'People',
+          summary: view === 'you' ? youLabel : `${members.length} reps`,
+          count: members.length || undefined,
+          children: <People members={members} loading={!d} me={me} rep={rep} onPick={(id) => pickRep(id, 'you')} />,
+        }}
+        drawer={{
+          label: view === 'you' ? 'Calls' : 'Rep',
+          summary: view === 'you' ? `${repCalls.data?.length ?? 0} calls` : name,
+          children:
+            view === 'you' ? (
+              <RepCalls calls={repCalls.data} error={repCalls.error} reload={repCalls.reload} historyHref={rep ? hrefFor({ name: 'history' }, { rep, range: historyRange(range) }) : null} who={isMe ? 'you' : firstName(name)} />
+            ) : (
+              <RepDrawer member={chosen} me={me} calls={repCalls.data} historyHref={rep ? hrefFor({ name: 'history' }, { rep, range: historyRange(range) }) : null} onOpen={() => rep && pickRep(rep, 'you')} />
+            ),
+        }}
+      >
+        {team.error && !d ? (
           <ErrorState title="Can't load the team's numbers" message={team.error.message} onRetry={team.reload} />
         ) : view === 'you' ? (
-          <You data={team.data} trend={trend.data} range={range} from={from} />
+          <You data={d} trend={trend.data} rep={rep} isMe={isMe} name={name} calls={repCalls.data} />
         ) : (
-          <TeamBoard data={team.data} trend={trend.data} range={range} from={from} />
+          <TeamView data={d} trend={trend.data} calls={allCalls.data} me={me} rep={rep} onPick={(id) => pickRep(id)} />
         )}
-      </Board>
+      </Workspace>
     </div>
+  );
+}
+
+function People({ members, loading, me, rep, onPick }: { members: TeamMember[]; loading: boolean; me: string; rep: string; onPick: (id: string) => void }) {
+  const sorted = [...members].sort((a, b) => (a.rep.id === me ? -1 : b.rep.id === me ? 1 : b.calls - a.calls));
+  return (
+    <Pane label="People" side="rail" pad="none" as="nav" hint="Pick a rep to see their numbers and calls.">
+      {loading ? (
+        <div className="web-pad">
+          <Skeleton lines={5} />
+        </div>
+      ) : sorted.length === 0 ? (
+        <p className="web-muted web-small web-pad">Nobody has made a call in this period.</p>
+      ) : (
+        <div className="cue-index">
+          {sorted.map((m) => (
+            <button key={m.rep.id} type="button" className="cue-index__item web-team-rep" aria-pressed={m.rep.id === rep} onClick={() => onPick(m.rep.id)}>
+              <span className="cue-index__key" aria-hidden />
+              <span className="cue-index__name">
+                {repName(m)}
+                {m.rep.id === me && <span className="web-muted"> (you)</span>}
+              </span>
+              <span className="cue-index__fig" aria-label={`${m.calls} calls`}>
+                {m.calls}
+              </span>
+              <span className="cue-index__sub">{m.lastCallAt ? `Last call ${whenLabel(m.lastCallAt)}` : 'No calls yet'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </Pane>
   );
 }
 
@@ -106,159 +194,129 @@ function KpiSkeleton({ labels }: { labels: string[] }) {
   return (
     <KpiStrip>
       {labels.map((l) => (
-        <Kpi key={l} label={l} value={<Skeleton width="60%" height={26} />} />
+        <Kpi key={l} label={l} value={<Skeleton width="60%" height={24} />} />
       ))}
     </KpiStrip>
   );
 }
 
-function NoCalls({ who }: { who: 'you' | 'team' }) {
+function NoCalls({ who }: { who: 'you' | 'someone' | 'team' }) {
   return (
-    <Pane label={who === 'you' ? 'Your calls' : 'Team'} scroll={false} span={12}>
-        <EmptyState
-          art={<Sprout state="idle" size={72} />}
-          title={who === 'you' ? 'No calls from you in this period' : 'No calls in this period'}
-          action={
-            <span className="web-chips">
-              <Button variant="primary" icon="users" onClick={() => navigate({ name: 'contacts' })}>
-                Pick someone to call
-              </Button>
-              <Button variant="secondary" icon="phone" onClick={() => navigate({ name: 'live' })}>
-                Go to Live
-              </Button>
-            </span>
-          }
-        >
-          {who === 'you'
-            ? 'Make a call from Contacts or Live and save the debrief afterwards. Your booking rate, trend and what works for you build up here. Try a longer period if you called before.'
-            : 'Once reps make calls, each one gets a row here with their bookings, how often they use the suggestions and how they rate their calls.'}
-        </EmptyState>
+    <Pane label={who === 'team' ? 'Team' : 'Calls'}>
+      <EmptyState
+        art={<Sprout state="idle" size={64} />}
+        title={who === 'you' ? 'No calls from you in this period' : who === 'someone' ? 'No calls from this rep in this period' : 'No calls in this period'}
+        action={
+          <span className="web-chips">
+            <Button variant="primary" icon="users" onClick={() => navigate({ name: 'contacts' })}>
+              Pick someone to call
+            </Button>
+            <Button variant="secondary" icon="phone" onClick={() => navigate({ name: 'live' })}>
+              Go to Live
+            </Button>
+          </span>
+        }
+      >
+        {who === 'team'
+          ? 'Once reps make calls, each one gets a row here with their bookings, suggestions used and ratings.'
+          : 'Make a call from Contacts or Live and save the debrief. Booking rate, trend and coaching build up here. Try a longer period.'}
+      </EmptyState>
     </Pane>
   );
 }
 
-function You({ data, trend, range, from }: { data: TeamResponse | null; trend: TeamResponse | null; range: Range; from: number | undefined }) {
-  const s = useStore(settingsStore);
-  const repId = s.repId;
-  const recent = useResource(
-    (signal) => (repId ? getApi().listCalls({ repId, limit: 50, ...(from !== undefined ? { from } : {}) }, { signal }) : Promise.resolve([] as CallSummary[])),
-    [repId, range],
-    60_000,
-  );
-
-  if (!repId) {
+function You({ data, trend, rep, isMe, name, calls }: { data: TeamResponse | null; trend: TeamResponse | null; rep: string; isMe: boolean; name: string; calls: CallSummary[] | null }) {
+  const [tab, setTab] = useState<ThemeTab>('good');
+  if (!rep) {
     return (
-      <Pane label="You" scroll={false} span={12}>
-          <EmptyState
-            art={<Sprout state="idle" size={72} />}
-            title="Tell Cue who you are"
-            action={
-              <Button variant="primary" icon="settings" onClick={() => navigate({ name: 'settings' })}>
-                Set your name in Settings
-              </Button>
-            }
-          >
-            Your name marks the calls you make, so this page can show your own numbers next to the team&rsquo;s.
-          </EmptyState>
+      <Pane label="You">
+        <EmptyState
+          art={<Sprout state="idle" size={64} />}
+          title="Tell Cue who you are"
+          action={
+            <Button variant="primary" icon="settings" onClick={() => navigate({ name: 'settings' })}>
+              Set your name in Settings
+            </Button>
+          }
+        >
+          Your name marks the calls you make, so this page can show your own numbers next to the team&rsquo;s.
+        </EmptyState>
       </Pane>
     );
   }
-
-  if (!data) return <KpiSkeleton labels={['Your booking rate', 'Calls', 'Suggestions used', 'Your call rating', 'Calls debriefed']} />;
+  if (!data) return <KpiSkeleton labels={['Booking rate', 'Calls', 'Lines used', 'Call rating', 'Debriefed']} />;
   const t = data.totals;
-  const me = data.members.find((m) => m.rep.id === repId);
-  if (!me || me.calls === 0) return <NoCalls who="you" />;
+  const m = data.members.find((x) => x.rep.id === rep);
+  if (!m || m.calls === 0) return <NoCalls who={isMe ? 'you' : 'someone'} />;
   const reps = Math.max(1, t?.reps ?? data.members.length);
   const teamAvgCalls = t ? t.calls / reps : 0;
-  const myUse = pct(me.cuesUsed, me.cuesShown);
+  const use = pct(m.cuesUsed, m.cuesShown);
   const teamUse = t ? pct(t.cuesUsed, t.cuesShown) : 0;
-  const debriefed = me.debriefed ?? 0;
-  const myTrend = trend?.members.find((m) => m.rep.id === repId)?.weekly ?? me.weekly ?? [];
-  const calls = recent.data ?? [];
-  const working = topThemes(calls.map((c) => c.wentWell));
-  const fix = topThemes(calls.map((c) => c.wentBadly));
-  const historyHref = hrefFor({ name: 'history' }, { rep: repId, range: historyRange(range) });
+  const debriefed = m.debriefed ?? 0;
+  const weekly = trend?.members.find((x) => x.rep.id === rep)?.weekly ?? m.weekly ?? [];
+  const list = calls ?? [];
+  const working = topThemes(list.map((c) => c.wentWell));
+  const fix = topThemes(list.map((c) => c.wentBadly));
+  const who = isMe ? 'You' : firstName(name);
+  const lastWeek = weekly.at(-1);
 
   return (
     <>
-      <KpiStrip>
+      <KpiStrip foldId="kpis">
         <Kpi
-          label="Your booking rate"
-          value={me.connected ? formatPercent(me.bookingRate) : '—'}
-          tone={t && me.connected ? (me.bookingRate >= t.bookingRate ? 'ok' : 'warn') : 'neutral'}
-          note={me.connected ? `${me.booked} meetings from ${me.connected} calls answered. ${t ? `${cap(pts(me.bookingRate, t.bookingRate))} the team (${formatPercent(t.bookingRate)}).` : ''}` : 'Nobody has picked up yet in this period.'}
+          label="Booking rate"
+          value={m.connected ? formatPercent(m.bookingRate) : '—'}
+          tone={t && m.connected ? (m.bookingRate >= t.bookingRate ? 'ok' : 'warn') : 'neutral'}
+          note={m.connected ? `team ${t ? formatPercent(t.bookingRate) : '—'}` : 'none answered'}
         />
-        <Kpi label="Calls" value={me.calls} note={`${me.connected} picked up. The team averages ${teamAvgCalls.toFixed(teamAvgCalls < 10 ? 1 : 0)} per rep.`} />
-        <Kpi
-          label="Suggestions used"
-          value={me.cuesShown ? formatPercent(myUse) : '—'}
-          note={me.cuesShown ? `${me.cuesUsed} of ${me.cuesShown} lines Cue showed you. Team: ${formatPercent(teamUse)}.` : 'Cue hasn’t shown you a line yet.'}
-        />
-        <Kpi
-          label="Your call rating"
-          value={me.avgRating != null ? `${me.avgRating.toFixed(1)}/5` : '—'}
-          note={me.avgRating != null ? `How you rated your calls in the debrief.${t?.avgRating != null ? ` Team: ${t.avgRating.toFixed(1)}.` : ''}` : 'Rate your calls in the debrief to see this.'}
-        />
-        <Kpi
-          label="Calls debriefed"
-          value={`${debriefed}/${me.calls}`}
-          tone={debriefed < me.calls / 2 ? 'warn' : 'neutral'}
-          note="Each debrief teaches Cue which lines work for you, so the suggestions get better."
-        />
+        <Kpi label="Calls" value={m.calls} note={`team avg ${teamAvgCalls.toFixed(teamAvgCalls < 10 ? 1 : 0)}`} />
+        <Kpi label="Lines used" value={m.cuesShown ? formatPercent(use) : '—'} note={m.cuesShown ? `team ${formatPercent(teamUse)}` : 'none shown'} />
+        <Kpi label="Call rating" value={fmtRating(m.avgRating)} note={m.avgRating != null ? `team ${fmtRating(t?.avgRating)}` : 'not rated yet'} />
+        <Kpi label="Debriefed" value={`${debriefed}/${m.calls}`} tone={debriefed < m.calls / 2 ? 'warn' : 'neutral'} note={`team ${t ? `${t.debriefed}/${t.calls}` : '—'}`} />
       </KpiStrip>
-      <BoardSection title="Your trend" hint="Calls and meetings booked each week for the last 8 weeks, you against the team's average per rep.">
-        <Pane label="Weekly" span={12} scroll={false}>
-          <WeeklyTrend mine={myTrend} avg={teamWeekly(trend ?? data)} labels={['You', 'Team average']} />
-        </Pane>
-      </BoardSection>
-      <BoardSection title="Coaching" hint={`From your debriefs and Cue's reviews of your last ${calls.length} ${calls.length === 1 ? 'call' : 'calls'}, most frequent first.`}>
-        <Pane label="What's working for you" meta={working.length ? `${working.length} themes` : undefined} span={6} scroll={false}>
-          <Themes items={working} tone="ok" empty="Debrief a few calls and the things that keep working show up here." />
-        </Pane>
-        <Pane label="What to work on" meta={fix.length ? `${fix.length} themes` : undefined} span={6} scroll={false}>
-          <Themes items={fix} tone="warn" empty="Nothing flagged yet. Debriefs and reviews fill this in." />
-        </Pane>
-      </BoardSection>
-      <BoardSection
-        title="Your recent calls"
-        hint="Open one to see its review and debrief."
-        actions={
-          <a className="cue-btn cue-btn--secondary cue-btn--sm" href={historyHref}>
-            All your calls in History
-          </a>
-        }
+      <Pane
+        paneId="trend"
+        label="Weekly trend"
+        grow={1.2}
+        meta="last 8 weeks"
+        summary={lastWeek ? `this week ${lastWeek.calls} calls · ${lastWeek.booked} booked` : undefined}
+        hint={`Calls and meetings each week, ${isMe ? 'you' : firstName(name)} against the team's average per rep.`}
       >
-        <Pane label="Recent calls" meta={calls.length ? String(calls.length) : undefined} span={12} scroll="cap" pad="none">
-          {recent.error && !recent.data ? (
-            <ErrorState compact message={recent.error.message} onRetry={recent.reload} className="web-pane-pad" />
-          ) : !recent.data ? (
-            <div className="web-pane-pad">
-              <Skeleton lines={4} />
-            </div>
-          ) : (
-            <CallsTable calls={calls} />
-          )}
-        </Pane>
-      </BoardSection>
+        <WeeklyTrend mine={weekly} avg={teamWeekly(trend ?? data)} labels={[who, 'Team average']} />
+      </Pane>
+      <Pane
+        paneId="coaching"
+        label="Coaching"
+        pad="none"
+        summary={`${working.length} working · ${fix.length} to work on`}
+        tabs={[
+          { id: 'good', label: "What's working", count: working.length },
+          { id: 'bad', label: 'What to work on', count: fix.length },
+        ]}
+        tab={tab}
+        onTab={(x) => setTab(x as ThemeTab)}
+      >
+        <p className="cue-hint web-team-note">{`From debriefs and reviews of ${isMe ? 'your' : `${firstName(name)}'s`} last ${list.length} ${list.length === 1 ? 'call' : 'calls'}, most frequent first.`}</p>
+        {!calls ? (
+          <div className="web-pad">
+            <Skeleton lines={4} />
+          </div>
+        ) : tab === 'good' ? (
+          <Themes items={working} tone="ok" empty="Debrief a few calls and the things that keep working show up here." />
+        ) : (
+          <Themes items={fix} tone="warn" empty="Nothing flagged yet. Debriefs and reviews fill this in." />
+        )}
+      </Pane>
     </>
   );
 }
 
-const CALL_COLUMNS: Column<CallSummary>[] = [
-  {
-    key: 'who',
-    header: 'Prospect',
-    render: (c) => (
-      <span className="web-hist-who">
-        <span className="web-hist-who__name">{c.prospect.name || c.prospect.company || 'Unnamed prospect'}</span>
-        <span className="web-muted web-small">{[c.prospect.title, c.prospect.company].filter(Boolean).join(' · ')}</span>
-      </span>
-    ),
-  },
+const SHORT_CALL_COLS: Column<CallSummary>[] = [
+  { key: 'who', header: 'Prospect', render: (c) => <span className="web-team-who">{c.prospect.name || c.prospect.company || 'Unnamed prospect'}</span> },
   {
     key: 'outcome',
     header: 'Outcome',
-    width: '200px',
+    width: '150px',
     render: (c) => {
       const st = callStatus(c);
       return (
@@ -268,33 +326,132 @@ const CALL_COLUMNS: Column<CallSummary>[] = [
       );
     },
   },
-  { key: 'rating', header: 'Rating', width: '80px', mono: true, align: 'end', render: (c) => (c.rating != null ? `${c.rating}/5` : '—') },
-  { key: 'used', header: 'Suggestions used', width: '140px', mono: true, align: 'end', render: (c) => `${c.used}/${c.suggestions}` },
-  { key: 'when', header: 'When', width: '170px', render: (c) => <time dateTime={new Date(c.startedAt).toISOString()}>{whenLabel(c.startedAt)}</time> },
+  { key: 'when', header: 'When', width: '96px', mono: true, render: (c) => <time dateTime={new Date(c.startedAt).toISOString()}>{shortWhen(c.startedAt)}</time> },
 ];
 
-function CallsTable({ calls }: { calls: CallSummary[] }) {
+const SHORT_DAY = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' });
+const SHORT_TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+/** "14:05" today, "Oct 22" before. */
+function shortWhen(t: number): string {
+  const d = new Date(t);
+  return d.toDateString() === new Date().toDateString() ? SHORT_TIME.format(d) : SHORT_DAY.format(d);
+}
+
+/** You view drawer: the rep's calls, with the picked one in full below. */
+function RepCalls({ calls, error, reload, historyHref, who }: { calls: CallSummary[] | null; error: Error | null; reload: () => void; historyHref: string | null; who: string }) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const rows = calls ?? [];
+  useEffect(() => {
+    if (rows.length && !rows.some((c) => c.id === selected)) setSelected(rows[0]!.id);
+  }, [rows, selected]);
+  const current = rows.find((c) => c.id === selected) ?? null;
   return (
-    <DataTable
-      label="Recent calls"
-      columns={CALL_COLUMNS}
-      rows={calls}
-      rowKey={(c) => c.id}
-      onSelect={(c) => openDebrief(c.id)}
-      minWidth={680}
-      empty={<p className="web-pane-pad web-muted web-small">No calls in this period.</p>}
-    />
+    <Pane
+      label="Calls"
+      side="drawer"
+      pad="none"
+      as="aside"
+      meta={calls ? String(rows.length) : undefined}
+      actions={
+        historyHref && (
+          <a className="cue-btn cue-btn--ghost cue-btn--sm" href={historyHref}>
+            In History
+          </a>
+        )
+      }
+    >
+      <div className="web-split">
+        <div className="web-split__top">
+          {error && !calls ? (
+            <div className="web-pad">
+              <ErrorState compact title="Can't load the calls" message={error.message} onRetry={reload} />
+            </div>
+          ) : !calls ? (
+            <div className="web-pad">
+              <Skeleton lines={6} />
+            </div>
+          ) : (
+            <DataTable
+              label={`${who === 'you' ? 'Your' : `${who}'s`} recent calls`}
+              columns={SHORT_CALL_COLS}
+              rows={rows}
+              rowKey={(c) => c.id}
+              selectedKey={current?.id}
+              onSelect={(c) => setSelected(c.id)}
+              minWidth={320}
+              empty={
+                <EmptyState compact title="No calls in this period">
+                  Calls show up here once they end. Try a longer period.
+                </EmptyState>
+              }
+            />
+          )}
+        </div>
+        <div className="web-split__bottom">
+          <CallDetail call={current} />
+        </div>
+      </div>
+    </Pane>
   );
 }
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+function CallDetail({ call }: { call: CallSummary | null }) {
+  if (!call) return <p className="web-muted web-small web-pad">Pick a call to see its review.</p>;
+  const st = callStatus(call);
+  const reviewed = call.status === 'reviewed' || call.rating != null || !!call.reviewSummary;
+  return (
+    <section aria-label="Call detail" className="web-team-call">
+      <div className="web-pad web-pad--tight web-team-call__head">
+        <span className="cue-label">{call.prospect.name || call.prospect.company || 'Unnamed prospect'}</span>
+        <Button size="sm" variant={reviewed ? 'secondary' : 'primary'} onClick={() => openDebrief(call.id)}>
+          {reviewed ? 'See the review' : 'Debrief'}
+        </Button>
+      </div>
+      <KeyValue
+        className="web-kv-inset"
+        items={[
+          { label: 'Who', value: [call.prospect.title, call.prospect.company].filter(Boolean).join(' · ') || '—' },
+          {
+            label: 'Outcome',
+            value: (
+              <Chip size="sm" tone={st.tone}>
+                {st.label}
+              </Chip>
+            ),
+          },
+          { label: 'When', value: <span className="web-nowrap">{whenLabel(call.startedAt)}</span> },
+          { label: 'Rating', value: <span className="cue-num">{call.rating != null ? `${call.rating}/5` : '—'}</span> },
+          { label: 'Suggestions', value: <span className="cue-num">{`${call.used} used of ${call.suggestions}`}</span> },
+        ]}
+      />
+      {call.reviewSummary && <p className="web-team-call__summary">{call.reviewSummary}</p>}
+      {!!call.wentWell?.length && (
+        <>
+          <div className="web-pad web-pad--tight">
+            <span className="cue-label">Went well</span>
+          </div>
+          <Themes items={call.wentWell.map((text) => ({ text, count: 1 }))} tone="ok" empty="" />
+        </>
+      )}
+      {!!call.wentBadly?.length && (
+        <>
+          <div className="web-pad web-pad--tight">
+            <span className="cue-label">Didn&rsquo;t go well</span>
+          </div>
+          <Themes items={call.wentBadly.map((text) => ({ text, count: 1 }))} tone="warn" empty="" />
+        </>
+      )}
+      {!reviewed && !call.wentWell?.length && <p className="web-muted web-small web-pad">Not debriefed yet. A debrief tells Cue which lines worked.</p>}
+    </section>
+  );
+}
 
 function Themes({ items, tone, empty }: { items: { text: string; count: number }[]; tone: 'ok' | 'warn'; empty: string }) {
-  if (!items.length) return <p className="web-muted web-small">{empty}</p>;
+  if (!items.length) return empty ? <p className="web-muted web-small web-pad">{empty}</p> : null;
   return (
-    <ol className={`web-themes is-${tone}`}>
-      {items.map((it) => (
-        <li key={it.text} className="web-themes__item">
+    <ol className={`web-themes web-team-themes is-${tone}`}>
+      {items.map((it, i) => (
+        <li key={`${i}-${it.text}`} className="web-themes__item">
           <span className="web-themes__text">{it.text}</span>
           {it.count > 1 && <span className="web-themes__n" aria-label={`${it.count} calls`}>{`×${it.count}`}</span>}
         </li>
@@ -314,6 +471,16 @@ function teamWeekly(team: TeamResponse): Week[] {
     weekStart: w.weekStart,
     calls: active.reduce((s, m) => s + (m.weekly?.[i]?.calls ?? 0), 0) / n,
     booked: active.reduce((s, m) => s + (m.weekly?.[i]?.booked ?? 0), 0) / n,
+  }));
+}
+
+/** The whole team's calls and meetings per week. */
+function teamTotals(team: TeamResponse): Week[] {
+  const base = team.members[0]?.weekly ?? [];
+  return base.map((w, i) => ({
+    weekStart: w.weekStart,
+    calls: team.members.reduce((s, m) => s + (m.weekly?.[i]?.calls ?? 0), 0),
+    booked: team.members.reduce((s, m) => s + (m.weekly?.[i]?.booked ?? 0), 0),
   }));
 }
 
@@ -341,7 +508,7 @@ function WeeklyTrend({ mine, avg, labels }: { mine: Week[]; avg: Week[]; labels:
                   <span className="web-trend__bar is-team" style={{ transform: `scaleY(${(t / max).toFixed(3)})` }} />
                 </span>
                 <span className="web-trend__wk" aria-hidden>
-                  {last ? 'This week' : WEEK_FMT.format(w.weekStart)}
+                  {last ? 'Now' : WEEK_FMT.format(w.weekStart)}
                 </span>
                 <span className="cue-vh">{`Week of ${WEEK_FMT.format(w.weekStart)}: ${labels[0]} ${fmt(w[metric])}, ${labels[1]} ${fmt(t)}`}</span>
               </li>
@@ -352,15 +519,17 @@ function WeeklyTrend({ mine, avg, labels }: { mine: Week[]; avg: Week[]; labels:
     );
   };
   return (
-    <div className="web-stack">
-      <span className="web-trend__legend" aria-hidden>
-        <span>
-          <span className="web-trend__key is-you" /> {labels[0]}
+    <div className="web-team-trend">
+      <div className="web-team-trend__bar">
+        <span className="web-trend__legend" aria-hidden>
+          <span>
+            <span className="web-trend__key is-you" /> {labels[0]}
+          </span>
+          <span>
+            <span className="web-trend__key is-team" /> {labels[1]}
+          </span>
         </span>
-        <span>
-          <span className="web-trend__key is-team" /> {labels[1]}
-        </span>
-      </span>
+      </div>
       <div className="web-trend__charts">
         {chart('calls', 'Calls per week')}
         {chart('booked', 'Meetings booked per week')}
@@ -396,75 +565,163 @@ function WeeklyTrend({ mine, avg, labels }: { mine: Week[]; avg: Week[]; labels:
   );
 }
 
-/** The whole team's calls and meetings per week. */
-function teamTotals(team: TeamResponse): Week[] {
-  const base = team.members[0]?.weekly ?? [];
-  return base.map((w, i) => ({
-    weekStart: w.weekStart,
-    calls: team.members.reduce((s, m) => s + (m.weekly?.[i]?.calls ?? 0), 0),
-    booked: team.members.reduce((s, m) => s + (m.weekly?.[i]?.booked ?? 0), 0),
-  }));
-}
-
-function TeamBoard({ data, trend, range, from }: { data: TeamResponse | null; trend: TeamResponse | null; range: Range; from: number | undefined }) {
-  const repId = useStore(settingsStore, (s) => s.repId);
-  const recent = useResource((signal) => getApi().listCalls({ limit: 100, ...(from !== undefined ? { from } : {}) }, { signal }), [range], 60_000);
-  if (!data) return <KpiSkeleton labels={['Reps', 'Calls', 'Booking rate', 'Suggestions used', 'Calls debriefed']} />;
+function TeamView({ data, trend, calls, me, rep, onPick }: { data: TeamResponse | null; trend: TeamResponse | null; calls: CallSummary[] | null; me: string; rep: string; onPick: (id: string) => void }) {
+  const [boardTab, setBoardTab] = useState<BoardTab>('reps');
+  const [learnTab, setLearnTab] = useState<ThemeTab>('good');
+  if (!data) return <KpiSkeleton labels={['Reps', 'Calls', 'Booking rate', 'Lines used', 'Debriefed']} />;
   const t = data.totals;
   if (!t || t.calls === 0 || data.members.length === 0) return <NoCalls who="team" />;
-  const open = (m: TeamMember) => navigate({ name: 'history' }, { rep: m.rep.id, range: historyRange(range) });
   const best = Math.max(...data.members.map((m) => m.bookingRate));
+  const leader = [...data.members].sort((a, b) => b.booked - a.booked)[0];
+  const good = calls ? topThemes(calls.map((c) => c.wentWell), 8) : [];
+  const bad = calls ? topThemes(calls.map((c) => c.wentBadly), 8) : [];
 
   const columns: Column<TeamMember>[] = [
     {
       key: 'rep',
       header: 'Rep',
       render: (m) => (
-        <span className="web-hist-who">
-          <span className="web-hist-who__name">
-            {m.rep.name || m.rep.id}
-            {m.rep.id === repId && <span className="web-muted web-small"> (you)</span>}
-          </span>
-          {m.lastCallAt && <span className="web-muted web-small">{`Last call ${whenLabel(m.lastCallAt)}`}</span>}
+        <span className="web-team-who">
+          {repName(m)}
+          {m.rep.id === me && <span className="web-muted web-small"> (you)</span>}
         </span>
       ),
     },
-    { key: 'calls', header: 'Calls', width: '64px', mono: true, align: 'end', render: (m) => m.calls },
+    { key: 'calls', header: 'Calls', width: '60px', mono: true, align: 'end', render: (m) => m.calls },
     { key: 'connected', header: 'Answered', width: '84px', mono: true, align: 'end', render: (m) => m.connected },
-    { key: 'booked', header: 'Booked', width: '72px', mono: true, align: 'end', render: (m) => m.booked },
-    { key: 'rate', header: 'Booking rate', width: '170px', render: (m) => (m.connected ? <Bar value={m.bookingRate} label={formatPercent(m.bookingRate)} tone={m.bookingRate === best && best > 0 ? 'ok' : 'accent'} /> : <span className="web-muted">—</span>) },
-    { key: 'used', header: 'Suggestions used', width: '128px', mono: true, align: 'end', render: (m) => (m.cuesShown ? formatPercent(pct(m.cuesUsed, m.cuesShown)) : '—') },
-    { key: 'rating', header: 'Avg rating', width: '100px', mono: true, align: 'end', render: (m) => (m.avgRating != null ? `${m.avgRating.toFixed(1)}/5` : '—') },
-    { key: 'debriefed', header: 'Debriefed', width: '108px', mono: true, align: 'end', render: (m) => `${m.debriefed ?? 0}/${m.calls}` },
+    { key: 'booked', header: 'Booked', width: '68px', mono: true, align: 'end', render: (m) => m.booked },
+    { key: 'rate', header: 'Booking rate', width: '128px', render: (m) => (m.connected ? <Bar value={m.bookingRate} label={formatPercent(m.bookingRate)} tone={m.bookingRate === best && best > 0 ? 'ok' : 'accent'} /> : <span className="web-muted">—</span>) },
+    { key: 'used', header: 'Used', width: '58px', mono: true, align: 'end', render: (m) => (m.cuesShown ? formatPercent(pct(m.cuesUsed, m.cuesShown)) : '—') },
+    { key: 'rating', header: 'Rating', width: '64px', mono: true, align: 'end', render: (m) => fmtRating(m.avgRating) },
+    { key: 'debriefed', header: 'Debriefed', width: '88px', mono: true, align: 'end', render: (m) => `${m.debriefed ?? 0}/${m.calls}` },
   ];
 
   return (
     <>
-      <KpiStrip>
-        <Kpi label="Reps" value={t.reps} note="People who made at least one call in this period." />
-        <Kpi label="Calls" value={t.calls} note={`${t.connected} answered by someone.`} />
-        <Kpi label="Booking rate" value={t.connected ? formatPercent(t.bookingRate) : '—'} note={`${t.booked} meetings booked from ${t.connected} answered calls.`} tone={t.booked > 0 ? 'ok' : 'neutral'} />
-        <Kpi label="Suggestions used" value={t.cuesShown ? formatPercent(pct(t.cuesUsed, t.cuesShown)) : '—'} note={`${t.cuesUsed} of ${t.cuesShown} lines Cue showed were said.`} />
-        <Kpi label="Calls debriefed" value={`${t.debriefed}/${t.calls}`} note={`Debriefs teach Cue what works.${t.avgRating != null ? ` Average rating ${t.avgRating.toFixed(1)}/5.` : ''}`} tone={t.debriefed < t.calls / 2 ? 'warn' : 'neutral'} />
+      <KpiStrip foldId="kpis">
+        <Kpi label="Reps" value={t.reps} note="made a call" />
+        <Kpi label="Calls" value={t.calls} note={`${t.connected} answered`} />
+        <Kpi label="Booking rate" value={t.connected ? formatPercent(t.bookingRate) : '—'} note={`${t.booked} of ${t.connected}`} tone={t.booked > 0 ? 'ok' : 'neutral'} />
+        <Kpi label="Lines used" value={t.cuesShown ? formatPercent(pct(t.cuesUsed, t.cuesShown)) : '—'} note={`${t.cuesUsed} of ${t.cuesShown}`} />
+        <Kpi label="Debriefed" value={`${t.debriefed}/${t.calls}`} note={t.avgRating != null ? `rated ${t.avgRating.toFixed(1)}/5` : 'none rated'} tone={t.debriefed < t.calls / 2 ? 'warn' : 'neutral'} />
       </KpiStrip>
-      <BoardSection title="Leaderboard" hint="Ranked by meetings booked. Booking rate counts only calls someone answered. Pick a rep to see their calls in History.">
-        <Pane label="Reps" meta={`${data.members.length} reps`} pad="none" span={12} scroll={false}>
-          <DataTable label="Team leaderboard" columns={columns} rows={data.members} rowKey={(m) => m.rep.id} onSelect={open} minWidth={860} />
-        </Pane>
-      </BoardSection>
-      <BoardSection title="Team trend" hint="The whole team's calls and meetings each week for the last 8 weeks, with the average per rep.">
-        <Pane label="Weekly" span={12} scroll={false}>
-          <WeeklyTrend mine={teamTotals(trend ?? data)} avg={teamWeekly(trend ?? data)} labels={['Team total', 'Average per rep']} />
-        </Pane>
-      </BoardSection>
-      <BoardSection title="What the team is learning" hint={`Themes from the debriefs and reviews of the team's last ${(recent.data ?? []).length} calls, most frequent first. These are the labels Mubit trains on.`}>
-        <Pane label="What's working" span={6} scroll={false}>
-          {recent.data ? <Themes items={topThemes(recent.data.map((c) => c.wentWell), 8)} tone="ok" empty="Debriefs fill this in." /> : <Skeleton lines={4} />}
-        </Pane>
-        <Pane label="What isn't" span={6} scroll={false}>
-          {recent.data ? <Themes items={topThemes(recent.data.map((c) => c.wentBadly), 8)} tone="warn" empty="Nothing flagged yet." /> : <Skeleton lines={4} />}
-        </Pane>
-      </BoardSection>
+      <Pane
+        paneId="board"
+        label="Leaderboard"
+        grow={1.3}
+        pad="none"
+        summary={leader ? `${repName(leader)} leads with ${leader.booked} booked` : undefined}
+        tabs={[
+          { id: 'reps', label: 'Reps', count: data.members.length },
+          { id: 'trend', label: 'Weekly trend' },
+        ]}
+        tab={boardTab}
+        onTab={(x) => setBoardTab(x as BoardTab)}
+      >
+        {boardTab === 'reps' ? (
+          <>
+            <p className="cue-hint web-team-note">Ranked by meetings booked. Booking rate counts answered calls only. Pick a rep to see them on the right.</p>
+            <DataTable label="Team leaderboard" columns={columns} rows={data.members} rowKey={(m) => m.rep.id} selectedKey={rep} onSelect={(m) => onPick(m.rep.id)} minWidth={640} />
+          </>
+        ) : (
+          <div className="web-pad">
+            <WeeklyTrend mine={teamTotals(trend ?? data)} avg={teamWeekly(trend ?? data)} labels={['Team total', 'Average per rep']} />
+          </div>
+        )}
+      </Pane>
+      <Pane
+        paneId="learning"
+        label="Team learning"
+        pad="none"
+        summary={calls ? `${good.length} working · ${bad.length} not` : undefined}
+        tabs={[
+          { id: 'good', label: "What's working", count: calls ? good.length : undefined },
+          { id: 'bad', label: "What isn't", count: calls ? bad.length : undefined },
+        ]}
+        tab={learnTab}
+        onTab={(x) => setLearnTab(x as ThemeTab)}
+      >
+        <p className="cue-hint web-team-note">{`Themes from the team's last ${calls?.length ?? 0} calls. These are the labels Mubit trains on.`}</p>
+        {!calls ? (
+          <div className="web-pad">
+            <Skeleton lines={4} />
+          </div>
+        ) : learnTab === 'good' ? (
+          <Themes items={good} tone="ok" empty="Debriefs fill this in." />
+        ) : (
+          <Themes items={bad} tone="warn" empty="Nothing flagged yet." />
+        )}
+      </Pane>
     </>
+  );
+}
+
+const LATEST_COLS: Column<CallSummary>[] = SHORT_CALL_COLS;
+
+/** Team view drawer: the chosen rep's numbers and latest calls. */
+function RepDrawer({ member, me, calls, historyHref, onOpen }: { member: TeamMember | null; me: string; calls: CallSummary[] | null; historyHref: string | null; onOpen: () => void }) {
+  if (!member) {
+    return (
+      <Pane label="Rep" side="drawer" as="aside">
+        <EmptyState compact title="Pick a rep">
+          Choose someone on the leaderboard to see their numbers and latest calls.
+        </EmptyState>
+      </Pane>
+    );
+  }
+  const m = member;
+  return (
+    <Pane
+      label="Rep"
+      side="drawer"
+      pad="none"
+      as="aside"
+      meta={m.rep.id === me ? 'you' : undefined}
+      footer={
+        <span className="web-chips">
+          <Button size="sm" variant="primary" onClick={onOpen}>
+            Open their numbers
+          </Button>
+          {historyHref && (
+            <a className="cue-btn cue-btn--secondary cue-btn--sm" href={historyHref}>
+              Their calls in History
+            </a>
+          )}
+        </span>
+      }
+    >
+      <div className="web-pad web-pad--tight">
+        <span className="web-team-name">{repName(m)}</span>
+      </div>
+      <KeyValue
+        className="web-kv-inset"
+        items={[
+          { label: 'Calls', value: <span className="cue-num">{`${m.calls} · ${m.connected} answered`}</span> },
+          { label: 'Booked', value: <span className="cue-num">{`${m.booked} · ${m.connected ? formatPercent(m.bookingRate) : '—'} of answered`}</span> },
+          { label: 'Suggestions', value: <span className="cue-num">{m.cuesShown ? `${formatPercent(pct(m.cuesUsed, m.cuesShown))} used · ${m.cuesUsed} of ${m.cuesShown}` : '—'}</span> },
+          { label: 'Rating', value: <span className="cue-num">{fmtRating(m.avgRating)}</span> },
+          { label: 'Debriefed', value: <span className="cue-num">{`${m.debriefed ?? 0}/${m.calls}`}</span> },
+          { label: 'Last call', value: <span className="web-nowrap">{m.lastCallAt ? whenLabel(m.lastCallAt) : '—'}</span> },
+        ]}
+      />
+      <div className="web-pad web-pad--tight">
+        <span className="cue-label">Latest calls</span>
+      </div>
+      {!calls ? (
+        <div className="web-pad">
+          <Skeleton lines={4} />
+        </div>
+      ) : (
+        <DataTable
+          label="Latest calls"
+          columns={LATEST_COLS}
+          rows={calls.slice(0, 8)}
+          rowKey={(c) => c.id}
+          onSelect={(c) => openDebrief(c.id)}
+          minWidth={320}
+          empty={<p className="web-muted web-small web-pad">No calls in this period.</p>}
+        />
+      )}
+    </Pane>
   );
 }
