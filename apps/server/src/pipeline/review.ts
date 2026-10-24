@@ -91,10 +91,14 @@ export class ReviewPipeline {
     const baseLines = base.filter((l) => !removed.includes(l.id));
     const applied = applyReview(baseLines, labelled, review, { now: s.now() });
 
+    // With CUE_AUTO_ACTIVATE, a line the rep improvised on a call that went well joins the playbook as
+    // a young line straight away (it gets the bandit's exploration slot), once the policy check passes.
+    const wentWell = review.outcome === 'meeting_booked' || review.outcome === 'follow_up' || record.outcome?.outcome === 'meeting_booked';
     for (const c of applied.candidates) {
       const check = await s.policy.check(c.text, 'rep', { callId });
       c.policy = { verdict: check.verdict, ...(check.rule ? { note: clip(check.rule, 300) } : {}) };
       if (check.verdict === 'violation') c.status = 'rejected';
+      else if (s.config.autoActivate && wentWell && check.verdict === 'supported') c.status = 'active';
       const i = applied.lines.findIndex((l) => l.id === c.id);
       if (i >= 0) applied.lines[i] = c;
     }
@@ -107,7 +111,7 @@ export class ReviewPipeline {
 
     s.store.append({ type: 'review.completed', callId, review, servedBy, ...(r.ok && r.requestId ? { mubitRequestId: r.requestId } : {}) });
     if (r.ok) s.telemetry.link(r.requestId, callId, 'review_call');
-    s.store.append({ type: 'playbook.updated', callId, lineIds: applied.changed, candidatesAdded: applied.candidates.filter((c) => c.status === 'candidate').map((c) => c.id) });
+    s.store.append({ type: 'playbook.updated', callId, lineIds: applied.changed, candidatesAdded: applied.candidates.filter((c) => c.status === 'candidate' || c.status === 'active').map((c) => c.id) });
   }
 }
 

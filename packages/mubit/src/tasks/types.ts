@@ -7,8 +7,8 @@ import type { TASK_OUTPUT, TaskId, TaskOutput } from '@cue/core';
  */
 export interface TaskDef<K extends TaskId> {
   id: K;
-  /** `fast` → config.models.fast, `write` → config.models.write. */
-  tier: 'fast' | 'write';
+  /** `fast` → config.models.fast, `write` → config.models.write, `live` → config.models.live. */
+  tier: 'fast' | 'write' | 'live';
   /** Bump when the instructions or schema change: it is a new Mubit task from then on. */
   version: number;
   /** The system prompt. A constant: never interpolate anything call-specific into it. */

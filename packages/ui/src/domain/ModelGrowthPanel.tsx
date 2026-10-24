@@ -22,6 +22,7 @@ export const TASK_LABEL: Record<TaskStats['task'], string> = {
   check_claim: 'Check a claim',
   review_call: 'Review the call',
   simulate_prospect: 'Simulated prospect',
+  live_cue: 'Live cue',
 };
 
 export const TASK_COPY: Record<TaskStats['task'], string> = {
@@ -31,6 +32,7 @@ export const TASK_COPY: Record<TaskStats['task'], string> = {
   check_claim: "Checks what you said against what's allowed",
   review_call: 'Grades the call afterwards and learns what worked',
   simulate_prospect: 'Plays a simulated prospect (not used on real calls)',
+  live_cue: 'Reads the moment and writes the line in one streamed call, live on every turn',
 };
 
 function CopyId({ id }: { id: string }) {

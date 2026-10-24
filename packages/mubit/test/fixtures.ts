@@ -216,6 +216,18 @@ export const INPUTS: { [K in TaskId]: TaskInput<K> } = {
       { speaker: 'rep', text: "Hi Maya, it's Alex at Corgi. Saw the Series A, congrats. Have you got thirty seconds?" },
     ],
   },
+  live_cue: {
+    prospect: { name: 'Maya Chen', title: 'CEO', company: 'Lumen Labs' },
+    rep: { name: 'Alex', company: 'Corgi' },
+    brief: { summary: 'AI document review for law firms.', opener: '', risk: 'Wrong answers in client contracts.', policies: ['Technology E&O: AI errors in client work'], facts: ['Form D verified: Round still open, $1.3M of $9.9M left'] },
+    playbook: [{ line_id: 'line_wtr_selfaware', moment: 'whats_this_regarding', style: 'self-aware', text: "Honestly? Insurance. Worst cold-call topic there is. Thirty seconds and I'll let you go.", used: 41, wins: 22, booked: 6 }],
+    previous: { persona: 'ceo', receptivity: 'neutral', moment: 'opener' },
+    transcript: [
+      { speaker: 'rep', text: "Hi Maya, it's Alex at Corgi." },
+      { speaker: 'prospect', text: "...what's this regarding." },
+    ],
+    already_said: [],
+  },
 };
 
 /** A schema-valid answer per task, for the fake fetch. */
@@ -226,4 +238,15 @@ export const OUTPUTS: { [K in TaskId]: TaskOutput<K> } = {
   check_claim: { verdict: 'violation', rule: POLICY[0]!, rephrase: "That's what the quote call confirms.", confidence: 0.9 },
   review_call: { summary: 'Booked', outcome: 'meeting_booked', lines_used: [], candidate_lines: [], missed_moments: [], what_worked: [], what_didnt: [], customer_attitude: 'curious', coaching: [], suggestion_impact: 0.6 },
   simulate_prospect: { reply: 'We already have a broker.', intended_moment: 'objection_broker', mood_now: 'cool', ends_call: false, books_meeting: false },
+  live_cue: {
+    meaning: 'Guarded, wants the point fast',
+    moment: 'whats_this_regarding',
+    persona: 'ceo',
+    receptivity: 'cold',
+    line_id: 'line_wtr_selfaware',
+    say: "Honestly? Insurance. Worst cold-call topic there is. Thirty seconds and I'll let you go.",
+    why: 'Cold and clipped',
+    up_next: [{ if_they_say: 'We already have a broker', move: 'Ask when they last re-quoted', moment: 'objection_broker' }],
+    risky_claim: null,
+  },
 };

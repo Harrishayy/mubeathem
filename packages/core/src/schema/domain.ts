@@ -224,14 +224,33 @@ export const BriefSource = z.object({
 });
 export type BriefSource = z.infer<typeof BriefSource>;
 
+/**
+ * The Corgi Brief extension's research (SEC filings + Exa + its own synthesis), sent with the call so
+ * the live cue knows what the rep already has on screen.
+ */
+export const CorgiBrief = z.object({
+  /** The "you're …ing …" scene the opener is built around. */
+  trigger: z.string().max(240),
+  risk: z.string().max(300),
+  policies: z.array(z.object({ name: z.string().max(80), reason: z.string().max(240) })).max(4),
+  people: z.array(z.object({ name: z.string().max(120), role: z.string().max(160) })).max(10),
+  /** A verified filing line ("Round still open — $1.3M of $9.9M left"). Only `sure` lines are safe to say out loud. */
+  sec: z.object({ form: z.enum(['D', 'C']), line: z.string().max(240), sure: z.boolean() }).nullable(),
+  /** Short company facts: stage, employees, founded, city. */
+  facts: z.array(z.string().max(200)).max(12),
+});
+export type CorgiBrief = z.infer<typeof CorgiBrief>;
+
 export const Brief = z.object({
   summary: z.string().max(400),
   hooks: z.array(ResearchHook).max(5),
   opener: z.string().max(320),
   personaGuess: PersonaZ,
-  servedBy: z.enum(['mubit', 'rules', 'cache']),
+  /** `client`: written by the browser extension (Corgi Brief) and sent to the server. */
+  servedBy: z.enum(['mubit', 'rules', 'cache', 'client']),
   /** What the research read (Exa, Valyu, CRM), newest-first where dated. */
   sources: z.array(BriefSource).max(12).optional(),
+  corgi: CorgiBrief.optional(),
 });
 export type Brief = z.infer<typeof Brief>;
 

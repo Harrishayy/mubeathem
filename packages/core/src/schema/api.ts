@@ -37,8 +37,13 @@ export const CreateCallRequest = z.object({
   contactId: Id.optional(),
   /** Practice mode: the simulated prospect's mood and objections. */
   practice: z.object({ mood: z.enum(['warm', 'neutral', 'cool', 'cold']), objections: z.array(z.string().max(120)).max(6) }).optional(),
+  /** The client does its own research and sends it with `PUT /api/calls/:id/brief`; the server skips its own. */
+  clientBrief: z.boolean().optional(),
 });
 export type CreateCallRequest = z.infer<typeof CreateCallRequest>;
+
+export const PutBriefRequest = Brief;
+export type PutBriefRequest = z.infer<typeof PutBriefRequest>;
 
 export const AddTurnRequest = z.object({
   id: Id.optional(),
@@ -284,7 +289,11 @@ export type StatsResponse = z.infer<typeof StatsResponse>;
 export const HealthResponse = z.object({
   ok: z.boolean(),
   version: z.string(),
-  mubit: z.object({ configured: z.boolean(), reachable: z.boolean().nullable(), models: z.object({ fast: z.string(), write: z.string() }) }),
+  mubit: z.object({ configured: z.boolean(), reachable: z.boolean().nullable(), models: z.object({ fast: z.string(), write: z.string(), live: z.string().optional() }) }),
+  /** `layered` (rules read + Mubit refinement) or `live` (one streamed live_cue call per turn). */
+  pipeline: z.enum(['layered', 'live']).optional(),
+  /** Speech-to-text tokens for the browser (`POST /api/stt/token`). */
+  stt: z.object({ configured: z.boolean() }).optional(),
   trellus: z.object({ configured: z.boolean(), reachable: z.boolean().nullable(), lastSyncAt: EpochMs.nullable() }),
   sapling: z.object({ configured: z.boolean() }),
   exa: z.object({ configured: z.boolean() }),
@@ -334,7 +343,13 @@ export const TrellusKeyRequest = z.object({ apiKey: z.string().min(1).max(400), 
 export type TrellusKeyRequest = z.infer<typeof TrellusKeyRequest>;
 
 /** `POST /api/stt/token`: a short-lived speech-to-text credential for the browser. 404 `stt_not_configured` when unset. */
-export const SttTokenResponse = z.object({ provider: z.literal('deepgram'), token: z.string().min(1), expiresAt: EpochMs });
+export const SttTokenResponse = z.object({
+  provider: z.literal('deepgram'),
+  token: z.string().min(1),
+  expiresAt: EpochMs,
+  /** The Deepgram host the token is for (`api.deepgram.com`, or `api.eu.deepgram.com` for the EU endpoint). */
+  host: z.string().max(120).optional(),
+});
 export type SttTokenResponse = z.infer<typeof SttTokenResponse>;
 
 /** `GET`/`PUT /api/trellus/dispositions`: the account's disposition vocabulary and how each maps to an Outcome. */

@@ -18,9 +18,16 @@ export interface ServerConfig {
   research: { timeoutMs: number; cacheMinutes: number };
   saplingUrl: string;
   /** Speech-to-text: the browser gets short-lived Deepgram tokens from `POST /api/stt/token`, never this key. */
-  stt: { deepgramApiKey: string; ttlSeconds: number };
+  stt: { deepgramApiKey: string; ttlSeconds: number; /** `api.deepgram.com`, or `api.eu.deepgram.com` to keep audio in the EU (and closer to UK reps). */ deepgramHost: string };
+  /**
+   * Which live path runs on prospect turns: `layered` (rules read + instant card, Mubit refines) or
+   * `live` (one streamed live_cue call through Mubit per turn, no rules read).
+   */
+  pipeline: 'layered' | 'live';
+  /** Candidate lines mined from booked calls go straight into the playbook as young lines (policy-screened), instead of waiting for a manager. */
+  autoActivate: boolean;
   /** Per-stage budgets on the live path; past them the rules engine answers. */
-  budgets: { readMs: number; writeMs: number; checkMs: number; briefMs: number; reviewMs: number; simMs: number };
+  budgets: { readMs: number; writeMs: number; checkMs: number; briefMs: number; reviewMs: number; simMs: number; liveMs: number };
   /** SSE heartbeat comment interval. */
   heartbeatMs: number;
   /** Review a call this long after it ended with an outcome, if the rep never sent feedback. */
@@ -83,8 +90,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     valyuApiKey: str(env.VALYU_API_KEY),
     research: { timeoutMs: int(env.CUE_RESEARCH_TIMEOUT_MS, 6000, 500), cacheMinutes: int(env.CUE_RESEARCH_CACHE_MINUTES, 720) },
     saplingUrl: str(env.SAPLING_URL),
-    stt: { deepgramApiKey: str(env.DEEPGRAM_API_KEY), ttlSeconds: Math.min(3600, int(env.CUE_STT_TTL_SECONDS, 60, 1)) },
+    stt: { deepgramApiKey: str(env.DEEPGRAM_API_KEY), ttlSeconds: Math.min(3600, int(env.CUE_STT_TTL_SECONDS, 60, 1)), deepgramHost: str(env.DEEPGRAM_HOST) || 'api.deepgram.com' },
+    pipeline: str(env.CUE_PIPELINE).toLowerCase() === 'live' ? 'live' : 'layered',
+    autoActivate: env.CUE_AUTO_ACTIVATE === '1',
     budgets: {
+      liveMs: int(env.CUE_LIVE_BUDGET_MS, 4000, 1),
       readMs: int(env.CUE_READ_BUDGET_MS, 2500, 1),
       writeMs: int(env.CUE_WRITE_BUDGET_MS, 3000, 1),
       checkMs: int(env.CUE_CHECK_BUDGET_MS, 2000, 1),

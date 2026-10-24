@@ -1,5 +1,6 @@
 import type { TaskId } from '@cue/core';
 import { checkClaim } from './check-claim';
+import { liveCue } from './live-cue';
 import { readMoment } from './read-moment';
 import { researchBrief } from './research-brief';
 import { reviewCall } from './review-call';
@@ -16,6 +17,7 @@ export const TASKS: { [K in TaskId]: TaskDef<K> } = {
   check_claim: checkClaim,
   review_call: reviewCall,
   simulate_prospect: simulateProspect,
+  live_cue: liveCue,
 };
 
-export { checkClaim, readMoment, researchBrief, reviewCall, simulateProspect, writeLine };
+export { checkClaim, liveCue, readMoment, researchBrief, reviewCall, simulateProspect, writeLine };

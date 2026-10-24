@@ -39,7 +39,7 @@ describe('live turn pipeline', () => {
   });
 
   it('Mubit timeout → rules card labelled servedBy rules, with a pipeline.error', async () => {
-    server = testServer({ mubit: fakeMubit({ fail: { read_moment: 'hang', write_line: 'hang' } }), config: { budgets: { readMs: 60, writeMs: 60, checkMs: 60, briefMs: 60, reviewMs: 200, simMs: 60 } } });
+    server = testServer({ mubit: fakeMubit({ fail: { read_moment: 'hang', write_line: 'hang' } }), config: { budgets: { readMs: 60, writeMs: 60, checkMs: 60, briefMs: 60, reviewMs: 200, simMs: 60, liveMs: 60 } } });
     const id = await createCall(server);
     const t0 = Date.now();
     await post(server, `/api/calls/${id}/turns`, { speaker: 'prospect', text: "...what's this regarding?" });

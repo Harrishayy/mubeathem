@@ -1,7 +1,7 @@
 import type { CallEvent, TaskId, TaskInput, TaskOutput } from '@cue/core';
 import { findRiskyClaims, rulesReadMoment } from '@cue/core';
 import { boot, type BootOptions, type CueServer } from '../src/boot';
-import type { MubitClient, RunOptions, TaskResult } from '../src/adapters/mubit';
+import type { MubitClient, RunOptions, StreamOptions, TaskResult } from '../src/adapters/mubit';
 import { loadConfig, type ServerConfig } from '../src/config';
 import { rulesProspect } from '../src/pipeline/practice';
 import { SentTracker } from '../src/services/sent';
@@ -73,6 +73,23 @@ export function fakeMubit(opts: FakeMubitOptions = {}): FakeMubit {
     }),
     simulate_prospect: (input) =>
       rulesProspect(input.transcript.filter((t) => t.speaker === 'prospect').length, { mood: input.persona.mood, objections: input.persona.objections }, input.persona.name),
+    live_cue: (input) => {
+      // The fake "model" reads with the rules engine so tests are deterministic; the real one reads semantically.
+      const last = input.transcript[input.transcript.length - 1];
+      const read = rulesReadMoment({ crm: { title: input.prospect.title, company: input.prospect.company, facts: {} }, window: input.transcript.map((t, i) => ({ ...t, tMs: i * 3000 })), features: { turnIndex: input.transcript.length - 1, prospectWords: (last?.text ?? '').split(/\s+/).length, repWords: 0, prospectShare: 0.5, shareTrend: 0, interrupted: false, questionsAsked: 0, elapsedMs: 0 }, previous: input.previous });
+      const line = input.playbook.find((l) => l.moment === read.moment);
+      return {
+        meaning: `fake read: ${read.rationale}`.slice(0, 80),
+        moment: read.moment,
+        persona: read.persona,
+        receptivity: read.receptivity,
+        line_id: line?.line_id ?? 'none',
+        say: read.should_suggest ? (line?.text ?? 'Fair enough. What would make this worth thirty seconds?') : '',
+        why: 'fake: top playbook line',
+        up_next: [{ if_they_say: 'We have a broker', move: 'Ask when they last re-quoted', moment: 'objection_broker' }],
+        risky_claim: null,
+      };
+    },
   };
 
   const sent = new SentTracker();
@@ -98,6 +115,25 @@ export function fakeMubit(opts: FakeMubitOptions = {}): FakeMubit {
       if (failure === 'http') throw Object.assign(new Error('upstream 500'), { code: 'http', status: 500, retryable: true, requestId: null });
       const make = (opts.outputs?.[task] ?? defaults[task]) as (i: TaskInput<K>) => TaskOutput<K>;
       return { output: make(input), requestId: `mreq_fake_${++n}`, latencyMs: delay || 1, model: 'gpt-4o-mini', usage: { input: 100, output: 20 }, costUsd: 0.00003, attempts: 1 };
+    },
+    /** Like `run`, but reports the answer's string fields in order across the delay (the read at 40%, the rest at 70%). */
+    async stream<K extends TaskId>(task: K, input: TaskInput<K>, o: StreamOptions): Promise<TaskResult<K>> {
+      const delay = opts.delay?.(task) ?? opts.delayMs?.[task] ?? 0;
+      const make = (opts.outputs?.[task] ?? defaults[task]) as (i: TaskInput<K>) => TaskOutput<K>;
+      const peek = opts.fail?.[task] ? null : make(input);
+      const fields = peek ? Object.fromEntries(Object.entries(peek as Record<string, unknown>).filter(([, v]) => typeof v === 'string')) as Record<string, string> : {};
+      const keys = Object.keys(fields);
+      const split = Math.max(1, keys.indexOf('say'));
+      const timers: ReturnType<typeof setTimeout>[] = [];
+      if (o.onFields && keys.length) {
+        timers.push(setTimeout(() => o.onFields!(Object.fromEntries(keys.slice(0, split).map((k) => [k, fields[k]!]))), delay * 0.4));
+        timers.push(setTimeout(() => o.onFields!(fields), delay * 0.7));
+      }
+      try {
+        return await client.run(task, input, o);
+      } finally {
+        for (const t of timers) clearTimeout(t);
+      }
     },
   };
   return client;

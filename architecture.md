@@ -281,6 +281,41 @@ the text in place (no enter animation); `stage: 'instant'` with `view.pending` t
 "refining" hint. Clients should lock the card (ignore same-id updates) as soon as their own VAD hears the
 rep, since the server only learns it from the rep's first interim (~300–700 ms later).
 
+### 5.4 The live path without rules (`CUE_PIPELINE=live`)
+
+`pipeline/live.ts`. One streamed `live_cue` call through Mubit per prospect turn reads the moment and
+writes the line together; there is no rules read and no rules card. Mubit task: fixed instructions,
+the strict `LiveCueOutput` schema (keys in streaming order: `meaning`, `moment`, `persona`,
+`receptivity`, `line_id`, `say`, `why`, `up_next`, `risky_claim`), model `CUE_LIVE_MODEL` on
+`CUE_LIVE_PROVIDER` (`gemini`: `{mubit}/gemini/v1beta/models/{model}:streamGenerateContent?alt=sse`;
+`openai`: Responses API with `stream: true`).
+
+1. **Trigger.** An interim that looks finished (`endpointGuess`) starts the run; the final adopts it
+   when the words match (`sameUtterance`), else restarts it. A newer turn supersedes the one in flight.
+2. **Input** (`LiveCueInput`), stable prefix first so the provider can cache it: prospect, rep, the
+   brief (the client's Corgi Brief when it sent one: risk, policies, verified filing lines), the call's
+   playbook draw (top 2 lines per suggesting moment by Thompson sampling, drawn once per call and again
+   if the persona changes), previous read, the last 12 turns, lines already shown.
+3. **Card.** `onFields` sees each top-level string field as it completes in the stream; when `say` is
+   complete (and not empty, quiet or risky) the card goes up at once. When the answer finishes,
+   `situation.read` is emitted and the same card id is re-emitted with `why`, `up_next` and evidence.
+   Once the rep speaks or acts, the words never change.
+4. **Policy.** `risky_claim` or the claim pre-filter → `check_claim` before anyone sees it; a violation
+   swaps in a safe playbook line for the moment.
+5. **Failure** → `pipeline.error` and no card (there is no rules fallback on this path). A line the model
+   wrote itself carries `lineId: line_none`, so it never skews a playbook line's stats.
+
+The client may research for itself: `POST /api/calls` with `clientBrief: true` skips the server's
+brief, and `PUT /api/calls/:id/brief` (a `Brief`, optionally with `corgi`) emits `brief.ready`.
+`CUE_AUTO_ACTIVATE=1` lets a candidate line from a call that went well join the playbook as a young
+line once `check_claim` says `supported`. Latency end to end (rep's side of the wire):
+`pnpm --filter @cue/server latency:live -- --url=…` (`src/scripts/live-latency.ts`).
+
+Hosting: `deploy/modal/app.py` runs the bundled server (`pnpm --filter @cue/server bundle`) in one
+always-warm Modal container in eu-west (requests also routed through eu-west), next to Mubit's gateway
+and Deepgram's EU endpoint. SQLite lives on local disk and is copied to a Modal Volume every 30 s and on
+shutdown.
+
 ## 6. Trellus
 
 Trellus is the dialer and stays unchanged. Its public API is the **Call Data API**

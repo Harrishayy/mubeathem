@@ -8,13 +8,14 @@ export type ModelResult<K extends TaskId> =
   | { ok: true; output: TaskOutput<K>; requestId: string | null; latencyMs: number; model: string }
   | { ok: false; code: string; message: string; retryable: boolean; requestId: string | null; latencyMs: number; /** The caller cancelled (superseded turn, call ended). */ aborted: boolean };
 
-export const TASK_TIER: Record<TaskId, 'fast' | 'write'> = {
+export const TASK_TIER: Record<TaskId, 'fast' | 'write' | 'live'> = {
   read_moment: 'fast',
   check_claim: 'fast',
   simulate_prospect: 'fast',
   write_line: 'write',
   research_brief: 'write',
   review_call: 'write',
+  live_cue: 'live',
 };
 
 /**
@@ -25,7 +26,7 @@ export class ModelRunner {
   constructor(
     private mubit: MubitClient | null,
     private telemetry: TelemetryStore,
-    readonly models: { fast: string; write: string },
+    readonly models: { fast: string; write: string; live?: string },
     private now: () => number = Date.now,
     private sent: SentCounter | null = null,
     /** Full trace per call (buffered in memory, flushed off the request path). */
@@ -71,10 +72,15 @@ export class ModelRunner {
   }
 
   modelFor(task: TaskId): string {
-    return this.models[TASK_TIER[task]];
+    const tier = TASK_TIER[task];
+    return (tier === 'live' ? this.models.live : this.models[tier]) ?? this.models.write;
   }
 
-  async run<K extends TaskId>(task: K, input: TaskInput<K>, opts: { callId: string; signal?: AbortSignal; budgetMs: number }): Promise<ModelResult<K>> {
+  /**
+   * With `onFields` the call is streamed (one attempt, no queue) and `onFields` sees each top-level
+   * string field of the answer as soon as it is complete.
+   */
+  async run<K extends TaskId>(task: K, input: TaskInput<K>, opts: { callId: string; signal?: AbortSignal; budgetMs: number; onFields?: (fields: Record<string, string>) => void }): Promise<ModelResult<K>> {
     const started = this.now();
     if (!this.mubit) return { ok: false, code: 'not_configured', message: 'MUBIT_API_KEY is not set', retryable: false, requestId: null, latencyMs: 0, aborted: false };
     if (opts.signal?.aborted) return { ok: false, code: 'aborted', message: 'cancelled', retryable: false, requestId: null, latencyMs: 0, aborted: true };
@@ -95,7 +101,9 @@ export class ModelRunner {
     });
     guard.catch(() => {});
     try {
-      const call = this.mubit.run(task, input, { sessionId: opts.callId, signal, timeoutMs: opts.budgetMs });
+      const call = opts.onFields && this.mubit.stream
+        ? this.mubit.stream(task, input, { sessionId: opts.callId, signal, timeoutMs: opts.budgetMs, onFields: opts.onFields })
+        : this.mubit.run(task, input, { sessionId: opts.callId, signal, timeoutMs: opts.budgetMs });
       call.catch(() => {}); // it may settle after the guard has already won
       const res = await Promise.race([call, guard]);
       const latencyMs = res.latencyMs || this.now() - started;

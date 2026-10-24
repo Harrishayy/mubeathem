@@ -3,13 +3,15 @@
  * inject a fake with just that method and the server can run with no key at all.
  */
 import type { TaskId, TaskInput } from '@cue/core';
-import type { RunOptions, TaskResult } from '@cue/mubit';
+import type { RunOptions, StreamOptions, TaskResult } from '@cue/mubit';
 
-export { createMubit, loadMubitConfig, MubitError, isMubitError, TASKS, costUsd, ADAPTER_THRESHOLD, SEED_CLAIMS, PRE_QUOTE_EVIDENCE, type MubitConfig, type RunOptions, type TaskResult } from '@cue/mubit';
+export { createMubit, loadMubitConfig, MubitError, isMubitError, TASKS, costUsd, ADAPTER_THRESHOLD, SEED_CLAIMS, PRE_QUOTE_EVIDENCE, type MubitConfig, type RunOptions, type StreamOptions, type TaskResult } from '@cue/mubit';
 
 /** Structural subset of @cue/mubit's MubitClient: the real client satisfies it, and so does a test fake. */
 export interface MubitClient {
   run<K extends TaskId>(task: K, input: TaskInput<K>, opts: RunOptions): Promise<TaskResult<K>>;
+  /** Streamed run (the live path). Optional: without it the runner falls back to `run`. */
+  stream?<K extends TaskId>(task: K, input: TaskInput<K>, opts: StreamOptions): Promise<TaskResult<K>>;
   /** Cheap reachability check (no model call). Optional so fakes can skip it. */
   ping?(signal?: AbortSignal): Promise<boolean>;
 }

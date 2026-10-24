@@ -198,7 +198,7 @@ describe('capture in ModelRunner', () => {
   it('records failures and timeouts with their code and message', async () => {
     server = testServer({
       mubit: fakeMubit({ fail: { read_moment: 'hang', write_line: 'http' } }),
-      config: { budgets: { readMs: 40, writeMs: 500, checkMs: 60, briefMs: 500, reviewMs: 200, simMs: 60 } },
+      config: { budgets: { readMs: 40, writeMs: 500, checkMs: 60, briefMs: 500, reviewMs: 200, simMs: 60, liveMs: 500 } },
     });
     const id = await createCall(server);
     await post(server, `/api/calls/${id}/turns`, { speaker: 'prospect', text: 'We already have a broker.' });
@@ -365,7 +365,7 @@ describe('insights', () => {
     server = testServer({ mubit: null });
     const ins = InsightsResponse.parse(await json(server.app.request('/api/insights?range=30d')));
     expect(ins.range).toBe('30d');
-    expect(ins.tasks).toHaveLength(6);
+    expect(ins.tasks).toHaveLength(7);
     expect(ins.outcomes.calls.bookingRate).toBe(0);
     expect(ins.outcomes.reviews.avgSuggestionImpact).toBeNull();
   });

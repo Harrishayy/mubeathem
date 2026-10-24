@@ -22,12 +22,12 @@ describe('POST /api/stt/token', () => {
       seen.push({ url: String(url), auth: new Headers(init?.headers).get('authorization'), body: String(init?.body) });
       return new Response(JSON.stringify({ access_token: 'dg_temp_abc', expires_in: 30 }), { status: 200, headers: { 'content-type': 'application/json' } });
     }) as unknown as typeof fetch;
-    server = testServer({ fetch: fake, config: { stt: { deepgramApiKey: 'dg_secret_key', ttlSeconds: 30 } }, now: () => 1_000_000 });
+    server = testServer({ fetch: fake, config: { stt: { deepgramApiKey: 'dg_secret_key', ttlSeconds: 30, deepgramHost: 'api.deepgram.com' } }, now: () => 1_000_000 });
     const res = await post(server, '/api/stt/token');
     const text = await res.text();
     expect(text).not.toContain('dg_secret_key');
     const body = SttTokenResponse.parse(JSON.parse(text));
-    expect(body).toEqual({ provider: 'deepgram', token: 'dg_temp_abc', expiresAt: 1_030_000 });
+    expect(body).toEqual({ provider: 'deepgram', token: 'dg_temp_abc', expiresAt: 1_030_000, host: 'api.deepgram.com' });
     expect(res.headers.get('cache-control')).toBe('no-store');
     expect(seen[0]!.url).toBe('https://api.deepgram.com/v1/auth/grant');
     expect(seen[0]!.auth).toBe('Token dg_secret_key');
@@ -35,7 +35,7 @@ describe('POST /api/stt/token', () => {
   });
 
   it('503 stt_unavailable when Deepgram refuses', async () => {
-    server = testServer({ fetch: (async () => new Response('{}', { status: 401 })) as unknown as typeof fetch, config: { stt: { deepgramApiKey: 'k', ttlSeconds: 30 } } });
+    server = testServer({ fetch: (async () => new Response('{}', { status: 401 })) as unknown as typeof fetch, config: { stt: { deepgramApiKey: 'k', ttlSeconds: 30, deepgramHost: 'api.deepgram.com' } } });
     const res = await post(server, '/api/stt/token');
     expect(res.status).toBe(503);
     expect(ApiError.parse(await json(res)).error.code).toBe('stt_unavailable');

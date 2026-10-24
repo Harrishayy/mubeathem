@@ -23,6 +23,7 @@ import { research } from '../pipeline/research';
 import { practiceNext, PracticeError, type PracticeReply } from '../pipeline/practice';
 import { RepTurnPipeline } from '../pipeline/rep-turn';
 import { ReviewPipeline } from '../pipeline/review';
+import { LivePipeline } from '../pipeline/live';
 import { TurnPipeline } from '../pipeline/turn';
 import { ContactStore } from '../store/contacts';
 import { TrellusService } from '../trellus';
@@ -44,8 +45,21 @@ export class AppError extends Error {
 const OUTCOME_TRUST: Record<OutcomeRecord['source'], number> = { review: 0, rep: 1, trellus: 2, hubspot: 3 };
 
 /** The server's use cases. Routes, the seed script and tests all go through this. */
+/** What the server needs from a live path: TurnPipeline (layered) and LivePipeline both fit. */
+interface LivePath {
+  handle(callId: string, turnId: string, receivedAt?: number): Promise<void>;
+  interim(callId: string, turnId: string, text: string): void;
+  repSpeech(callId: string): void;
+  supersede(callId: string, reason: string): void;
+  idle(callId?: string): Promise<void>;
+}
+
 export class Cue {
   readonly turns: TurnPipeline;
+  /** Set when `CUE_PIPELINE=live`: one streamed live_cue call per prospect turn. */
+  readonly live: LivePipeline | null;
+  /** The pipeline prospect turns go to. */
+  private readonly path: LivePath;
   readonly repTurns: RepTurnPipeline;
   readonly reviews: ReviewPipeline;
   readonly trellus: TrellusService;
@@ -54,6 +68,8 @@ export class Cue {
 
   constructor(readonly s: Services) {
     this.turns = new TurnPipeline(s);
+    this.live = s.config.pipeline === 'live' ? new LivePipeline(s) : null;
+    this.path = this.live ?? this.turns;
     this.repTurns = new RepTurnPipeline(s);
     this.reviews = new ReviewPipeline(s);
     this.contacts = new ContactStore(s.db, s.now);
@@ -69,7 +85,7 @@ export class Cue {
   async idle(): Promise<void> {
     for (let i = 0; i < 20; i++) {
       await Promise.all([...this.background]);
-      await this.turns.idle();
+      await this.path.idle();
       await this.repTurns.idle();
       await this.reviews.idle();
       if (!this.background.size) return;
@@ -102,7 +118,15 @@ export class Cue {
       ...(req.contactId ? { contactId: req.contactId } : {}),
     });
     if (req.practice || req.source === 'practice') this.s.store.setPractice(callId, { mood: req.practice?.mood ?? 'neutral', objections: req.practice?.objections ?? [] });
-    this.track(runBrief(this.s, callId));
+    // A client that researches for itself (the Corgi Brief extension) sends its brief instead.
+    if (!req.clientBrief) this.track(runBrief(this.s, callId));
+    return this.requireView(callId);
+  }
+
+  /** The client's own brief for this call (`PUT /api/calls/:id/brief`); the live cue reads it from the next turn. */
+  putBrief(callId: string, brief: Brief): CallView {
+    this.requireView(callId);
+    this.s.store.append({ type: 'brief.ready', callId, brief: { ...brief, servedBy: 'client' } });
     return this.requireView(callId);
   }
 
@@ -147,13 +171,13 @@ export class Cue {
     };
     this.s.store.append({ type: 'turn.added', callId, turn });
     // Any rep speech locks the card on screen (no refinement swaps under the rep's eyes).
-    if (turn.speaker === 'rep') this.turns.repSpeech(callId);
+    if (turn.speaker === 'rep') this.path.repSpeech(callId);
     if (turn.final) {
-      if (turn.speaker === 'prospect') this.track(this.turns.handle(callId, id, receivedAt));
+      if (turn.speaker === 'prospect') this.track(this.path.handle(callId, id, receivedAt));
       else this.track(this.repTurns.handle(callId, id, receivedAt));
     } else if (turn.speaker === 'prospect' && req.id) {
       // Interims with a stable id can start the turn early (endpointing, architecture.md §5.3).
-      this.turns.interim(callId, id, turn.text);
+      this.path.interim(callId, id, turn.text);
     }
     return { turnId: id, duplicate: false };
   }
@@ -167,7 +191,7 @@ export class Cue {
   endCall(callId: string, req: EndCallRequest): CallView {
     const view = this.requireView(callId);
     if (view.status === 'live') {
-      this.turns.supersede(callId, 'call ended');
+      this.path.supersede(callId, 'call ended');
       this.s.store.append({ type: 'call.ended', callId, durationMs: Math.max(0, this.s.now() - view.startedAt) });
     }
     if (req.outcome) this.recordOutcome(callId, { outcome: req.outcome, source: 'rep', raw: {}, at: this.s.now() });
@@ -266,6 +290,8 @@ export class Cue {
       ok: true,
       version: VERSION,
       mubit: { configured: this.s.models.configured, reachable: this.mubitReachable(), models: this.s.models.models },
+      pipeline: this.s.config.pipeline,
+      stt: { configured: !!this.s.config.stt.deepgramApiKey },
       trellus: { configured: t.configured, reachable: t.reachable, lastSyncAt: t.lastSyncAt },
       sapling: { configured: !!this.s.config.saplingUrl },
       exa: { configured: !!this.s.config.exaApiKey },

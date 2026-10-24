@@ -25,7 +25,7 @@ import {
  * nullable), no defaults, no unions other than nullable. packages/mubit converts them.
  */
 
-export const TASK_IDS = ['read_moment', 'write_line', 'research_brief', 'check_claim', 'review_call', 'simulate_prospect'] as const;
+export const TASK_IDS = ['read_moment', 'write_line', 'research_brief', 'check_claim', 'review_call', 'simulate_prospect', 'live_cue'] as const;
 export type TaskId = (typeof TASK_IDS)[number];
 
 /* ───────────── read_moment: after every final prospect turn ───────────── */
@@ -230,6 +230,46 @@ export const SimulateProspectOutput = z.object({
 });
 export type SimulateProspectOutput = z.infer<typeof SimulateProspectOutput>;
 
+/* ───────────── live_cue: the live path, one streamed call per prospect turn ───────────── */
+
+/**
+ * Read and write in one call, so the live path pays one model round trip. The stable parts (who,
+ * the brief, the call's playbook draw) come first so the provider can cache the prefix; the
+ * transcript comes last.
+ */
+export const LiveCueInput = z.object({
+  prospect: z.object({ name: z.string(), title: z.string(), company: z.string() }),
+  rep: z.object({ name: z.string(), company: z.string() }),
+  /** The pre-call brief: what they do, the biggest risk, the policies that fit, verified filing facts. */
+  brief: z.object({ summary: z.string(), opener: z.string(), risk: z.string(), policies: z.array(z.string()), facts: z.array(z.string()) }),
+  /** The team playbook for this call: proven lines per moment with their record, best first. */
+  playbook: z.array(z.object({ line_id: Id, moment: MomentZ, style: z.string(), text: z.string(), used: z.number(), wins: z.number(), booked: z.number() })),
+  /** The previous turn's read, so persona and receptivity drift instead of jumping. */
+  previous: z.object({ persona: PersonaZ, receptivity: ReceptivityZ, moment: MomentZ }).nullable(),
+  /** Recent turns, oldest first; the last one is what the prospect just said. */
+  transcript: z.array(z.object({ speaker: Speaker, text: z.string() })),
+  /** Lines already shown this call. */
+  already_said: z.array(z.string()),
+});
+export type LiveCueInput = z.infer<typeof LiveCueInput>;
+
+/** Key order is the streaming order: the read first (cheap), then the line the rep reads. */
+export const LiveCueOutput = z.object({
+  /** What the prospect means and wants, in a few words. Written before the line, so the line follows from it. */
+  meaning: z.string(),
+  moment: MomentZ,
+  persona: PersonaZ,
+  receptivity: ReceptivityZ,
+  /** The playbook line this tailors, or "none" for a new line. */
+  line_id: z.string(),
+  /** The line, as the rep says it. Empty when no card is needed. */
+  say: z.string(),
+  why: z.string(),
+  up_next: z.array(z.object({ if_they_say: z.string(), move: z.string(), moment: MomentZ })),
+  risky_claim: z.string().nullable(),
+});
+export type LiveCueOutput = z.infer<typeof LiveCueOutput>;
+
 export const TASK_OUTPUT = {
   read_moment: ReadMomentOutput,
   write_line: WriteLineOutput,
@@ -237,6 +277,7 @@ export const TASK_OUTPUT = {
   check_claim: CheckClaimOutput,
   review_call: ReviewCallOutput,
   simulate_prospect: SimulateProspectOutput,
+  live_cue: LiveCueOutput,
 } as const satisfies Record<TaskId, z.ZodType>;
 
 export const TASK_INPUT = {
@@ -246,6 +287,7 @@ export const TASK_INPUT = {
   check_claim: CheckClaimInput,
   review_call: z.object({ record: CallRecord, playbookContext: z.array(z.object({ line_id: z.string(), moment: MomentZ, text: z.string() })) }),
   simulate_prospect: SimulateProspectInput,
+  live_cue: LiveCueInput,
 } as const satisfies Record<TaskId, z.ZodType>;
 
 export type TaskInput<T extends TaskId> = z.infer<(typeof TASK_INPUT)[T]>;

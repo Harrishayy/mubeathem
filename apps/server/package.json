@@ -12,7 +12,9 @@
     "seed": "tsx --env-file-if-exists=../../.env src/scripts/seed.ts",
     "traces:export": "tsx --env-file-if-exists=../../.env src/scripts/traces-export.ts",
     "test:live": "MUBIT_LIVE=1 vitest run test/live",
-    "latency:sim": "tsx --env-file-if-exists=../../.env src/scripts/latency-sim.ts"
+    "latency:sim": "tsx --env-file-if-exists=../../.env src/scripts/latency-sim.ts",
+    "bundle": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/cue-server.mjs --alias:@cue/core=../../packages/core/src/index.ts --alias:@cue/mubit=../../packages/mubit/src/index.ts --alias:@cue/trellus=../../packages/trellus/src/index.ts \"--banner:js=import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);\"",
+    "latency:live": "tsx --env-file-if-exists=../../.env src/scripts/live-latency.ts"
   },
   "dependencies": {
     "@cue/core": "workspace:*",

@@ -31,7 +31,7 @@ describe('@cue/client ↔ server contract', () => {
     const pb = await api.playbook();
     const cand = pb.lines.find((l) => l.status === 'candidate');
     if (cand) expect((await api.rejectLine(cand.id)).status).toBe('rejected');
-    expect((await api.stats()).tasks).toHaveLength(6);
+    expect((await api.stats()).tasks).toHaveLength(7);
     expect((await api.trellusStatus()).source).toBe('native');
     expect((await api.trellusSync()).imported).toBe(0);
     expect((await api.trellusDispositions()).source).toBe('native');

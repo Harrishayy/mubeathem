@@ -22,6 +22,22 @@ Product spec: [context.md](context.md) · System: [architecture.md](architecture
 
 ---
 
+## nickmain: Corgi Cue (Corgi Brief + the live call)
+
+This branch blends Cue with the Corgi Brief extension:
+
+- **`apps/brief`**: the Corgi Brief side panel (Trellus connect detection inside its shadow DOM, SEC
+  Form D/C, Exa, Gemini synthesis, policies), with the call added at the top: it hears the call tab
+  and the mic (Deepgram), and shows the line to say next. See [apps/brief/README.md](apps/brief/README.md).
+- **`CUE_PIPELINE=live`**: no rules read. Each prospect turn is one streamed `live_cue` call through
+  Mubit that reads the moment and writes the line (architecture.md §5.4); the card goes up the moment
+  the line is complete in the stream.
+- **Learning**: the playbook's proven lines (with their records) are in every prompt, outcomes score
+  them after the call, and a line the rep improvised on a booked call joins the playbook
+  (`CUE_AUTO_ACTIVATE=1`). Every live_cue call is a Mubit task example.
+- **Hosted on Modal** in eu-west: `pnpm --filter @cue/server bundle && modal deploy deploy/modal/app.py`.
+  Keys go in the Modal secret `corgi-cue-keys`; the API token in `corgi-cue-token`.
+
 ## 1. How it works
 
 ```

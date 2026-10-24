@@ -34,7 +34,7 @@ const RANGES: { value: TraceRange; label: string }[] = [
 
 const TIME = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
 const BUCKET_TIME = { hour: new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }), day: new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }) };
-const TASKS: TaskId[] = ['read_moment', 'write_line', 'check_claim', 'research_brief', 'review_call', 'simulate_prospect'];
+const TASKS: TaskId[] = ['live_cue', 'read_moment', 'write_line', 'check_claim', 'research_brief', 'review_call', 'simulate_prospect'];
 
 type OutcomeTab = 'moment' | 'lines' | 'who';
 type JobsTab = 'jobs' | 'activity';

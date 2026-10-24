@@ -8,6 +8,7 @@ import {
   CreateCallRequest,
   EndCallRequest,
   FeedbackRequest,
+  PutBriefRequest,
   InsightsQuery,
   ResearchWarmRequest,
   SuggestionActionRequest,
@@ -140,6 +141,7 @@ export function createApp(cue: Cue, registry: StreamRegistry = new StreamRegistr
     cue.suggestionAction(c.req.param('id'), c.req.param('sid'), await parseBody(c, SuggestionActionRequest));
     return c.body(null, 204);
   });
+  app.put('/api/calls/:id/brief', async (c) => c.json(cue.putBrief(c.req.param('id'), await parseBody(c, PutBriefRequest))));
   app.post('/api/calls/:id/end', async (c) => c.json(cue.endCall(c.req.param('id'), await parseBody(c, EndCallRequest))));
   app.post('/api/calls/:id/feedback', async (c) => c.json(cue.feedback(c.req.param('id'), await parseBody(c, FeedbackRequest))));
   app.post('/api/calls/:id/practice/next', async (c) => {
@@ -209,7 +211,7 @@ export function createApp(cue: Cue, registry: StreamRegistry = new StreamRegistr
 
   app.post('/api/stt/token', async (c) => {
     c.header('cache-control', 'no-store');
-    return c.json(await sttToken({ apiKey: config.stt.deepgramApiKey, ttlSeconds: config.stt.ttlSeconds, fetch: cue.s.fetch, now: cue.s.now }));
+    return c.json(await sttToken({ apiKey: config.stt.deepgramApiKey, ttlSeconds: config.stt.ttlSeconds, host: config.stt.deepgramHost, fetch: cue.s.fetch, now: cue.s.now }));
   });
 
   app.get('/api/trellus/dispositions', async (c) => c.json(await cue.trellus.dispositions()));

@@ -1,0 +1,107 @@
+{
+  "manifest_version": 3,
+  "name": "Corgi Cue",
+  "version": "3.0.0",
+  "permissions": [
+    "storage",
+    "sidePanel",
+    "declarativeNetRequestWithHostAccess",
+    "tabs",
+    "scripting",
+    "tabCapture",
+    "offscreen"
+  ],
+  "host_permissions": [
+    "https://*.hubspot.com/*",
+    "https://*/*",
+    "https://*.sec.gov/*",
+    "https://api.exa.ai/*",
+    "https://query.wikidata.org/*",
+    "https://www.wikidata.org/*",
+    "https://api.gleif.org/*",
+    "https://rdap.org/*",
+    "https://rdap.verisign.com/*",
+    "https://rdap.identitydigital.services/*",
+    "https://rdap.nic.ai/*",
+    "https://pubapi.registry.google/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Corgi Cue",
+    "default_icon": {
+      "48": "corgi.png"
+    }
+  },
+  "icons": {
+    "48": "corgi.png"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "sec_ua",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.hubspot.com/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://*/*"
+      ],
+      "js": [
+        "framefix.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
+    }
+  ],
+  "commands": {
+    "brief": {
+      "suggested_key": {
+        "default": "Alt+Shift+C"
+      },
+      "description": "Brief the company on screen"
+    },
+    "listen": {
+      "suggested_key": {
+        "default": "Alt+Shift+L"
+      },
+      "description": "Hear the call from this tab"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "manifest.json",
+        "rules.json",
+        "background.js",
+        "content.js",
+        "sidepanel.html",
+        "sidepanel.js",
+        "icons/logo.svg",
+        "cue.js",
+        "live.js",
+        "offscreen.html",
+        "offscreen.js"
+      ],
+      "matches": [
+        "https://*.hubspot.com/*"
+      ]
+    }
+  ],
+  "description": "The Corgi Brief, plus live lines while you talk: what to say next, learned from the calls your team books."
+}
