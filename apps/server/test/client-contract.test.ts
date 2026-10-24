@@ -1,4 +1,5 @@
 import { createCueApi } from '@cue/client';
+import { TASK_IDS } from '@cue/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { CueServer } from '../src/boot';
 import { PROSPECT, REP, testServer } from './helpers';
@@ -31,7 +32,7 @@ describe('@cue/client ↔ server contract', () => {
     const pb = await api.playbook();
     const cand = pb.lines.find((l) => l.status === 'candidate');
     if (cand) expect((await api.rejectLine(cand.id)).status).toBe('rejected');
-    expect((await api.stats()).tasks).toHaveLength(7);
+    expect((await api.stats()).tasks).toHaveLength(TASK_IDS.length);
     expect((await api.trellusStatus()).source).toBe('native');
     expect((await api.trellusSync()).imported).toBe(0);
     expect((await api.trellusDispositions()).source).toBe('native');

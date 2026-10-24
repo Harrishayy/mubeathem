@@ -90,6 +90,21 @@ export function fakeMubit(opts: FakeMubitOptions = {}): FakeMubit {
         risky_claim: null,
       };
     },
+    synth_brief: (input) => ({
+      trigger: "you're selling software to startups",
+      blurb: `A software company. ${input.company} sells to startups.`,
+      kind: 'Software',
+      does: 'Sells software to startups',
+      targeting: 'Startups',
+      employees: '',
+      founded: '',
+      city: '',
+      stage: '',
+      valuation: '',
+      people: [],
+      risk: 'An outage or bug in their software costs their customers money.',
+      policies: [{ name: 'Technology E&O / Tech & AI Liability', reason: 'they sell software' }],
+    }),
   };
 
   const sent = new SentTracker();
@@ -115,6 +130,15 @@ export function fakeMubit(opts: FakeMubitOptions = {}): FakeMubit {
       if (failure === 'http') throw Object.assign(new Error('upstream 500'), { code: 'http', status: 500, retryable: true, requestId: null });
       const make = (opts.outputs?.[task] ?? defaults[task]) as (i: TaskInput<K>) => TaskOutput<K>;
       return { output: make(input), requestId: `mreq_fake_${++n}`, latencyMs: delay || 1, model: 'gpt-4o-mini', usage: { input: 100, output: 20 }, costUsd: 0.00003, attempts: 1 };
+    },
+    /** Bag-of-words vectors: deterministic, and close for texts that share most of their words. */
+    async embed(texts: string[]): Promise<number[][]> {
+      calls.push({ task: 'embed' as TaskId, sessionId: '', aborted: false, input: texts as never });
+      return texts.map((t) => {
+        const v = new Array<number>(256).fill(0);
+        for (const w of t.toLowerCase().match(/[a-z']+/g) ?? []) v[[...w].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 256, 7)]! += 1;
+        return v;
+      });
     },
     /** Like `run`, but reports the answer's string fields in order across the delay (the read at 40%, the rest at 70%). */
     async stream<K extends TaskId>(task: K, input: TaskInput<K>, o: StreamOptions): Promise<TaskResult<K>> {

@@ -5,6 +5,7 @@ import { readMoment } from './read-moment';
 import { researchBrief } from './research-brief';
 import { reviewCall } from './review-call';
 import { simulateProspect } from './simulate-prospect';
+import { synthBrief } from './synth-brief';
 import type { TaskDef } from './types';
 import { writeLine } from './write-line';
 
@@ -18,6 +19,7 @@ export const TASKS: { [K in TaskId]: TaskDef<K> } = {
   review_call: reviewCall,
   simulate_prospect: simulateProspect,
   live_cue: liveCue,
+  synth_brief: synthBrief,
 };
 
-export { checkClaim, liveCue, readMoment, researchBrief, reviewCall, simulateProspect, writeLine };
+export { checkClaim, liveCue, readMoment, researchBrief, reviewCall, simulateProspect, synthBrief, writeLine };

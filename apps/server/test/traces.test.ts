@@ -5,6 +5,7 @@ import {
   InsightsResponse,
   MubitTrace,
   computeFeatures,
+  TASK_IDS,
   TraceListResponse,
   type CallEvent,
   type CallEventInput,
@@ -365,7 +366,7 @@ describe('insights', () => {
     server = testServer({ mubit: null });
     const ins = InsightsResponse.parse(await json(server.app.request('/api/insights?range=30d')));
     expect(ins.range).toBe('30d');
-    expect(ins.tasks).toHaveLength(7);
+    expect(ins.tasks).toHaveLength(TASK_IDS.length);
     expect(ins.outcomes.calls.bookingRate).toBe(0);
     expect(ins.outcomes.reviews.avgSuggestionImpact).toBeNull();
   });

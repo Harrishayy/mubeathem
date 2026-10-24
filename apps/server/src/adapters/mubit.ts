@@ -14,6 +14,8 @@ export interface MubitClient {
   stream?<K extends TaskId>(task: K, input: TaskInput<K>, opts: StreamOptions): Promise<TaskResult<K>>;
   /** Cheap reachability check (no model call). Optional so fakes can skip it. */
   ping?(signal?: AbortSignal): Promise<boolean>;
+  /** Embeddings through Mubit (the live path's reply matching). Optional: without it nothing is matched. */
+  embed?(texts: string[], opts?: { signal?: AbortSignal; timeoutMs?: number }): Promise<number[][]>;
 }
 
 /** The parts of a failure the pipeline reads; @cue/mubit's MubitError has all of them. */

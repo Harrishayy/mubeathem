@@ -18,7 +18,7 @@ export interface ServerConfig {
   research: { timeoutMs: number; cacheMinutes: number };
   saplingUrl: string;
   /** Speech-to-text: the browser gets short-lived Deepgram tokens from `POST /api/stt/token`, never this key. */
-  stt: { deepgramApiKey: string; ttlSeconds: number; /** `api.deepgram.com`, or `api.eu.deepgram.com` to keep audio in the EU (and closer to UK reps). */ deepgramHost: string };
+  stt: { deepgramApiKey: string; ttlSeconds: number; /** `api.deepgram.com`, or `api.eu.deepgram.com` to keep audio in the EU (and closer to UK reps). */ deepgramHost: string; /** Relay audio through this server: `auto` (default) when the key can't mint tokens, `on` always, `off` never. */ relay?: 'auto' | 'on' | 'off' };
   /**
    * Which live path runs on prospect turns: `layered` (rules read + instant card, Mubit refines) or
    * `live` (one streamed live_cue call through Mubit per turn, no rules read).
@@ -55,6 +55,20 @@ export interface ServerConfig {
     standby: number;
     /** Warm the Mubit connection when a prospect starts speaking. */
     warm: boolean;
+    /**
+     * Live path: likely replies (the card's up next) to pre-write a line for while the rep talks (0 = off).
+     * The prospect's first words are embedded and matched to them; a match shows its line at once.
+     */
+    predict: number;
+    /** Cosine similarity a reply needs to count as a match. */
+    predictMatch: number;
+    /** Words the prospect must have said before matching starts. */
+    predictMinWords: number;
+    /**
+     * Live path: start live_cue on the prospect's growing interim once it has this many words (0 = only
+     * when the sentence looks finished). A run in flight is never restarted: the newer words run after it.
+     */
+    speculateWords: number;
   };
 }
 
@@ -90,7 +104,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     valyuApiKey: str(env.VALYU_API_KEY),
     research: { timeoutMs: int(env.CUE_RESEARCH_TIMEOUT_MS, 6000, 500), cacheMinutes: int(env.CUE_RESEARCH_CACHE_MINUTES, 720) },
     saplingUrl: str(env.SAPLING_URL),
-    stt: { deepgramApiKey: str(env.DEEPGRAM_API_KEY), ttlSeconds: Math.min(3600, int(env.CUE_STT_TTL_SECONDS, 60, 1)), deepgramHost: str(env.DEEPGRAM_HOST) || 'api.deepgram.com' },
+    stt: { deepgramApiKey: str(env.DEEPGRAM_API_KEY), ttlSeconds: Math.min(3600, int(env.CUE_STT_TTL_SECONDS, 60, 1)), deepgramHost: str(env.DEEPGRAM_HOST) || 'api.deepgram.com', relay: env.CUE_STT_RELAY === '1' ? 'on' : env.CUE_STT_RELAY === '0' ? 'off' : 'auto' },
     pipeline: str(env.CUE_PIPELINE).toLowerCase() === 'live' ? 'live' : 'layered',
     autoActivate: env.CUE_AUTO_ACTIVATE === '1',
     budgets: {
@@ -116,6 +130,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       refineWindowMs: int(env.CUE_REFINE_WINDOW_MS, 500, 0),
       standby: Math.min(3, int(env.CUE_STANDBY, 2)),
       warm: env.CUE_WARM_MUBIT !== '0',
+      predict: Math.min(3, int(env.CUE_PREDICT, 0)),
+      predictMatch: Math.min(0.99, Math.max(0.1, Number(env.CUE_PREDICT_MATCH) || 0.6)),
+      predictMinWords: int(env.CUE_PREDICT_MIN_WORDS, 3, 1),
+      speculateWords: int(env.CUE_SPECULATE_WORDS, 0),
     },
     traces: {
       retentionDays: int(env.CUE_TRACE_RETENTION_DAYS, 0),

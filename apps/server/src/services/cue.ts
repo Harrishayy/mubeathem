@@ -14,6 +14,8 @@ import {
   type Prospect,
   type StatsResponse,
   type SuggestionActionRequest,
+  type SynthBriefRequest,
+  type SynthBriefResponse,
   type TaskId,
   type Turn,
 } from '@cue/core';
@@ -33,7 +35,7 @@ import type { Services } from './context';
 
 export class AppError extends Error {
   constructor(
-    readonly status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 500 | 503,
+    readonly status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 500 | 502 | 503 | 504,
     readonly code: string,
     message: string,
     readonly details?: unknown,
@@ -146,6 +148,19 @@ export class Cue {
     const providers = [...(this.s.config.exaApiKey ? ['exa'] : []), ...(this.s.config.valyuApiKey ? ['valyu'] : [])];
     const { brief } = await briefFor(this.s, prospect);
     return { brief, configured: providers.length > 0, providers };
+  }
+
+  /**
+   * The Corgi Brief panel's synthesis: raw snippets and filings → `synth_brief` through Mubit. A failed
+   * run is an AppError (503 no key, 504 over budget, 502 otherwise), never an unhandled throw; the
+   * panel falls back to its own snippet blurb.
+   */
+  async synthBrief(req: SynthBriefRequest): Promise<SynthBriefResponse> {
+    const key = (req.domain || req.company).toLowerCase().replace(/[^a-z0-9.]+/g, '-').slice(0, 60) || 'unknown';
+    const r = await this.s.models.run('synth_brief', req, { callId: `brief_${key}`, budgetMs: 8000 });
+    if (r.ok) return { output: r.output, requestId: r.requestId, model: r.model, latencyMs: r.latencyMs };
+    const status = r.code === 'not_configured' ? 503 : r.code === 'timeout' ? 504 : 502;
+    throw new AppError(status, r.code, `synth_brief failed: ${r.message}`.slice(0, 480), { requestId: r.requestId, retryable: r.retryable });
   }
 
   getCall(callId: string): CallView {

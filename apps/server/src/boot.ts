@@ -2,6 +2,7 @@ import type { Hono } from 'hono';
 import { loadConfig, type ServerConfig } from './config';
 import { createMubit, loadMubitConfig, type MubitClient } from './adapters/mubit';
 import { createApp } from './http/app';
+import { SttRelay } from './stt';
 import { StreamRegistry } from './http/sse';
 import { createLogger, type Logger, type Services } from './services/context';
 import { Cue } from './services/cue';
@@ -31,6 +32,8 @@ export interface CueServer {
   config: ServerConfig;
   cue: Cue;
   app: Hono;
+  /** Deepgram audio relay; `main.ts` attaches it to the HTTP server's upgrades. */
+  sttRelay: SttRelay;
   streams: StreamRegistry;
   /** Starts the Trellus poller and the auto-review sweep. */
   startBackground(): void;
@@ -77,7 +80,8 @@ export function boot(opts: BootOptions = {}): CueServer {
   };
   const cue = new Cue(s);
   const streams = new StreamRegistry();
-  const app = createApp(cue, streams);
+  const sttRelay = new SttRelay({ apiKey: () => config.stt.deepgramApiKey, host: () => config.stt.deepgramHost, now, log: (m) => log.warn(m) });
+  const app = createApp(cue, streams, sttRelay);
   let sweep: ReturnType<typeof setInterval> | null = null;
   let closed = false;
 
@@ -85,6 +89,7 @@ export function boot(opts: BootOptions = {}): CueServer {
     config,
     cue,
     app,
+    sttRelay,
     streams,
     startBackground() {
       cue.trellus.start();

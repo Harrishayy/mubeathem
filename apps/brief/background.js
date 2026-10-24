@@ -1,4 +1,4 @@
-// Keys, GEMINI_MODEL and seedKey() live in config.js; the Cue server and its token in cue.config.js
+// Keys and seedKey() live in config.js; the Cue server and its token in cue.config.js
 // (both gitignored; see README). cue.js is the live call session.
 importScripts('config.js');
 try { importScripts('cue.config.js'); } catch (_) { /* no Cue server configured: the brief still works */ }
@@ -46,40 +46,8 @@ const POLICY_NAMES = [
   'Representations & Warranties (R&W)'
 ];
 
-const POLICY_BLURB =
-  'Corgi underwrites these startup policies (pick ONLY from this list, never invent a product, never search for coverage): '
-  + 'Commercial General Liability (CGL) — bodily injury, property damage, premises, customer/vendor visits. '
-  + 'Directors & Officers (D&O) — founder, board and investor lawsuits; required by most VCs after a priced round. '
-  + 'Technology E&O / Tech & AI Liability — software bugs, outages, SLA breaches, AI errors/hallucinations; required in enterprise MSAs. '
-  + 'Cyber Liability — breach, ransomware, privacy, SOC 2 proof-of-insurance. '
-  + 'Employment Practices Liability (EPLI) — hiring, firing, harassment, discrimination; kicks in with headcount growth. '
-  + 'Fiduciary Liability — 401(k), health, equity and benefits plans (ERISA). '
-  + 'Media Liability — ads, published content, defamation, copyright/trademark. '
-  + 'Hired and Non-Owned Auto (HNOA) — employees driving personal or rental cars for work. '
-  + 'Crime & Fidelity — wire fraud, social engineering, employee theft; often required if they move money. '
-  + 'Commercial Umbrella — extra limits stacked over CGL/Auto/EPLI for big-contract requirements. '
-  + 'Representations & Warranties (R&W) — only if they are buying/selling a company. '
-  + 'Match the company: software/SaaS/AI get Tech E&O and Cyber. Food, CPG, hardware, agencies, and services get CGL first — do NOT recommend Tech E&O unless they sell software. '
-  + 'A HIPAA CRM or marketing platform is software, not a hospital or medical device — do not invent clinical, EHR, or "life-safety" risk. '
-  + 'Skip CGL for a tiny software shop with no meaningful premises story. Skip EPLI for tiny teams unless they are hiring fast. If they likely already carry general or product liability, suggest D&O or Cyber as the gap, not another GL pitch.';
-
-const SYNTH =
-  'You write a tight sales brief from RAW web search snippets (titles, URLs, highlights) plus filings. The snippets are not a brief — you must interpret them.\n'
-  + 'Output JSON only: {trigger, blurb, kind, does, targeting, employees, founded, city, stage, valuation, people, risk, policies}.\n'
-  + 'trigger: a spoken rewrite of what they do, completing "I saw [TRIGGER]". Same facts as kind/does/blurb, just concrete and spoken. Second person, 5-14 words, start with you\'re + a gerund.\n'
-  + 'Shape (copy this style): "you\'re putting voice agents on live steak and home-insurance calls". For a small-business lending marketplace: "you\'re matching small businesses to commercial lenders". For vendor-compliance software: "you\'re chasing supplier certificates across retail vendor networks".\n'
-  + 'If you wrote a blurb or does, you MUST write a trigger. Empty ONLY if you do not know what they sell.\n'
-  + 'Prefer pages on their own domain. Ignore other hits when they are a different topic that only shares the name (geology, history, a different company).\n'
-  + 'If the only signal is a newly registered domain and no product copy, leave trigger/does empty. blurb may say the site has no public product description yet.\n'
-  + 'Forbidden: raises, rounds, YC, dollars, hiring, job posts, "you\'re live with [logo]", "enterprise-ready", "AI-powered", "you deploy/build/provide/offer X for sales and support", Corgi products, coverage, liability.\n'
-  + 'Naming their industry in the scene is fine ("home-insurance calls", "steak orders") — pitching Corgi is not.\n'
-  + 'blurb: exactly two short sentences. 1) what kind of company and where. 2) what they sell and who buys it. No company name. Max 45 words. Do not call a vertical CRM or compliance platform "a software development company".\n'
-  + 'kind / does / targeting: short clauses. Empty if unknown.\n'
-  + 'employees, founded, city, stage, valuation: only if a snippet or filing states it. Empty if unknown. Never guess.\n'
-  + 'people: officers/founders/directors of THIS company only. Never a customer, testimonial author, partner, or journalist.\n'
-  + 'risk: ONE sentence. The single biggest insurance-relevant risk this company actually runs, grounded in what they sell. Not a list. Drop invented AI agents, medical devices, hospital ops, or "critical clinical/practice operations" unless sources explicitly say they run those. A HIPAA marketing CRM is data + software risk, not an ER.\n'
-  + 'policies: 2-3 items that address THAT risk. name MUST be from the Corgi list, reason one short clause why it is the gap. Tech E&O only if they sell software. Cyber if they handle customer or patient data. Media if they run ads/content for clients. Skip CGL unless premises/in-person ops actually matter. Skip D&O if there is no raise/board story. Skip EPLI for tiny teams.\n'
-  + 'Never invent employees, cities, raises, or products. Prefer empty over guessing.';
+// What the brief's synthesis is told (the SYNTH prompt and the policy list) now lives on the Cue server
+// as the Mubit task synth_brief (packages/mubit/src/tasks/synth-brief.ts); synthBrief() posts to it.
 
 async function edgar(name) {
   const s = await (await fetch(`https://efts.sec.gov/LATEST/search-index?q=${encodeURIComponent(`"${name}"`)}&forms=D`)).json();
@@ -592,19 +560,6 @@ const push = () => {
   } catch (_) {}
 };
 
-function geminiText(j) {
-  const parts = ((((j.candidates || [])[0] || {}).content || {}).parts) || [];
-  return parts.map(p => p.thought ? '' : (p.text || '')).join('').trim();
-}
-
-function parseJson(text) {
-  const t = String(text || '').trim().replace(/^```(?:json)?\s*|\s*```$/g, '');
-  const i = t.indexOf('{');
-  const j = t.lastIndexOf('}');
-  if (i < 0 || j <= i) return null;
-  try { return JSON.parse(t.slice(i, j + 1)); } catch (_) { return null; }
-}
-
 function clip(s, n) {
   s = String(s || '').replace(/\s+/g, ' ').trim();
   return s.length > n ? s.slice(0, n - 1) + '…' : s;
@@ -692,32 +647,25 @@ function fillFromExa(S, v) {
 }
 
 async function synthBrief(S) {
-  const { geminiKey } = await chrome.storage.local.get('geminiKey');
-  const key = geminiKey || (typeof DEFAULT_GEMINI_KEY === 'string' && DEFAULT_GEMINI_KEY) || '';
-  if (!key) return null;
-  const model = (typeof GEMINI_MODEL === 'string' && GEMINI_MODEL) || 'gemini-3.5-flash-lite';
+  // Through the Cue server (POST /api/brief/synth → synth_brief on Mubit): no model key in the extension.
+  const st = await chrome.storage.local.get(['cueServer', 'cueToken']);
+  const server = String(st.cueServer || (typeof CUE_SERVER === 'string' ? CUE_SERVER : '') || '').replace(/\/+$/, '');
+  const token = st.cueToken || (typeof CUE_TOKEN === 'string' ? CUE_TOKEN : '') || '';
+  if (!server) return null;
   let j = null;
   try {
-    const ask = think => fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key),
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: abortIn(8000),
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: SYNTH + ' ' + POLICY_BLURB }] },
-          contents: [{ role: 'user', parts: [{ text: synthPayload(S) }] }],
-          generationConfig: Object.assign(
-            { maxOutputTokens: 700, responseMimeType: 'application/json' },
-            think ? { thinkingConfig: { thinkingLevel: 'MINIMAL' } } : {}
-          )
-        })
-      }
-    );
-    let r = await ask(true);
-    if (!r.ok) r = await ask(false);
+    const r = await fetch(server + '/api/brief/synth', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-cue-token': token },
+      signal: abortIn(9000),
+      body: JSON.stringify({
+        company: clip((S.co && S.co.name) || '', 200),
+        domain: clip((S.co && S.co.domain) || '', 200),
+        sources: synthPayload(S).slice(0, 20000)
+      })
+    });
     if (!r.ok) return null;
-    j = parseJson(geminiText(await r.json()));
+    j = ((await r.json()) || {}).output;
   } catch (_) { return null; }
   if (!j || typeof j !== 'object') return null;
   const opener = deadOpener({ trigger: j.trigger || j.opener || '' }, (S.co && S.co.name) || '');

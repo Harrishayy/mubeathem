@@ -23,6 +23,7 @@ export const TASK_LABEL: Record<TaskStats['task'], string> = {
   review_call: 'Review the call',
   simulate_prospect: 'Simulated prospect',
   live_cue: 'Live cue',
+  synth_brief: 'Company brief',
 };
 
 export const TASK_COPY: Record<TaskStats['task'], string> = {
@@ -33,6 +34,7 @@ export const TASK_COPY: Record<TaskStats['task'], string> = {
   review_call: 'Grades the call afterwards and learns what worked',
   simulate_prospect: 'Plays a simulated prospect (not used on real calls)',
   live_cue: 'Reads the moment and writes the line in one streamed call, live on every turn',
+  synth_brief: 'Turns raw web snippets and filings into the Corgi Brief panel: what they do, the risk, the policies',
 };
 
 function CopyId({ id }: { id: string }) {

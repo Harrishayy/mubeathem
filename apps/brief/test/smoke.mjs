@@ -79,9 +79,14 @@ async function main() {
     ctx.browser = browser;
     const sw = browser.serviceWorkers()[0] ?? (await browser.waitForEvent('serviceworker'));
     const id = new URL(sw.url()).host;
-    // Point the extension at the local server. Research keys are set to invalid values (an empty one
-    // would fall back to the real keys in config.js), so the smoke test never spends on Exa or Gemini.
-    await sw.evaluate(async u => { await chrome.storage.local.set({ cueServer: u, cueToken: 'smoke', exaKey: 'smoke-invalid', geminiKey: 'smoke-invalid', yourName: 'Nick' }); }, url);
+    // Point the extension at the local server. The Exa key is set to an invalid value (an empty one
+    // would fall back to the real key in config.js), so the smoke test never spends on Exa. The brief's
+    // synthesis goes to the local server's POST /api/brief/synth, which has no Mubit key here.
+    await sw.evaluate(async u => { await chrome.storage.local.set({ cueServer: u, cueToken: 'smoke', exaKey: 'smoke-invalid', yourName: 'Nick' }); }, url);
+    // The synth endpoint answers (auth, body, no key → 503 not_configured), so synthBrief() falls back cleanly.
+    const synth = await fetch(url + '/api/brief/synth', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cue-token': 'smoke' }, body: JSON.stringify({ company: 'Lumen Labs', domain: 'lumenlabs.ai', sources: 'Company: Lumen Labs' }) });
+    if (synth.status !== 503 || (await synth.json()).error.code !== 'not_configured') fail('POST /api/brief/synth should answer 503 not_configured without a Mubit key, got ' + synth.status);
+    console.log('ok  POST /api/brief/synth answers (no Mubit key → 503, the brief falls back)');
 
     await browser.route('https://app.hubspot.com/**', r => r.fulfill({ status: 200, contentType: 'text/html', body: FIXTURE }));
     const page = await browser.newPage();

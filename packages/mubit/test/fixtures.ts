@@ -228,6 +228,11 @@ export const INPUTS: { [K in TaskId]: TaskInput<K> } = {
     ],
     already_said: [],
   },
+  synth_brief: {
+    company: 'Lumen Labs',
+    domain: 'lumenlabs.ai',
+    sources: 'Company: Lumen Labs\nDomain: lumenlabs.ai\nForm D: $8.6M sold of $9.9M\nPages on their own domain:\n1. Lumen Labs | AI document review — https://lumenlabs.ai/\n   Lumen reviews loan documents for mid-size lenders with an AI assistant.',
+  },
 };
 
 /** A schema-valid answer per task, for the fake fetch. */
@@ -248,5 +253,20 @@ export const OUTPUTS: { [K in TaskId]: TaskOutput<K> } = {
     why: 'Cold and clipped',
     up_next: [{ if_they_say: 'We already have a broker', move: 'Ask when they last re-quoted', moment: 'objection_broker' }],
     risky_claim: null,
+  },
+  synth_brief: {
+    trigger: "you're reviewing loan documents for mid-size lenders",
+    blurb: 'An AI document review startup. It sells loan-document review to mid-size lenders.',
+    kind: 'AI document review',
+    does: 'Reviews loan documents with an AI assistant',
+    targeting: 'Mid-size lenders',
+    employees: '',
+    founded: '',
+    city: '',
+    stage: '',
+    valuation: '',
+    people: [{ name: 'Maya Chen', role: 'CEO' }],
+    risk: 'A wrong AI review of a loan file costs a lender money and lands on them.',
+    policies: [{ name: 'Technology E&O / Tech & AI Liability', reason: 'AI errors in client loan reviews' }],
   },
 };

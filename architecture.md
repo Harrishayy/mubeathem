@@ -106,7 +106,7 @@ Rules:
   link from a suggestion (and its later outcome) back to the exact Mubit request.
 - Models: `CUE_MODEL_FAST` (default `gpt-4o-mini`) for `read_moment`, `check_claim`,
   `simulate_prospect`; `CUE_MODEL_WRITE` (default `gpt-4.1-mini`) for `write_line`,
-  `research_brief`, `review_call`. Both are on the starter credit's list.
+  `research_brief`, `review_call`, `synth_brief`. Both are on the starter credit's list.
 - Errors: honour `x-should-retry: false`; on 429/503 wait `retry-after`; at most 2 retries; a global
   semaphore (`CUE_MUBIT_CONCURRENCY`) because the starter credit caps calls in flight. Timeout
   `CUE_MUBIT_TIMEOUT_MS`. Every failure falls back to the rules engine and says so (`servedBy: 'rules'`).
@@ -121,6 +121,7 @@ Rules:
 | `check_claim` | rep turns that make a claim; risky suggestions | claim + policy + evidence → Sapling verdict, rule, rephrase |
 | `review_call` | after feedback or outcome | the full **CallRecord** + playbook context → lines used (similarity, step win), candidate lines, missed moments, what worked/didn't, attitude, coaching, suggestion impact |
 | `simulate_prospect` | practice mode, seeding | persona + mood + transcript → reply, intended moment, mood now, ends call, books meeting |
+| `synth_brief` | Corgi Brief panel (`apps/brief`), when a dial connects | company + domain + raw snippets and filings as text → trigger, blurb, kind/does/targeting, employees/founded/city/stage/valuation, people, risk, 2-3 policies from the fixed Corgi list. Instructions are the panel's former Gemini prompt (SYNTH + policy list), verbatim; served by `POST /api/brief/synth` |
 
 ### 4.3 What we send so Mubit learns what works
 
@@ -186,6 +187,7 @@ Every body is parsed with the matching schema in `packages/core/src/schema/api.t
 | `POST /api/contacts/import` | `ContactImportRequest` (CSV ≤ 2 MB, header row; aliases like "Full Name", "Job Title"; other columns become facts; an existing email updates) → `ContactImportResponse` |
 | `POST /api/research/warm` | `{contactId}` or `{prospect}` → 202 `{configured, providers}`. Runs Exa + Valyu now and caches the findings, so the call's brief doesn't wait on the web |
 | `POST /api/research/brief` | Same body → `{brief, configured, providers}`. The brief before the call (research + `research_brief`, or the rules brief), cached per person for `CUE_RESEARCH_CACHE_MINUTES`; the call's `brief.ready` reuses it, so the rep reads one brief from dialling to wrap-up |
+| `POST /api/brief/synth` | `SynthBriefRequest` (`{company, domain, sources}`) → `SynthBriefResponse` (`{output, requestId, model, latencyMs}`): `synth_brief` through Mubit for the Corgi Brief panel. 503 `not_configured` without a Mubit key, 504 `timeout` over its 8 s budget, 502 on any other model failure |
 | `GET /api/calls/:id` | `CallView` |
 | `GET /api/calls/:id/stream` | SSE. First `view` (a `CallView`), then one `event` per `CallEvent`. Heartbeat comment every 15 s. `Last-Event-ID` resumes from a seq |
 | `POST /api/calls/:id/turns` | `AddTurnRequest` → `202 {turnId}`. Final prospect turns run the pipeline; final rep turns run the claim check and usage matching |
@@ -285,17 +287,22 @@ rep, since the server only learns it from the rep's first interim (~300–700 ms
 
 `pipeline/live.ts`. One streamed `live_cue` call through Mubit per prospect turn reads the moment and
 writes the line together; there is no rules read and no rules card. Mubit task: fixed instructions,
-the strict `LiveCueOutput` schema (keys in streaming order: `meaning`, `moment`, `persona`,
-`receptivity`, `line_id`, `say`, `why`, `up_next`, `risky_claim`), model `CUE_LIVE_MODEL` on
-`CUE_LIVE_PROVIDER` (`gemini`: `{mubit}/gemini/v1beta/models/{model}:streamGenerateContent?alt=sse`;
-`openai`: Responses API with `stream: true`).
+the strict `LiveCueOutput` schema (keys in streaming order: `say`, `line_id`, `meaning`, `moment`,
+`persona`, `receptivity`, `why`, `up_next`, `risky_claim`: the line first, so the card goes up on it), model `CUE_LIVE_MODEL` over the
+Responses API with `stream: true`.
 
 1. **Trigger.** An interim that looks finished (`endpointGuess`) starts the run; the final adopts it
    when the words match (`sameUtterance`), else restarts it. A newer turn supersedes the one in flight.
+   With `CUE_SPECULATE_WORDS=n` (4 on Modal) the run starts on the growing interim once it has `n` words,
+   while the prospect is still talking. A run in flight is never cut short: newer words (interim or final)
+   wait in `pending` and run as soon as it finishes, updating the same card in place.
 2. **Input** (`LiveCueInput`), stable prefix first so the provider can cache it: prospect, rep, the
    brief (the client's Corgi Brief when it sent one: risk, policies, verified filing lines), the call's
    playbook draw (top 2 lines per suggesting moment by Thompson sampling, drawn once per call and again
-   if the persona changes), previous read, the last 12 turns, lines already shown.
+   if the persona changes), previous read, the whole call so far (up to 80 turns), lines already shown,
+   and `last_response` (the prospect's last turn, possibly still being spoken). The brief is trimmed to the
+   essentials (summary, risk, up to 3 policies, 6 facts); it lands a few seconds into the call (Exa runs
+   from the moment Trellus connects), so the first turns may go without it.
 3. **Card.** `onFields` sees each top-level string field as it completes in the stream; when `say` is
    complete (and not empty, quiet or risky) the card goes up at once. When the answer finishes,
    `situation.read` is emitted and the same card id is re-emitted with `why`, `up_next` and evidence.
@@ -304,6 +311,13 @@ the strict `LiveCueOutput` schema (keys in streaming order: `meaning`, `moment`,
    swaps in a safe playbook line for the moment.
 5. **Failure** → `pipeline.error` and no card (there is no rules fallback on this path). A line the model
    wrote itself carries `lineId: line_none`, so it never skews a playbook line's stats.
+6. **Predicted replies** (`CUE_PREDICT=n`, 0 = off). After a card, while the rep says it, the first `n`
+   of its `up_next` replies each get a `live_cue` run with that reply as the prospect's turn, and one
+   `/embeddings` call (`text-embedding-3-small`, 900 ms timeout) embeds the replies. When the prospect
+   starts talking, their interim (from `CUE_PREDICT_MIN_WORDS`, up to 3 tries as it grows) is embedded
+   and matched by cosine (`CUE_PREDICT_MATCH`, default 0.6). A match shows that reply's line at once
+   (timings `predicted: true`); the real run on the full sentence refines the same card in place until
+   the rep speaks. Risky or quiet predictions are never shown early.
 
 The client may research for itself: `POST /api/calls` with `clientBrief: true` skips the server's
 brief, and `PUT /api/calls/:id/brief` (a `Brief`, optionally with `corgi`) emits `brief.ready`.

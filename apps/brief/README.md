@@ -11,7 +11,7 @@ connect, hears the call tab and your mic, and never touches the call itself.
 
 ```
 Trellus card → connected            (content.js, inside Trellus's shadow DOM)
-   ├─ the brief: EDGAR + Exa + Gemini (background.js, as Corgi Brief always did)
+   ├─ the brief: EDGAR + Exa (background.js) → POST /api/brief/synth → synth_brief through Mubit
    │      └─ sent to the Cue server   (PUT /api/calls/:id/brief), so the live line knows it
    └─ the call: POST /api/calls on the Cue server (Modal, eu-west)
           offscreen.js: call tab audio (them) + mic (you) → Deepgram (EU) → every interim and final
@@ -26,7 +26,8 @@ Trellus card → ended → "How did it go?" → outcome + review → the playboo
    pages, and that click is what lets Chrome hand Cue the tab's audio later (a Chrome rule).
 3. **Move it to the left:** right-click the panel's border → *Move side panel to the left*. One-time.
 4. Two gitignored files hold the keys:
-   - `config.js`: Exa and Gemini keys for the brief (copy `config.example.js`, or Corgi Brief's own `config.js`).
+   - `config.js`: the Exa key for the brief (copy `config.example.js`). The brief is written on the Cue
+     server (`synth_brief` through Mubit), so the extension holds no model key.
    - `cue.config.js`: the Cue server URL and its token (copy `cue.config.example.js`). The token is the
      server's `CUE_API_TOKEN`; on Modal it is the `corgi-cue-token` secret, and `.env.modal` at the repo
      root keeps a copy.

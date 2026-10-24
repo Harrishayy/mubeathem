@@ -247,7 +247,7 @@ describe('createMubit · concurrency and telemetry', () => {
     ]);
     expect(events[0]!.requestId).toMatch(/^mreq_/);
     const stats = client.stats();
-    expect(stats.map((s) => s.task)).toEqual(['read_moment', 'write_line', 'research_brief', 'check_claim', 'review_call', 'simulate_prospect', 'live_cue']);
+    expect(stats.map((s) => s.task)).toEqual(['read_moment', 'write_line', 'research_brief', 'check_claim', 'review_call', 'simulate_prospect', 'live_cue', 'synth_brief']);
     const rm = stats[0]!;
     expect(rm).toMatchObject({ calls: 2, ok: 1, failed: 1, sessions: 2, inputTokens: 1000, outputTokens: 100, adapterThreshold: 25, model: 'gpt-4o-mini' });
     expect(rm.lastRequestId).toBe(events[1]!.requestId);

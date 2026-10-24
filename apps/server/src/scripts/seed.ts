@@ -49,9 +49,9 @@ function parseArgs(argv: string[]): Args {
 /* ───────── cost estimate ───────── */
 
 /** Mubit calls per practice call, roughly (≤ 6 prospect turns). */
-const PER_CALL: Record<TaskId, number> = { research_brief: 1, simulate_prospect: 6, read_moment: 6, write_line: 6, check_claim: 0.5, review_call: 1, live_cue: 0 };
+const PER_CALL: Record<TaskId, number> = { research_brief: 1, simulate_prospect: 6, read_moment: 6, write_line: 6, check_claim: 0.5, review_call: 1, live_cue: 0, synth_brief: 0 };
 /** Rough user-message tokens per task (the instructions are measured). */
-const INPUT_TOKENS: Record<TaskId, number> = { research_brief: 500, simulate_prospect: 600, read_moment: 700, write_line: 1100, check_claim: 250, review_call: 5000, live_cue: 1500 };
+const INPUT_TOKENS: Record<TaskId, number> = { research_brief: 500, simulate_prospect: 600, read_moment: 700, write_line: 1100, check_claim: 250, review_call: 5000, live_cue: 1500, synth_brief: 1500 };
 
 function estimate(calls: number, models: { fast: string; write: string }, perCall: Partial<Record<TaskId, number>> = PER_CALL): { usd: number; mubitCalls: number } {
   let usd = 0;

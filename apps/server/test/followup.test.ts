@@ -1,6 +1,9 @@
 import { ApiError, SttTokenResponse, TrellusDispositionsResponse } from '@cue/core';
 import { createFakeTrellusFetch, FIXTURE_API_KEY } from '@cue/trellus/fixtures';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
+import { WebSocket, WebSocketServer } from 'ws';
 import type { CueServer } from '../src/boot';
 import { rulesSummary } from '../src/pipeline/review';
 import { json, post, testServer } from './helpers';
@@ -39,6 +42,48 @@ describe('POST /api/stt/token', () => {
     const res = await post(server, '/api/stt/token');
     expect(res.status).toBe(503);
     expect(ApiError.parse(await json(res)).error.code).toBe('stt_unavailable');
+  });
+});
+
+describe('Deepgram relay (a key that may not mint tokens)', () => {
+  it('mints a relay token on a 403, and relays audio both ways with the key added server side', async () => {
+    const upstream = new WebSocketServer({ port: 0 });
+    const seen: { auth?: string; url?: string } = {};
+    upstream.on('connection', (ws, req) => {
+      seen.auth = req.headers.authorization;
+      seen.url = req.url;
+      ws.on('message', (d) => ws.send(JSON.stringify({ type: 'Results', bytes: (d as Buffer).length })));
+    });
+    await new Promise((r) => upstream.once('listening', r));
+    const upstreamHost = `ws://127.0.0.1:${(upstream.address() as AddressInfo).port}`;
+    server = testServer({ fetch: (async () => new Response('{}', { status: 403 })) as unknown as typeof fetch, config: { stt: { deepgramApiKey: 'dg_key', ttlSeconds: 30, deepgramHost: upstreamHost } } });
+    const httpServer = createServer();
+    server.sttRelay.attach(httpServer);
+    await new Promise<void>((r) => httpServer.listen(0, '127.0.0.1', r));
+    const port = (httpServer.address() as AddressInfo).port;
+    try {
+      const res = await post(server, '/api/stt/token', undefined, { host: `127.0.0.1:${port}` });
+      const body = SttTokenResponse.parse(await json(res));
+      expect(body.host).toBe(`127.0.0.1:${port}`);
+      expect(body.token).toMatch(/^cue_/);
+
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/v1/listen?model=nova-3`, ['bearer', body.token]);
+      const reply = await new Promise<string>((resolve, reject) => {
+        ws.on('open', () => ws.send(Buffer.alloc(320)));
+        ws.on('message', (d) => resolve(String(d)));
+        ws.on('error', reject);
+      });
+      expect(JSON.parse(reply)).toEqual({ type: 'Results', bytes: 320 });
+      expect(seen).toEqual({ auth: 'Token dg_key', url: '/v1/listen?model=nova-3' });
+      ws.close();
+
+      const bad = new WebSocket(`ws://127.0.0.1:${port}/v1/listen`, ['bearer', 'cue_wrong']);
+      const status = await new Promise<number>((resolve) => bad.on('unexpected-response', (_req, r) => resolve(r.statusCode ?? 0)));
+      expect(status).toBe(401);
+    } finally {
+      await new Promise((r) => httpServer.close(r));
+      await new Promise((r) => upstream.close(r));
+    }
   });
 });
 

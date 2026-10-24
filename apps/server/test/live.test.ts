@@ -197,4 +197,72 @@ describe('live pipeline (CUE_PIPELINE=live)', () => {
     const mined = pb.lines.find((l) => l.origin === 'rep');
     expect(mined?.status).toBe('active');
   });
+
+  it('speculating: starts on a growing interim, never cuts a run short, and runs the newer words after it', async () => {
+    const mubit = fakeMubit({ delayMs: { live_cue: 80 } });
+    server = testServer({ mubit, config: { ...LIVE, latency: { ...LIVE.latency, speculateWords: 3 } } });
+    const id = await createCall(server, { clientBrief: true });
+    await turn(id, { id: 'turn_p1', speaker: 'prospect', text: 'We have a broker', final: false });
+    await sleep(30);
+    expect(mubit.count('live_cue')).toBe(1);
+    await turn(id, { id: 'turn_p1', speaker: 'prospect', text: 'We have a broker for all of', final: false });
+    await sleep(70);
+    // The first run finished (not aborted), its card is up, and the newer words are running.
+    expect(mubit.calls.filter((c) => c.task === 'live_cue').map((c) => c.aborted)).toEqual([false, false]);
+    expect(latest(server, id)).toHaveLength(1);
+    await turn(id, { id: 'turn_p1', speaker: 'prospect', text: 'We have a broker for all of that.', final: true });
+    await server.cue.idle();
+    expect(mubit.count('live_cue')).toBe(3);
+    expect(latest(server, id)).toHaveLength(1);
+  });
+
+  describe('predicted replies', () => {
+    const PREDICT = { ...LIVE, latency: { ...LIVE.latency, predict: 2 } };
+    /** A first card whose up next is "We have a broker", with its prediction written, then the rep says the line. */
+    async function primed(delayMs: number) {
+      const mubit = fakeMubit({ delayMs: { live_cue: delayMs } });
+      server = testServer({ mubit, config: PREDICT });
+      const id = await createCall(server, { clientBrief: true });
+      await turn(id, { speaker: 'rep', text: "Hi Maya, it's Alex from Corgi." });
+      await turn(id, { speaker: 'prospect', text: "...what's this regarding?" });
+      await server.cue.idle();
+      await turn(id, { speaker: 'rep', text: latest(server, id)[0]!.say });
+      return { mubit, id };
+    }
+
+    it("pre-writes a line for the card's likely replies, then common ones the call hasn't had", async () => {
+      const { mubit } = await primed(20);
+      expect(mubit.count('live_cue')).toBe(3);
+      const pre = mubit.calls.filter((c) => c.task === 'live_cue').slice(1).map((c) => (c.input as LiveCueInput).transcript.at(-1));
+      // The card's up next is a broker objection, so the common broker reply is skipped.
+      expect(pre).toEqual([{ speaker: 'prospect', text: 'We have a broker' }, { speaker: 'prospect', text: "We're not interested, thanks" }]);
+      expect(mubit.count('embed' as never)).toBe(1);
+    });
+
+    it("shows the predicted line on the prospect's first words, then the real run refines it in place", async () => {
+      const { id } = await primed(80);
+      await turn(id, { id: 'turn_p2', speaker: 'prospect', text: 'we have a broker already', final: false });
+      await sleep(20);
+      const cards = latest(server, id);
+      expect(cards).toHaveLength(2);
+      expect(cards[1]!.turnId).toBe('turn_p2');
+      expect(cards[1]!.situation.moment).toBe('objection_broker');
+      expect(cards[1]).toMatchObject({ servedBy: 'cache', precomputed: 'predicted' });
+      await turn(id, { id: 'turn_p2', speaker: 'prospect', text: 'We have a broker already.', final: true });
+      await server.cue.idle();
+      const after = latest(server, id);
+      expect(after).toHaveLength(2);
+      expect(after[1]!.id).toBe(cards[1]!.id);
+      expect(after[1]!.stage).toBe('refined');
+      expect(after[1]!.servedBy).toBe('mubit');
+      expect(server.cue.live!.recentTimings(id).some((t) => t.predicted && t.turnId === 'turn_p2')).toBe(true);
+    });
+
+    it('shows nothing early when the first words match no prediction', async () => {
+      const { id } = await primed(80);
+      await turn(id, { id: 'turn_p2', speaker: 'prospect', text: 'who gave you this number', final: false });
+      await sleep(20);
+      expect(latest(server, id)).toHaveLength(1);
+    });
+  });
 });

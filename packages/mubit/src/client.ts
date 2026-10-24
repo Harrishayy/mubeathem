@@ -55,7 +55,7 @@ export interface MubitClient {
   run<K extends TaskId>(task: K, input: TaskInput<K>, opts: RunOptions): Promise<TaskResult<K>>;
   /**
    * The same task, streamed: one attempt, no queue (the live path can't wait behind a review), and
-   * `onFields` as the answer is written. live_cue goes to the configured live provider.
+   * `onFields` as the answer is written, over the Responses API.
    */
   stream<K extends TaskId>(task: K, input: TaskInput<K>, opts: StreamOptions): Promise<TaskResult<K>>;
   /** Subscribe to every finished run (success or failure). Returns an unsubscribe function. */
@@ -64,6 +64,8 @@ export interface MubitClient {
   modelFor(task: TaskId): string;
   /** Cheap reachability check (`GET /models`, no model call). */
   ping(signal?: AbortSignal): Promise<boolean>;
+  /** Embeds texts through Mubit's `/embeddings`, in order. One attempt with a short deadline (default 1500 ms). */
+  embed(texts: string[], opts?: { signal?: AbortSignal; timeoutMs?: number }): Promise<number[][]>;
 }
 
 /** Retries per architecture §4.1: at most 2 transport retries, and one retry for an unparseable answer. */
@@ -130,12 +132,6 @@ function httpError(res: Response, text: string, requestId: string | null, now: n
   const retryable = shouldRetry === 'false' ? false : shouldRetry === 'true' ? true : RETRYABLE_STATUS.has(res.status);
   const code = typeof raw?.code === 'string' && raw.code ? raw.code : raw?.status || 'http';
   return new MubitError({ code, message: raw?.message || text.slice(0, 300) || `HTTP ${res.status}`, status: res.status, retryable, requestId, retryAfterS: parseRetryAfter(res.headers.get('retry-after'), now) });
-}
-
-interface GeminiChunk {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> }; finishReason?: string }>;
-  usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
-  error?: { code?: number; message?: string; status?: string };
 }
 
 interface ResponsesEvent {
@@ -324,9 +320,6 @@ export function createMubit(config: MubitConfig, deps: MubitDeps = {}): MubitCli
     }
   }
 
-  // Options a Gemini model refused once (thinking level, response schema) are not sent to it again.
-  const geminiQuirks = new Map<string, { noThinking?: boolean; noSchema?: boolean }>();
-
   async function post(task: TaskId, url: string, h: Record<string, string>, shown: Record<string, string>, body: string, signal: AbortSignal) {
     deps.debug?.({ kind: 'request', task, attempt: 1, url, headers: shown });
     let res: Response;
@@ -382,51 +375,6 @@ export function createMubit(config: MubitConfig, deps: MubitDeps = {}): MubitCli
     return { requestId, usage };
   }
 
-  /** One streamed attempt over Mubit's Gemini route. A refused option comes back as `option_refused`, dropped for next time. */
-  async function geminiStream(task: TaskId, def: TaskDef<TaskId>, model: string, input: string, signal: AbortSignal, onText: (d: string) => void) {
-    const quirks = geminiQuirks.get(model) ?? {};
-    const h: Record<string, string> = { 'x-goog-api-key': config.apiKey, 'content-type': 'application/json' };
-    if (config.record === 'metadata') h['x-middleware-record'] = 'metadata';
-    const generationConfig: Record<string, unknown> = { temperature: def.temperature, maxOutputTokens: def.maxOutputTokens, responseMimeType: 'application/json' };
-    if (!quirks.noSchema) generationConfig.responseJsonSchema = schemaFor(def);
-    if (!quirks.noThinking) generationConfig.thinkingConfig = { thinkingLevel: 'MINIMAL' };
-    const body = JSON.stringify({ system_instruction: { parts: [{ text: def.instructions }] }, contents: [{ role: 'user', parts: [{ text: input }] }], generationConfig });
-    const url = `${config.live.geminiBaseUrl}/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
-    const { res, requestId } = await post(task, url, h, { ...h, 'x-goog-api-key': '[redacted]' }, body, signal);
-    if (!res.ok || !res.body) {
-      const err = httpError(res, await res.text().catch(() => ''), requestId, now());
-      if (res.status === 400 && (!quirks.noThinking || !quirks.noSchema)) {
-        const next = { ...quirks };
-        if (!quirks.noThinking && (err.message.toLowerCase().includes('think') || quirks.noSchema)) next.noThinking = true;
-        else if (!quirks.noSchema) next.noSchema = true;
-        else next.noThinking = true;
-        geminiQuirks.set(model, next);
-        throw new MubitError({ code: 'option_refused', message: err.message, status: 400, retryable: true, requestId });
-      }
-      throw err;
-    }
-    const usage = { input: 0, output: 0 };
-    let failure: MubitError | null = null;
-    await readSse(res.body, (data) => {
-      let c: GeminiChunk;
-      try {
-        c = JSON.parse(data) as GeminiChunk;
-      } catch {
-        return;
-      }
-      if (c.error) failure ??= new MubitError({ code: c.error.status || 'http', message: c.error.message || 'stream failed', status: c.error.code ?? res.status, requestId });
-      for (const part of c.candidates?.[0]?.content?.parts ?? []) if (!part.thought && typeof part.text === 'string') onText(part.text);
-      if (c.usageMetadata) {
-        usage.input = c.usageMetadata.promptTokenCount ?? usage.input;
-        usage.output = (c.usageMetadata.candidatesTokenCount ?? 0) + (c.usageMetadata.thoughtsTokenCount ?? 0) || usage.output;
-      }
-      const reason = c.candidates?.[0]?.finishReason;
-      if (reason && reason !== 'STOP' && reason !== 'MAX_TOKENS') failure ??= new MubitError({ code: 'refused', message: `answer stopped: ${reason}`, status: res.status, requestId });
-    });
-    if (failure) throw failure;
-    return { requestId, usage };
-  }
-
   async function stream<K extends TaskId>(task: K, input: TaskInput<K>, opts: StreamOptions): Promise<TaskResult<K>> {
     const start = now();
     const def = TASKS[task] as unknown as TaskDef<TaskId>;
@@ -460,7 +408,6 @@ export function createMubit(config: MubitConfig, deps: MubitDeps = {}): MubitCli
       if (!config.configured) throw new MubitError({ code: 'not_configured', message: 'MUBIT_API_KEY is not set' });
       const deadline = AbortSignal.timeout(timeoutMs);
       const signal = opts.signal ? AbortSignal.any([opts.signal, deadline]) : deadline;
-      const provider = def.tier === 'live' ? config.live.provider : 'openai';
       const inputJson = JSON.stringify(parsedInput.data);
       let text = '';
       let seen = 0;
@@ -478,22 +425,16 @@ export function createMubit(config: MubitConfig, deps: MubitDeps = {}): MubitCli
         }
       };
       try {
-        for (;;) {
-          attempts += 1;
-          text = '';
-          seen = 0;
-          try {
-            const r = provider === 'gemini' ? await geminiStream(task, def, model, inputJson, signal, onText) : await openaiStream(task, def, model, inputJson, opts.sessionId, signal, onText);
-            requestId = r.requestId ?? requestId;
-            usage.input += r.usage.input;
-            usage.output += r.usage.output;
-            break;
-          } catch (e) {
-            if (e instanceof MubitError && e.requestId) requestId = e.requestId;
-            // Only a refused option is retried (with it dropped); any other retry would cost the live window.
-            if (e instanceof MubitError && e.code === 'option_refused' && attempts < MAX_ATTEMPTS) continue;
-            throw e;
-          }
+        attempts = 1;
+        try {
+          const r = await openaiStream(task, def, model, inputJson, opts.sessionId, signal, onText);
+          requestId = r.requestId ?? requestId;
+          usage.input += r.usage.input;
+          usage.output += r.usage.output;
+        } catch (e) {
+          // No retry: it would cost the live window.
+          if (e instanceof MubitError && e.requestId) requestId = e.requestId;
+          throw e;
         }
       } catch (e) {
         if (opts.signal?.aborted) throw new MubitError({ code: 'aborted', message: 'aborted by caller', requestId, cause: e });
@@ -534,6 +475,34 @@ export function createMubit(config: MubitConfig, deps: MubitDeps = {}): MubitCli
     }
   }
 
+  async function embed(texts: string[], opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<number[][]> {
+    if (!config.configured) throw new MubitError({ code: 'not_configured', message: 'MUBIT_API_KEY is not set' });
+    const timeoutMs = opts.timeoutMs ?? 1500;
+    const deadline = AbortSignal.timeout(timeoutMs);
+    const signal = opts.signal ? AbortSignal.any([opts.signal, deadline]) : deadline;
+    let res: Response;
+    let text: string;
+    try {
+      res = await doFetch(`${config.baseUrl}/embeddings`, { method: 'POST', headers: headers(), body: JSON.stringify({ model: config.models.embed, input: texts }), signal });
+      text = await res.text();
+    } catch (e) {
+      if (opts.signal?.aborted) throw new MubitError({ code: 'aborted', message: 'aborted by caller', cause: e });
+      if (deadline.aborted) throw new MubitError({ code: 'timeout', message: `embeddings timed out after ${timeoutMs} ms`, cause: e });
+      throw new MubitError({ code: 'network', message: `network error: ${e instanceof Error ? e.message : String(e)}`, retryable: true, cause: e });
+    }
+    const requestId = res.headers.get('x-middleware-request-id');
+    if (!res.ok) throw httpError(res, text, requestId, now());
+    let data: Array<{ index?: number; embedding?: number[] }> = [];
+    try {
+      data = (JSON.parse(text) as { data?: typeof data }).data ?? [];
+    } catch {
+      /* checked below */
+    }
+    const out = [...data].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).map((d) => d.embedding ?? []);
+    if (out.length !== texts.length || out.some((v) => v.length === 0)) throw new MubitError({ code: 'bad_output', message: 'embeddings answer is missing vectors', status: res.status, requestId });
+    return out;
+  }
+
   return {
     config: Object.freeze({ ...config, models: { ...config.models }, live: { ...config.live } }),
     run,
@@ -545,5 +514,6 @@ export function createMubit(config: MubitConfig, deps: MubitDeps = {}): MubitCli
     stats: () => telemetry.stats(),
     modelFor,
     ping,
+    embed,
   };
 }

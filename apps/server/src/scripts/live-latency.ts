@@ -44,7 +44,7 @@ async function api(path: string, body?: unknown, method = 'POST') {
   return res.json() as Promise<any>;
 }
 
-interface Card { at: number; say: string; moment: string; servedBy: string }
+interface Card { at: number; say: string; moment: string; servedBy: string; predicted: boolean }
 interface Sse { cards: Map<string, Card[]>; skips: Map<string, string>; turnSeen: Map<string, number>; errors: string[]; close: () => void }
 
 /** Follows the call's SSE stream and timestamps each card (by prospect turn id) as it arrives here. */
@@ -74,7 +74,7 @@ async function follow(callId: string): Promise<Sse> {
           if (!e) continue;
           if (e.type === 'suggestion.shown') {
             const list = out.cards.get(e.suggestion.turnId) ?? [];
-            list.push({ at, say: e.suggestion.say, moment: e.suggestion.situation.moment, servedBy: e.suggestion.servedBy });
+            list.push({ at, say: e.suggestion.say, moment: e.suggestion.situation.moment, servedBy: e.suggestion.servedBy, predicted: e.suggestion.precomputed === 'predicted' });
             out.cards.set(e.suggestion.turnId, list);
           } else if (e.type === 'suggestion.skipped') out.skips.set(e.turnId, e.reason);
           else if (e.type === 'turn.added' && !out.turnSeen.has(e.turn.id)) out.turnSeen.set(e.turn.id, at);
@@ -88,7 +88,7 @@ async function follow(callId: string): Promise<Sse> {
   return out;
 }
 
-interface TurnResult { script: string; text: string; expect?: string; endOfSpeech: number; readyMs: number | null; finalMs: number | null; moment: string | null; say: string | null; versions: number; skipped: string | null }
+interface TurnResult { script: string; text: string; expect?: string; endOfSpeech: number; readyMs: number | null; finalMs: number | null; moment: string | null; say: string | null; versions: number; skipped: string | null; predicted?: boolean }
 
 async function speak(callId: string, speaker: 'prospect' | 'rep', text: string, transport: number[], sse: Sse): Promise<{ id: string; end: number }> {
   const words = text.split(/\s+/);
@@ -139,6 +139,7 @@ async function runScript(s: SimScript, transport: number[]): Promise<TurnResult[
       r.finalMs = Math.round(cards.at(-1)!.at - r.endOfSpeech);
       r.moment = cards.at(-1)!.moment;
       r.say = cards.at(-1)!.say;
+      r.predicted = !!cards[0]!.predicted;
     }
   }
   if (sse.errors.length) console.log(`  errors: ${[...new Set(sse.errors)].slice(0, 3).join(' | ')}`);
@@ -174,11 +175,13 @@ async function main() {
     cards: ready.length,
     readyP50: pct(ready, 0.5),
     readyP95: pct(ready, 0.95),
+    /** Turns whose first card was a line pre-written for a predicted reply. */
+    predicted: all.filter((r) => r.predicted).length,
     under600: ready.length ? Math.round((ready.filter((x) => x < 600).length / ready.length) * 100) : null,
     transportP50: pct(transport, 0.5),
     momentAccuracy: expected.length ? Math.round((right / expected.length) * 100) : null,
   };
-  for (const r of all) console.log(`  ${String(r.readyMs ?? '—').padStart(5)} ms  ${(r.moment ?? r.skipped ?? '').padEnd(24)} ${r.text.slice(0, 60)}${r.say ? `  →  ${r.say.slice(0, 70)}` : ''}`);
+  for (const r of all) console.log(`  ${String(r.readyMs ?? '—').padStart(5)} ms ${r.predicted ? '*' : ' '} ${(r.moment ?? r.skipped ?? '').padEnd(24)} ${r.text.slice(0, 60)}${r.say ? `  →  ${r.say.slice(0, 70)}` : ''}`);
   console.log(JSON.stringify(summary, null, 2));
   const file = resolve(ROOT, `docs/perf/live-latency-${summary.at.slice(0, 10)}${args.label ? `-${args.label}` : ''}.json`);
   writeFileSync(file, JSON.stringify({ summary, turns: all }, null, 2));

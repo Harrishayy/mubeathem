@@ -196,8 +196,9 @@ export const Suggestion = z.object({
   refinedAt: EpochMs.optional(),
   /** ms from the prospect finishing to the refined version. `latencyMs` stays the first card's. */
   refinedLatencyMs: z.number().int().nonnegative().optional(),
-  /** For `servedBy: 'cache'`: where the precomputed Mubit line came from (`standby` = written ahead for a predicted moment). */
-  precomputed: z.enum(['standby']).optional(),
+  /** For `servedBy: 'cache'`: where the precomputed Mubit line came from (`standby` = written ahead for a predicted moment;
+   * `predicted` = written for a predicted reply and matched on the prospect's first words, live path). */
+  precomputed: z.enum(['standby', 'predicted']).optional(),
 });
 export type Suggestion = z.infer<typeof Suggestion>;
 

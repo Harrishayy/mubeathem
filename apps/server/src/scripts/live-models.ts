@@ -31,7 +31,7 @@ const turns: LiveCueInput['transcript'][] = [
 const pct = (xs: number[], p: number) => [...xs].sort((a, b) => a - b)[Math.min(xs.length - 1, Math.ceil(p * xs.length) - 1)]!;
 
 for (const model of models) {
-  const client = createMubit(loadMubitConfig({ ...process.env, CUE_LIVE_PROVIDER: 'openai', CUE_LIVE_MODEL: model }));
+  const client = createMubit(loadMubitConfig({ ...process.env, CUE_LIVE_MODEL: model }));
   const sayMs: number[] = [];
   const doneMs: number[] = [];
   let failed = '';

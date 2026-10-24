@@ -21,7 +21,7 @@ import {
   Turn,
 } from './domain';
 import { CallEvent } from './events';
-import { CallReview, TASK_IDS } from './tasks';
+import { CallReview, SynthBriefInput, SynthBriefOutput, TASK_IDS } from './tasks';
 
 /**
  * HTTP contract between @cue/server and its clients (apps/web, apps/extension).
@@ -137,6 +137,12 @@ export type ResearchWarmResponse = z.infer<typeof ResearchWarmResponse>;
  */
 export const ResearchBriefResponse = z.object({ brief: Brief, configured: z.boolean(), providers: z.array(z.string()) });
 export type ResearchBriefResponse = z.infer<typeof ResearchBriefResponse>;
+
+/** `POST /api/brief/synth`: the Corgi Brief panel's raw snippets → `synth_brief` through Mubit. */
+export const SynthBriefRequest = SynthBriefInput;
+export type SynthBriefRequest = z.infer<typeof SynthBriefRequest>;
+export const SynthBriefResponse = z.object({ output: SynthBriefOutput, requestId: z.string().nullable(), model: z.string(), latencyMs: z.number() });
+export type SynthBriefResponse = z.infer<typeof SynthBriefResponse>;
 
 /** Filters for GET /api/calls. All optional; newest first. */
 export const CallListQuery = z.object({

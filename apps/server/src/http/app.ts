@@ -11,6 +11,7 @@ import {
   PutBriefRequest,
   InsightsQuery,
   ResearchWarmRequest,
+  SynthBriefRequest,
   SuggestionActionRequest,
   TeamQuery,
   TraceExportQuery,
@@ -31,7 +32,7 @@ import { EXPORT_FORMATS, exportFilename, exportTraces } from '../services/trace-
 import { computeInsights } from '../store/insights';
 import { ContactError } from '../store/contacts';
 import { StoreError } from '../store/events';
-import { sttToken } from '../stt';
+import { sttToken, type SttRelay } from '../stt';
 import { streamCall, StreamRegistry } from './sse';
 
 const BODY_LIMIT = 64 * 1024;
@@ -88,7 +89,7 @@ function tokenOk(given: string | undefined, expected: string): boolean {
 }
 
 /** The HTTP API in architecture.md §5. */
-export function createApp(cue: Cue, registry: StreamRegistry = new StreamRegistry()): Hono {
+export function createApp(cue: Cue, registry: StreamRegistry = new StreamRegistry(), sttRelay?: SttRelay): Hono {
   const { config } = cue.s;
   const app = new Hono();
 
@@ -171,6 +172,7 @@ export function createApp(cue: Cue, registry: StreamRegistry = new StreamRegistr
 
   app.post('/api/research/warm', async (c) => c.json(cue.warmResearch(await parseBody(c, ResearchWarmRequest)), 202));
   app.post('/api/research/brief', async (c) => c.json(await cue.researchBrief(await parseBody(c, ResearchWarmRequest))));
+  app.post('/api/brief/synth', async (c) => c.json(await cue.synthBrief(await parseBody(c, SynthBriefRequest))));
 
   app.get('/api/playbook', (c) => c.json(cue.playbook()));
   app.post('/api/playbook/lines/:id/approve', (c) => c.json(cue.setLineStatus(c.req.param('id'), 'active')));
@@ -211,7 +213,9 @@ export function createApp(cue: Cue, registry: StreamRegistry = new StreamRegistr
 
   app.post('/api/stt/token', async (c) => {
     c.header('cache-control', 'no-store');
-    return c.json(await sttToken({ apiKey: config.stt.deepgramApiKey, ttlSeconds: config.stt.ttlSeconds, host: config.stt.deepgramHost, fetch: cue.s.fetch, now: cue.s.now }));
+    const publicHost = c.req.header('x-forwarded-host') ?? c.req.header('host') ?? '';
+    const relay = sttRelay && config.stt.relay !== 'off' && publicHost ? { relay: sttRelay, publicHost, force: config.stt.relay === 'on' } : undefined;
+    return c.json(await sttToken({ apiKey: config.stt.deepgramApiKey, ttlSeconds: config.stt.ttlSeconds, host: config.stt.deepgramHost, fetch: cue.s.fetch, now: cue.s.now, ...(relay ? { relay } : {}) }));
   });
 
   app.get('/api/trellus/dispositions', async (c) => c.json(await cue.trellus.dispositions()));

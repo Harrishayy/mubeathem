@@ -25,7 +25,7 @@ import {
  * nullable), no defaults, no unions other than nullable. packages/mubit converts them.
  */
 
-export const TASK_IDS = ['read_moment', 'write_line', 'research_brief', 'check_claim', 'review_call', 'simulate_prospect', 'live_cue'] as const;
+export const TASK_IDS = ['read_moment', 'write_line', 'research_brief', 'check_claim', 'review_call', 'simulate_prospect', 'live_cue', 'synth_brief'] as const;
 export type TaskId = (typeof TASK_IDS)[number];
 
 /* ───────────── read_moment: after every final prospect turn ───────────── */
@@ -246,29 +246,74 @@ export const LiveCueInput = z.object({
   playbook: z.array(z.object({ line_id: Id, moment: MomentZ, style: z.string(), text: z.string(), used: z.number(), wins: z.number(), booked: z.number() })),
   /** The previous turn's read, so persona and receptivity drift instead of jumping. */
   previous: z.object({ persona: PersonaZ, receptivity: ReceptivityZ, moment: MomentZ }).nullable(),
-  /** Recent turns, oldest first; the last one is what the prospect just said. */
+  /** The whole call so far, oldest first; the last one is what the prospect just said. */
   transcript: z.array(z.object({ speaker: Speaker, text: z.string() })),
   /** Lines already shown this call. */
   already_said: z.array(z.string()),
+  /** The prospect's last response (the last transcript turn, possibly still being spoken): what to answer. */
+  last_response: z.string().optional(),
 });
 export type LiveCueInput = z.infer<typeof LiveCueInput>;
 
-/** Key order is the streaming order: the read first (cheap), then the line the rep reads. */
+/** Key order is the streaming order: the line the rep reads first (the card goes up on it), then the read. */
 export const LiveCueOutput = z.object({
-  /** What the prospect means and wants, in a few words. Written before the line, so the line follows from it. */
+  /** The line, as the rep says it. Empty when no card is needed. */
+  say: z.string(),
+  /** The playbook line this tailors, or "none" for a new line. */
+  line_id: z.string(),
+  /** What the prospect means and wants, in a few words. */
   meaning: z.string(),
   moment: MomentZ,
   persona: PersonaZ,
   receptivity: ReceptivityZ,
-  /** The playbook line this tailors, or "none" for a new line. */
-  line_id: z.string(),
-  /** The line, as the rep says it. Empty when no card is needed. */
-  say: z.string(),
   why: z.string(),
   up_next: z.array(z.object({ if_they_say: z.string(), move: z.string(), moment: MomentZ })),
   risky_claim: z.string().nullable(),
 });
 export type LiveCueOutput = z.infer<typeof LiveCueOutput>;
+
+/* ───────────── synth_brief: the Corgi Brief panel, when a dial connects ───────────── */
+
+/** The Corgi startup policies synth_brief may recommend (apps/brief POLICY_NAMES). */
+export const SYNTH_POLICY_NAMES = [
+  'Commercial General Liability (CGL)',
+  'Directors & Officers (D&O)',
+  'Technology E&O / Tech & AI Liability',
+  'Cyber Liability',
+  'Employment Practices Liability (EPLI)',
+  'Fiduciary Liability',
+  'Media Liability',
+  'Hired and Non-Owned Auto (HNOA)',
+  'Crime & Fidelity',
+  'Commercial Umbrella',
+  'Representations & Warranties (R&W)',
+] as const;
+
+export const SynthBriefInput = z.object({
+  company: z.string().max(200),
+  /** The company's own domain, '' when unknown. */
+  domain: z.string().max(200),
+  /** Raw web snippets plus filings, as text (apps/brief synthPayload): never a brief, the model interprets it. */
+  sources: z.string().max(20_000),
+});
+export type SynthBriefInput = z.infer<typeof SynthBriefInput>;
+
+export const SynthBriefOutput = z.object({
+  trigger: z.string(),
+  blurb: z.string(),
+  kind: z.string(),
+  does: z.string(),
+  targeting: z.string(),
+  employees: z.string(),
+  founded: z.string(),
+  city: z.string(),
+  stage: z.string(),
+  valuation: z.string(),
+  people: z.array(z.object({ name: z.string(), role: z.string() })),
+  risk: z.string(),
+  policies: z.array(z.object({ name: z.enum(SYNTH_POLICY_NAMES), reason: z.string() })),
+});
+export type SynthBriefOutput = z.infer<typeof SynthBriefOutput>;
 
 export const TASK_OUTPUT = {
   read_moment: ReadMomentOutput,
@@ -278,6 +323,7 @@ export const TASK_OUTPUT = {
   review_call: ReviewCallOutput,
   simulate_prospect: SimulateProspectOutput,
   live_cue: LiveCueOutput,
+  synth_brief: SynthBriefOutput,
 } as const satisfies Record<TaskId, z.ZodType>;
 
 export const TASK_INPUT = {
@@ -288,6 +334,7 @@ export const TASK_INPUT = {
   review_call: z.object({ record: CallRecord, playbookContext: z.array(z.object({ line_id: z.string(), moment: MomentZ, text: z.string() })) }),
   simulate_prospect: SimulateProspectInput,
   live_cue: LiveCueInput,
+  synth_brief: SynthBriefInput,
 } as const satisfies Record<TaskId, z.ZodType>;
 
 export type TaskInput<T extends TaskId> = z.infer<(typeof TASK_INPUT)[T]>;

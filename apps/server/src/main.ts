@@ -15,6 +15,7 @@ http.on('error', (e: NodeJS.ErrnoException) => {
   console.error(e.code === 'EADDRINUSE' ? `[cue] port ${config.port} is in use; set CUE_PORT` : `[cue] http error: ${e.message}`);
   void server.close().finally(() => process.exit(1));
 });
+server.sttRelay.attach(http as unknown as import('node:http').Server);
 server.startBackground();
 
 let stopping = false;

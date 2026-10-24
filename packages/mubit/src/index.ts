@@ -1,4 +1,4 @@
-export { loadMubitConfig, geminiBaseFor, DEFAULT_BASE_URL, DEFAULT_MODELS, type MubitConfig } from './config';
+export { loadMubitConfig, DEFAULT_BASE_URL, DEFAULT_MODELS, type MubitConfig } from './config';
 export { MubitError, isMubitError, type MubitErrorCode } from './errors';
 export { toStrictJsonSchema } from './strict-schema';
 export { createMubit, redactHeaders, type MubitClient, type MubitDebugEvent, type MubitDeps, type RunOptions, type StreamOptions, type TaskResult } from './client';

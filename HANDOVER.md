@@ -24,7 +24,7 @@ Targets:
 | Extension: Corgi Brief + the live call | `apps/brief` | Works. The smoke test passes in real Chromium |
 | Live pipeline, one streamed model call per turn | `apps/server/src/pipeline/live.ts` | Works on Modal with real suggestions |
 | `live_cue` Mubit task: reads the moment, then writes the line | `packages/mubit/src/tasks/live-cue.ts` | Works through Mubit (OpenAI route) |
-| Streaming Mubit client | `packages/mubit/src/client.ts`, `stream.ts` | Works (Responses API). Has a Gemini path we no longer use (see below) |
+| Streaming Mubit client | `packages/mubit/src/client.ts`, `stream.ts` | Works (Responses API), plus `embed()` over `/embeddings` |
 | Learning loop | `apps/server/src/pipeline/review.ts` | Works in tests |
 | Modal deployment | `deploy/modal/app.py` | Live at `https://nicholastchakov--corgi-cue-live-serve.eu-west.modal.run` |
 | Latency tools | `apps/server/src/scripts/live-latency.ts`, `live-models.ts` | Work |
@@ -54,24 +54,33 @@ Trellus card ends → panel asks "How did it go?" → outcome + review → playb
    with Mubit: whether adapters can be called from code, and whether training can be weighted by
    outcome. See `context.md` §13.
 
-## Measured (`docs/perf/live-latency-2026-10-24-modal-gpt-4.1-mini.json`)
+## Measured (`docs/perf/live-latency-2026-10-24-modal-speculate.json`)
 
-Real calls replayed in real time against Modal, measured on the rep's side of the wire:
+Real calls replayed in real time against Modal, measured on the rep's side of the wire (end of the
+prospect's speech → first card on SSE; 0 = the card was up before they finished):
 
-| | |
-|---|---|
-| End of speech → card, median | **1491 ms** |
-| p95 | 1725 ms |
-| Cards under 600 ms | 29% (long turns, where the run finished before they did) |
-| Network round trip (POST a turn → see it on SSE) | ~105 ms |
-| Moment accuracy vs the script labels | 71% |
+| | Start of day | Now |
+|---|---|---|
+| Median | 1491 ms | **0 ms** |
+| p95 | 1725 ms | 1381 ms |
+| Cards under 600 ms | 29% | **90%** |
+| Moment accuracy vs the script labels | 71% | 74% |
+| Network round trip | ~105 ms | ~118 ms |
 
-The line quality is good. Examples:
+What got it there, in order of effect:
+1. **Speculative runs** (`CUE_SPECULATE_WORDS=4`): `live_cue` starts on the prospect's interim once it has
+   4 words, and newer words run after it (never cutting it short). The first card is often from part of
+   the sentence; the run on the full sentence refines it in place.
+2. **The line streams first** (`say` before the read in `LiveCueOutput`, `live_cue` v4): the card no
+   longer waits ~40 tokens of read.
+3. **Predicted replies** (`CUE_PREDICT=3`, match 0.5): 3 of 20 cards in the last run.
+4. Endpoint pause 150 ms (`CUE_ENDPOINT_PAUSE_MS`).
 
-- "Makes sense, most founders do. When did they last re-quote you after the raise?"
-- "I won't guess at a number, but the quote call gets you a real one."
+What's left over 1 s: one-word replies ("Yeah.", "No."), below the 4-word speculation threshold and too
+short to match a prediction. Cost: speculation and predictions add model calls (roughly 2–4 extra
+`live_cue` calls per prospect turn, all on `gpt-4.1-mini`).
 
-**Why it isn't under 600 ms yet.** Through Mubit, even a one-sentence prompt takes ~520 ms to the first
+**Why a call after the prospect stops can't be under 600 ms.** Through Mubit, even a one-sentence prompt takes ~520 ms to the first
 byte, for both `gpt-4.1-mini` and `claude-haiku-4-5`. So a model call that starts after the prospect
 stops can't show a card within 600 ms.
 
@@ -92,33 +101,25 @@ So the server runs in eu-west with eu-west routing, which cut a request round tr
 
 ## Next steps, in order
 
-1. **Get under 600 ms by having the line ready before they finish.** No regex: semantic matching.
-   - After each card, use the rep's talking time to pre-write a line for each likely reply (the card's
-     `up_next`). Each is one `live_cue` call with that reply as the prospect's turn.
-   - When the prospect starts talking, embed their first words and compare them to the predicted
-     replies. Embeddings go through Mubit's `/embeddings`: `text-embedding-3-small` took ~270–490 ms
-     per call, with one outlier at 30 s, so it needs a timeout. If one matches, show its line at once.
-   - Let the real `live_cue` run on the full sentence replace it in place, until the rep speaks.
-   - Also start speculative runs on growing interims, not only when the sentence looks finished.
-   - `pipeline/turn.ts` already has the standby/refine machinery for the old rules path to copy from.
-   - Measure each change with `latency:live`.
-2. **Deepgram key.** None exists yet, and Claude couldn't create a Deepgram account. Without it nothing
-   transcribes in the extension (the panel shows "Transcription is not set up").
-   - Create one at console.deepgram.com, then run:
-     `modal secret create corgi-cue-keys MUBIT_API_KEY=… TRELLUS_API_KEY=… DEEPGRAM_API_KEY=… --force`
-     and `modal deploy deploy/modal/app.py`.
-   - The alternative is self-hosted streaming speech-to-text on a Modal GPU, so no third-party key.
-3. **Remove Gemini from the brief.** `apps/brief/background.js` `synthBrief()` still calls Gemini
-   directly (Corgi Brief's original code). Move it to a server endpoint that runs a Mubit task with the
-   same prompt (`SYNTH` + `POLICY_BLURB`), so all inference goes through Mubit. Then drop the Gemini
-   path in `packages/mubit/src/client.ts` (`geminiStream`) and `CUE_LIVE_PROVIDER=gemini`.
+1. **Under 1 s.** *Done on Modal: median 0 ms, 90% under 600 ms (see Measured).* Left: one-word replies
+   (~1.4 s). Ideas: speculate from 1 word when the interim ends in punctuation, or a pre-written line
+   for "yes"/"no" after each card. Tune cost with `CUE_SPECULATE_WORDS` and `CUE_PREDICT`.
+2. **Deepgram.** *Done.* The key in `.env` can transcribe but not mint browser tokens (403), so the server
+   relays the audio: `/api/stt/token` hands out a short-lived Cue token and `wss://{server}/v1/listen` pipes
+   to Deepgram EU with the key (`apps/server/src/stt.ts` `SttRelay`, `CUE_STT_RELAY`). Verified through Modal.
+   Keys reach Modal with `deploy/modal/setup-secrets.sh` (a container restart picks up new secrets).
+3. **Remove Gemini from the brief.** *Done.* `synthBrief()` posts to `POST /api/brief/synth` (Mubit task
+   `synth_brief`, same SYNTH + POLICY_BLURB prompt). The Gemini stream path and `CUE_LIVE_PROVIDER` are
+   gone from `@cue/mubit`; live_cue defaults to `gpt-4.1-mini`.
 4. **Check where Trellus plays the call audio.** Cue captures the tab where the connected card appeared.
    - If Trellus plays audio elsewhere, the panel shows THEM ✗; press Alt+Shift+L on the tab that plays it.
    - Not yet tested on a real Trellus call.
-5. **Moment accuracy (71%).** Mostly gatekeeper vs opener on transfers. Add examples to the `live_cue`
-   instructions and bump the task `version` (a new Mubit task).
-6. **Trellus outcomes.** `TRELLUS_API_KEY` is set on Modal, so the poller can fill dispositions
-   automatically. Not exercised yet.
+5. **Moment accuracy (74% now; not a priority, demo cases are cherry-picked).** Mostly gatekeeper vs opener on transfers. *Transfer rules and three reads added to
+   the `live_cue` instructions, `version: 2` (a new Mubit task).* Re-measure with `latency:live`.
+6. **Trellus outcomes.** *Checked 2026-10-24 with the real key:* reachable, `POST /api/trellus/sync` imported
+   15 Trellus calls (0 matched, as the scratch database had no Cue calls). Dispositions in the account:
+   NO_ANSWER, LEFT_VOICEMAIL, WRONG_NUMBER, GATEKEEPER map by default; OTHER_ANSWERED is unmapped (counts as
+   `unknown`, set an override in Settings if it should mean something).
 
 ## How to run
 
@@ -126,6 +127,8 @@ So the server runs in eu-west with eu-west routing, which cut a request round tr
 npx pnpm@10.26.1 i
 # local server: .env needs MUBIT_API_KEY (gitignored); CUE_PIPELINE=live for the new path
 CUE_PIPELINE=live npx pnpm@10.26.1 --filter @cue/server dev
+# keys from .env → Modal secrets, new server token, local configs, deploy (uses .env's MODAL_TOKEN_*)
+deploy/modal/setup-secrets.sh
 # deploy
 npx pnpm@10.26.1 --filter @cue/server bundle && modal deploy deploy/modal/app.py
 # measure (token read from .env.modal)
@@ -145,7 +148,7 @@ Extension: `chrome://extensions` → Load unpacked → `apps/brief`. Full setup 
 |---|---|
 | Mubit key, Trellus key | Modal secret `corgi-cue-keys`; local `.env` |
 | Server API token | Modal secret `corgi-cue-token`; local `.env.modal`; the extension's `apps/brief/cue.config.js` |
-| Exa and Gemini keys (brief only) | `apps/brief/config.js` |
+| Exa key (brief only) | `apps/brief/config.js` |
 
 All three local files are gitignored. A fresh clone needs them written by hand: copy the
 `*.example.js` files.

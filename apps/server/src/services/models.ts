@@ -16,6 +16,7 @@ export const TASK_TIER: Record<TaskId, 'fast' | 'write' | 'live'> = {
   research_brief: 'write',
   review_call: 'write',
   live_cue: 'live',
+  synth_brief: 'write',
 };
 
 /**
@@ -65,6 +66,16 @@ export class ModelRunner {
     if (t - this.lastWarmAt < minGapMs) return;
     this.lastWarmAt = t;
     for (let i = 0; i < n; i++) void this.mubit.ping(AbortSignal.timeout(3000)).catch(() => false);
+  }
+
+  /** Embeds texts through Mubit, or null on any failure or timeout (a slow embedding is worth nothing live). */
+  async embed(texts: string[], opts: { signal?: AbortSignal; timeoutMs?: number } = {}): Promise<number[][] | null> {
+    if (!this.mubit?.embed || texts.length === 0) return null;
+    try {
+      return await this.mubit.embed(texts, opts);
+    } catch {
+      return null;
+    }
   }
 
   get configured(): boolean {
