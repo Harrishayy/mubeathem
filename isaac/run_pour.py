@@ -7,7 +7,7 @@ From ~/steward/IsaacLab, after `source ~/steward/isaac-env.sh`:
 Each take starts with an empty lesson file of its own: attempt 1 plans with no
 lessons, a spill writes a lesson, the scene resets, and the next attempt plans with
 it. Every take keeps its event log, lessons and video in runs/takes/, so takes can
-be compared and picked later. Several takes share one launch of Isaac Sim.
+be compared later. Several takes share one launch of Isaac Sim.
 """
 
 import argparse

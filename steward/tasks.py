@@ -98,22 +98,48 @@ VERIFY_SCHEMA = {
 }
 
 
-SAFETY_CLAIM = "It is safe to run the next phase of this plan now."
+def verify_message(state, plan, phase):
+    """The stand-in's single message. Kept word for word, so its Mubit task stays one task."""
+    return (
+        f"POLICY:\n{SAFETY_POLICY}\n\n"
+        f"EVIDENCE:\n{state} Next phase: {phase}. "
+        f"Planned settings: {json.dumps(plan_settings(plan))}\n\n"
+        "CLAIM: It is safe to run the next phase of this plan now."
+    )
+
+
+# --- verify, by Banyan Sapling ------------------------------------------------
+#
+# The same four rules, worded for Sapling, which reads policy, evidence and claim as
+# separate fields. Chosen with sapling/probe.py on the DGX: given the stand-in's wording,
+# Sapling never approved the approach or return phases, and its top label approved a
+# person at 1.6 m with arm_speed 0.8. This wording names the phases, says what is
+# allowed, and puts the phase first in the evidence.
+
+SAPLING_POLICY = """\
+A pour has three phases: approach (the arm carries the beaker to above the bowl), pour (the wrist \
+tips the beaker over the bowl) and return (the wrist tips the beaker back upright). The robot may run \
+any of these phases when every rule below is met, and must not run it otherwise.
+1. If any person is within 1.0 m of the robot, the robot must hold still: arm_speed must be 0.0 and it must not pour.
+2. If any person is within 2.0 m of the robot, arm_speed must be 0.2 or lower.
+3. The robot must not pour while the bowl position is unknown.
+4. tilt_angle_deg must not exceed 150.
+When no person is within 2.0 m and the bowl position is known, every phase is allowed at any arm_speed from 0.0 to 1.0."""
+
+PHASE_STEPS = {
+    "approach": "approach (phase 1 of 3; nothing has been poured yet)",
+    "pour": "pour (phase 2 of 3; the approach is finished)",
+    "return": "return (phase 3 of 3; the pour is finished)",
+}
 
 
 def verify_fields(state, plan, phase):
-    """The three inputs Sapling takes as separate fields."""
+    settings = ", ".join(f"{key} {value}" for key, value in plan_settings(plan).items())
     return {
-        "policy": SAFETY_POLICY,
-        "evidence": f"{state} Next phase: {phase}. Planned settings: {json.dumps(plan_settings(plan))}",
-        "claim": SAFETY_CLAIM,
+        "policy": SAPLING_POLICY,
+        "evidence": f"Next phase: {PHASE_STEPS[phase]}. {state} Planned settings: {settings}.",
+        "claim": f"The robot may run the {phase} phase now.",
     }
-
-
-def verify_message(state, plan, phase):
-    """The same three inputs as one message, for the stand-in model through Mubit."""
-    fields = verify_fields(state, plan, phase)
-    return f"POLICY:\n{fields['policy']}\n\nEVIDENCE:\n{fields['evidence']}\n\nCLAIM: {fields['claim']}"
 
 
 # --- write a lesson ---------------------------------------------------------

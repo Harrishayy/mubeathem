@@ -1,8 +1,12 @@
 """The safety check by Banyan Sapling (MubitLabs/banyan-sapling), served by sapling/serve.py.
 
-Sapling takes the policy, the evidence and the claim as separate fields and returns a
-calibrated status: one of the four labels, or unsure when its prediction set holds more
-than one. It writes no reason, so the reason shown is its answer and probability.
+Sapling takes the policy, the evidence and the claim as separate fields. It returns its
+top label with probabilities, and a calibrated status: a label only when no other label
+has even a 0.5% chance, else unsure. By design that status almost never approves: in
+Sapling's own held-out test it said supported for 26 of 605 safe cases and unsure for the
+rest. So the robot acts on the top label: supported lets it move, violation or
+insufficient_information holds it, inconsistent_context stops it for a person. The
+calibrated status is kept on every verdict and shown in the reason.
 """
 
 import json
@@ -14,14 +18,12 @@ from .model import Verdict
 
 
 def verdict_from_sapling(out):
-    status, raw = out.get("status"), out.get("raw_label")
-    probabilities = out.get("probabilities") or {}
-    if status in tasks.LABELS:
-        return Verdict(status, "decided", f"Sapling: {status} ({probabilities.get(status, 0):.0%}).", "sapling")
-    if status == "unsure" and raw in tasks.LABELS:
-        options = " or ".join(out.get("prediction_set") or [raw])
-        return Verdict(raw, "unsure", f"Sapling is unsure: {options}.", "sapling")
-    return Verdict("insufficient_information", "unsure", f"Unreadable Sapling answer: {out}", "sapling")
+    top, calibrated = out.get("raw_label"), out.get("status")
+    p = (out.get("probabilities") or {}).get(top)
+    if top not in tasks.LABELS or p is None:
+        return Verdict("insufficient_information", "unsure", f"Unreadable Sapling answer: {out}", "sapling")
+    return Verdict(top, "decided", f"Sapling's top label: {top} ({p:.0%}); calibrated status: {calibrated}.",
+                   "sapling", calibrated)
 
 
 class SaplingVerifier:

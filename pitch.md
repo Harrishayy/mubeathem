@@ -38,7 +38,7 @@ Our OpenAI client points to `https://api.mubit.ai/openai/v1` with a Mubit key. M
 
 Mubit groups calls by model, instructions, tools, tool choice and output format. Our system keeps instructions and strict JSON schemas fixed, with changing scene details and lessons in the user message. That creates exactly three recurring tasks: plan, safety check and write lesson.
 
-The safety task uses Banyan Sapling's format: policy, evidence and claim as inputs; `supported`, `violation`, `insufficient_information` or `inconsistent_context` as the label; and `decided` or `unsure` as the status. Only `supported` plus `decided` permits movement. Missing information holds execution for another check; uncertain or inconsistent results stop it for human attention. A failed verification call also prevents movement.
+The safety check runs on Banyan Sapling, Mubit Labs' open-weights verifier, served on our DGX Spark next to Isaac Sim. It takes policy, evidence and claim, and returns a top label (`supported`, `violation`, `insufficient_information` or `inconsistent_context`) with probabilities, plus a calibrated status. Only a `supported` top label permits movement. A violation or missing information holds execution for another check; inconsistent evidence stops it for human attention. A failed check also prevents movement.
 
 The written policy covers people near the robot, an unknown bowl position and a limit on planned tilt angle. The loop checks before approach, pour and return.
 
@@ -54,15 +54,15 @@ A Fourier GR-1 humanoid in NVIDIA Isaac Sim pours a beaker of three steel nuts i
 
 The planner is told pours are timed, as on a production line. Without lessons, it usually pours fast, and the first attempt usually spills. The spill comes from simulated physics, and the result comes from counting nuts in the bowl.
 
-After a spill, a model writes a lesson from the failed plan and the nut count. The scene resets. The next plan reads the lesson and pours more slowly. In the selected take, the retry lands all three nuts. The audience can follow the changed setting and the lesson in the prompt.
+After a spill, a model writes a lesson from the failed plan and the nut count. The scene resets. The next plan reads the lesson and pours more slowly. Across 11 finished takes, first attempts landed all three nuts 3 times in 11; retries with a lesson landed 8 times in 11, and every take succeeded within three attempts. The audience can follow the changed setting and the lesson in the prompt.
 
-The video places the simulation beside a live panel showing the plan, safety verdict, lessons and calls through Mubit. We record takes and select the best one; each clip is one real, uncut run.
+The video places the simulation beside a live panel showing the plan, safety verdict, lessons and calls through Mubit. Each clip is one real, uncut run.
 
 For Night Shift's correction-to-model-update criterion, the next evidence is in Mubit: the recurring task, its recorded answers with lessons in the prompt and its adapter status. Once a version passes, the demo can include a comparison in **Try models**. The successful retry demonstrates memory changing a decision; showing a model update also requires the adapter evidence.
 
 ## 6. What's real and what isn't yet (honest limits)
 
-Sapling itself is not connected yet. The safety check runs Sapling's input and output format on the frontier model. This is not evidence of Sapling's own performance.
+Sapling runs on a GB10, not the H200 it was validated on. Its calibrated status almost never commits: in its own test it approved 26 of 605 safe cases, and on our checks it committed on none (0 of 69). So the robot acts on its top label, which carries no calibrated guarantee. We reworded the rules for Sapling and scored the wording with a probe: 65 of 69 checks right, none of 21 unsafe checks approved, about 0.85 s per check. Safe plans with arm speed just above 0.2 are sometimes blocked. Takes recorded before Sapling was connected used a frontier-model stand-in in Sapling's format.
 
 Whether an adapter passes in time is not known yet. Once a version passes, we can compare it in **Try models**; we cannot claim an adapter result before that happens.
 
@@ -70,15 +70,15 @@ The simulation pauses during each model call. Tonight's median frontier-model ca
 
 The plan's `arm_speed`, `tilt_angle_deg` and `pour_height_cm` are not used by the motion; only `tilt_speed` changes it. This build changes settings on a recorded skill; it does not learn new motor control. Nothing is proven on physical robots.
 
-Physics is noisy: the same tilt speed can spill in one take and land in another, and takes are picked.
+Physics is noisy: the same tilt speed can spill in one take and land in another.
 
-No person is present in the Isaac scene; all 45 of 45 recorded Isaac safety checks returned `supported`. The hold/stop path is unit-tested but has not been shown in the sim.
+No person is present in the Isaac scene; all 69 of 69 recorded Isaac safety checks returned `supported`. The hold/stop path is unit-tested but has not been shown in the sim.
 
 Nothing tells Mubit which plan failed. Its recorded calls include first-attempt plans that spilled, so an adapter can learn to apply a lesson in the prompt, rather than learn that the first plan was wrong. Each call's `request_id` is logged but is not used yet.
 
 A second-robot take has not been recorded. Shared lessons can be passed to `run_pour.py --robot robot-B --lessons <robot-A lessons file>`.
 
-Scenarios are staged; decisions are live. Selecting a take shows the loop clearly, but does not establish a general success rate or safety guarantee.
+Every plan, safety verdict and lesson is a live model call. Eleven takes show the loop working, but do not establish a general success rate or safety guarantee.
 
 ## 7. Why this matters / where it goes
 
