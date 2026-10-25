@@ -1,8 +1,10 @@
 # Steward console
 
-A one-viewport dashboard for a fleet of robots learning in simulation. Watch every robot
-live, replay any episode to the moment something was decided, ask why it failed, turn the
-answer into a fleet lesson, and see what Mubit is learning from the calls.
+A one-viewport dashboard over Steward's real runs. It reads the takes in the runs dir
+(`runs/takes/<take>.jsonl`, with their video), follows a run live while it writes, and lets
+you replay any attempt to the moment something was decided, see exactly what each Mubit and
+Sapling call sent and returned, debrief a failure with a model, and turn the answer into a
+fleet lesson. Nothing in it is simulated: with no takes, it says so.
 
 ```bash
 cd console
@@ -19,15 +21,17 @@ and a collapsed panel shrinks to its header, which still shows a one-line summar
 
 | Tab | Route | What it is for |
 | --- | --- | --- |
-| Fleet | `/fleet` | Every robot's live scene, phase, last event and recent outcomes. Click a robot to replay it. |
-| Replay | `/replay` | Scrub an episode, step between decisions, read the trace and the sampled plans, and debrief it. |
-| Lessons | `/lessons` | Fleet lessons: what each applies to, how often it was recalled, and whether recalls then succeeded. |
-| Mubit | `/mubit` | Calls per task, kept examples, adapters, and latency before and after an adapter serves. |
-| Log | `/log` | Every event as JSONL rows: filter, inspect, copy, replay that moment, open a real take. |
+| Fleet | `/fleet` | Every robot's take video (or practice-world scene), status, phase and recent outcomes. Click one to replay it. |
+| Replay | `/replay` | Scrub an attempt, step between decisions, read the trace and the call behind each decision, and debrief it. |
+| Failures | `/failures` | Every failed or stopped attempt, the lesson it wrote, what the next attempt changed, and what not to do. |
+| Lessons | `/lessons` | Fleet lessons from the lesson files: what each applies to, how often it was recalled, and whether recalls then succeeded. Retire or restore one. |
+| Calls | `/calls` | Every Mubit and Sapling call: counts, latency, Sapling's verdicts and confidence, and an inspector for what was sent and returned. |
+| Log | `/log` | Every event as JSONL rows: filter, inspect, copy, replay that moment, open a take file by hand. |
+| Services | `/services` | Backend health and settings, and practice runs through Mubit. |
 | System | `/system` | The design system: principles, tokens, components and the live layout map. |
 
-Keys `1`–`6` switch tabs. The engine lives in the root layout, so switching tabs keeps the
-fleet running and keeps your place in a replay.
+Keys `1`–`8` switch tabs. The engine lives in the root layout, so switching tabs keeps
+following the runs dir and keeps your place in a replay.
 
 ## Adding, removing and moving panels
 
@@ -74,59 +78,70 @@ panel and leaves the rest running.
 
 ```
 src/
-  app/            routes: /[tab] (one per tab), /api/debrief
+  app/            routes: /[tab] (one per tab), /api/[...path] (the services)
   tabs.ts         the layout
   panels/         one folder per panel, plus index.ts (the registry) and _template
   console/        provider, shell, panel frame, tab view, hooks
-  ui/             shared pieces: Pill, Verdict, Glyph, Seg, EpisodeStrip, SceneCanvas, LatSpark
-  engine/         plain TypeScript, no React: simulation, timeline, playback, scene drawing,
-                  take import, debrief assistant, store and actions
+  ui/             shared pieces: Pill, Verdict, Glyph, Seg, EpisodeStrip, video and text views
+  engine/         plain TypeScript, no React: task spec, timeline, playback, calls, history,
+                  debrief assistant, store and actions
+  sources/runs/   Steward's logs → engine state (build.ts), followed live (index.ts)
+  services/       server routes under /api/<id>: runs, live, lessons, mubit, sapling, practice
   styles/         tokens.css (dark first, light mirrored), base.css, shell.css
 ```
 
 The engine runs on the client only. It holds state in a mutable store outside React and
 emits named events, and panels subscribe to just the events they need.
 
-## The fleet
+## Where the data comes from
 
-The fleet is simulated: nine robots run pour, pick-and-place and stack tasks. Each episode
-mirrors Steward's own loop and writes events with the shape of `steward.log.EventLog`:
+Everything comes from the files Steward writes (the contract is `steward/EVENTS.md`):
 
-1. **recall:** lessons match when at least two `applies_to` words match.
-2. **plan:** four plans are sampled and the best is picked.
-3. **verify:** Sapling-style labels: `supported`, `violation`, `insufficient_information`,
-   `inconsistent_context`.
-4. **act**, then **check** the outcome.
-5. **learn:** write a lesson.
+- **Takes**: `runs/takes/<take>.jsonl`, one attempt per `attempt` event per robot. Isaac
+  takes add `.mp4`, `.pov.mp4` and `.frames.json`, which put every event on the video's
+  timeline. Pull them from the DGX with `video/pull.sh`, or point `STEWARD_RUNS_DIR` at a
+  mounted copy.
+- **The task**: phases, plan ranges, safety policy and each model task's instructions come
+  from the manifest in each take's `take` event, not from the console.
+- **Live runs**: `runs/latest.jsonl`, streamed as it grows.
+- **Lessons**: the lesson files, read and written through `/api/lessons`.
 
-People entering the 1 m and 2 m zones cause holds and escalations. Mubit calls build up kept
-examples, and each task trains an adapter after 25 kept examples.
-
-To look at a real run, open a take on the Log tab. That is a `runs/takes/<take>.jsonl` file
-written by Steward. Its events are re-timed into episodes you can replay and debrief.
+Takes marked `offline` (scripted stand-ins from `steward/offline.py`) or `fixture` are never
+served or shown. Steward's logs don't record which calls Mubit kept or whether an adapter is
+serving, so the console doesn't claim either; check the Mubit console for that.
 
 ## Debrief
 
-The debrief answers questions about the selected episode, using only that episode's log. It
-tries three sources in order:
+The debrief answers questions about the selected attempt, using only that attempt's log.
+It asks a real model:
 
 1. **Claude**, when the page runs as a claude.ai artifact with the `sample` capability.
-2. **Mubit**, through `POST /api/debrief`. The route proxies to Mubit's OpenAI-compatible
-   gateway and keeps the key on the server.
-3. **A local read of the log**, which needs no network.
+2. **Mubit**, through `POST /api/mubit/debrief`, which keeps the key on the server.
 
-An answer can propose a fix as a `FIX {...}` line. The debrief shows that fix as a card you
-can add to the fleet lessons or use to queue a re-run.
+With neither available it says so instead of answering. An answer can propose a fix as a
+`FIX {...}` line, shown as a card you can add to the fleet lessons. For a practice attempt
+you can also add it and start a practice run of the same size; Isaac takes are re-run on
+the DGX with `isaac/run_pour.py`.
 
-The API route reads its settings from the environment, falling back to the repo's `.env`:
+Settings come from the environment, falling back to the repo's `.env`:
 
 | Variable | Default |
 | --- | --- |
-| `MUBIT_API_KEY` | required for the Mubit source |
+| `STEWARD_RUNS_DIR` | `<repo>/runs` |
+| `MUBIT_API_KEY` | required for debriefs and practice runs |
 | `MUBIT_BASE_URL` | `https://api.mubit.ai/openai/v1` |
 | `STEWARD_DEBRIEF_MODEL` | falls back to `STEWARD_MODEL`, then `gpt-6-luna` |
+| `SAPLING_URL` | unset: safety checks go through Mubit |
 
-`GET /api/debrief` reports `{ configured, model }` without calling Mubit.
+## Smoke test
+
+```bash
+STEWARD_RUNS_DIR=<real runs dir> pnpm start -p 3199
+python3 e2e/smoke.py http://127.0.0.1:3199 [screenshots dir] [--write] [--live]
+```
+
+`--write` adds a debrief fix to the lesson files and `--live` starts a one-episode practice
+run through Mubit; leave both off for a read-only pass.
 
 ## Versions
 

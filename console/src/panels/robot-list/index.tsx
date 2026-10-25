@@ -8,13 +8,13 @@ import { Pill } from "@/ui/status";
 import { Seg, EpisodeStrip } from "@/ui/controls";
 import { EpisodeView } from "@/ui/media";
 import { liveStatus, successRate, poseAt, doing } from "@/engine/timeline";
-import { TASKS } from "@/engine/world";
+import { taskName } from "@/engine/task";
 import type { Robot } from "@/engine/types";
 import s from "./robot-list.module.css";
 
 export const meta: PanelMeta = { title: "Robots", minHeight: 200, about: "Compact robot list for picking what to replay. Click a bar to open that episode." };
 
-type Filter = "all" | "pour" | "pick" | "stack";
+type Filter = string;
 
 export default function RobotList() {
   const { st } = useConsole();
@@ -25,7 +25,7 @@ export default function RobotList() {
   const robots = st.robots.filter((r) => filter === "all" || r.task === filter);
   const sel = st.selection.robotId ? st.byId[st.selection.robotId] : null;
   const tasks = [...new Set(st.robots.map((r) => r.task))];
-  const filters: { value: Filter; label: string }[] = [{ value: "all", label: "All" }, ...tasks.map((k) => ({ value: k as Filter, label: TASKS[k].name.split(" ")[0] }))];
+  const filters: { value: Filter; label: string }[] = [{ value: "all", label: "All" }, ...tasks.map((k) => ({ value: k, label: taskName(k) }))];
   return (
     <>
       <PanelSub>{sel ? <>replaying <b>{sel.name}</b></> : `${st.robots.length} robots`}</PanelSub>
@@ -37,12 +37,12 @@ export default function RobotList() {
 
 function Row({ r, selected }: { r: Robot; selected: boolean }) {
   const { st, actions } = useConsole();
-  const ep = r.ep, task = TASKS[r.task];
+  const ep = r.ep, phases = st.spec.phases;
   const t = r.imported ? ep.duration : Math.min(st.simNow - ep.start, ep.duration);
-  const status = r.queued ? "queued" : liveStatus(st, r);
+  const status = liveStatus(r);
   const { phase, u } = poseAt(ep, t);
   const last = r.history.slice(-20);
-  const live = r.kind === "run" ? !!r.live && ep.outcome === "" : !r.imported;
+  const live = !!r.live && ep.outcome === "";
   const open = () => actions.select(r.id, live ? "live" : ep.id);
   const cls = [s.row, selected && s.selected, (status === "failed" || status === "stopped") && s.attn, status === "holding" && s.holdattn].filter(Boolean).join(" ");
   return (
@@ -50,8 +50,8 @@ function Row({ r, selected }: { r: Robot; selected: boolean }) {
       <div className={s.thumb}><EpisodeView key={ep.id} ep={ep} still minimal t={() => (r.imported ? r.ep.duration : Math.min(st.simNow - r.ep.start, r.ep.duration))} /></div>
       <div className={s.main}>
         <div className={s.top}><span className={s.name}>{r.name}</span><Pill status={status} /></div>
-        <div className={s.meta}>{r.kind === "run" ? r.model : task.name} · #{ep.n} · {doing(ep, t)}</div>
-        <div className={s.prog}>{task.phases.map((p, i) => <i key={p} style={{ ["--p" as string]: `${i < phase ? 100 : i === phase ? Math.round(u * 100) : 0}%` }} />)}</div>
+        <div className={s.meta}>{r.model} · #{ep.n} · {doing(ep, t)}</div>
+        <div className={s.prog}>{phases.map((p, i) => <i key={p} style={{ ["--p" as string]: `${i < phase ? 100 : i === phase ? Math.round(u * 100) : 0}%` }} />)}</div>
         <div className={s.foot}>
           <EpisodeStrip eps={r.history} live={live ? ep : null} onPick={(id) => actions.select(r.id, id)} max={10} />
           <span className={`${s.rate} mono`}>{last.length ? <><b>{Math.round(successRate(last) * 100)}%</b> last {last.length}</> : "—"}</span>

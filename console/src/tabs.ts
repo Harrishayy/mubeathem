@@ -48,7 +48,6 @@ export const TABS: TabDef[] = [
         panels: [
           { id: "debrief", grow: 2.3, minHeight: 260 },
           { id: "call-inspector", title: "Call behind this decision", grow: 1.6, minHeight: 180 },
-          { id: "sampled-plans", grow: 1.1 },
         ],
       },
     ],

@@ -2,11 +2,11 @@
 // to runs/latest.jsonl, so the live service streams them in as the robots work.
 //
 //   GET    /api/practice   status, with the last lines of output
-//   POST   /api/practice   { episodes, workers, offline, seed? } -> status
+//   POST   /api/practice   { episodes, workers, seed? } -> status
 //   DELETE /api/practice   stop the run
 //
-// One run at a time. A live run (offline: false) makes real Mubit calls and needs
-// MUBIT_API_KEY; offline runs use steward/offline.py and cost nothing.
+// One run at a time. Every run makes real Mubit calls (and Sapling calls when SAPLING_URL
+// is set), so it needs MUBIT_API_KEY.
 
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
@@ -36,10 +36,10 @@ const int = (v: unknown, lo: number, hi: number, d: number) => { const n = Math.
 async function start(req: Request) {
   if (run.proc && run.exitCode == null) return fail(409, "busy", "A practice run is already going. Stop it first.", { status: status() });
   const b = (await readJson<Partial<PracticeArgs>>(req)) || {};
-  const args: PracticeArgs = { episodes: int(b.episodes, 1, 200, 6), workers: int(b.workers, 1, 8, 2), offline: b.offline !== false, seed: b.seed == null ? null : int(b.seed, 0, 1e9, 0) };
-  if (!args.offline && !env("MUBIT_API_KEY")) return fail(400, "no_key", "A live run needs MUBIT_API_KEY. Run offline, or set the key in the repo's .env.");
+  if (b.episodes == null || b.workers == null) return fail(400, "bad_request", "Say how many episodes and workers to run.");
+  const args: PracticeArgs = { episodes: int(b.episodes, 1, 200, 1), workers: int(b.workers, 1, 8, 1), seed: b.seed == null ? null : int(b.seed, 0, 1e9, 0) };
+  if (!env("MUBIT_API_KEY")) return fail(400, "no_key", "A practice run makes real Mubit calls, so it needs MUBIT_API_KEY in the repo's .env.");
   const argv = ["-m", "steward.practice", "--episodes", String(args.episodes), "--workers", String(args.workers)];
-  if (args.offline) argv.push("--offline");
   if (args.seed != null) argv.push("--seed", String(args.seed));
   Object.assign(run, { args, startedAt: Date.now() / 1000, endedAt: null, exitCode: null, output: [`$ ${python()} ${argv.join(" ")}`] });
   const proc = spawn(/*turbopackIgnore: true*/ python(), argv, { cwd: path.resolve(/*turbopackIgnore: true*/ repoRoot()), env: { ...process.env, STEWARD_RUNS_DIR: runsDir(), PYTHONUNBUFFERED: "1" }, stdio: ["ignore", "pipe", "pipe"] });
@@ -62,7 +62,7 @@ function stop() {
 export const service: ServerService = {
   id: "practice",
   label: "Practice runner",
-  about: "Starts python -m steward.practice: the full loop on the text-only world, live through Mubit or offline with scripted stand-ins.",
+  about: "Starts python -m steward.practice: the full loop on the text-only world, every plan, check and lesson a live call.",
   env: [{ key: "STEWARD_PYTHON", about: "Python with Steward's requirements (default python3)." }],
   routes: [
     { method: "GET", path: "", handle: () => json(status()) },
@@ -71,7 +71,8 @@ export const service: ServerService = {
   ],
   async health() {
     const s = status();
-    if (s.running) return { status: "ok", summary: `Running ${s.args?.episodes} episodes on ${s.args?.workers} worker${s.args?.workers === 1 ? "" : "s"}${s.args?.offline ? ", offline" : " through Mubit"}.`, detail: { pid: s.pid } };
-    return { status: "idle", summary: s.exitCode == null ? `Ready. Uses ${s.python}${s.canRunLive ? "" : "; offline only until MUBIT_API_KEY is set"}.` : `Last run exited with code ${s.exitCode}.` };
+    if (s.running) return { status: "ok", summary: `Running ${s.args?.episodes} episodes on ${s.args?.workers} worker${s.args?.workers === 1 ? "" : "s"} through Mubit.`, detail: { pid: s.pid } };
+    if (!s.canRunLive) return { status: "off", summary: "Set MUBIT_API_KEY in the repo's .env to run practice." };
+    return { status: "idle", summary: s.exitCode == null ? `Ready. Uses ${s.python}.` : `Last run exited with code ${s.exitCode}.` };
   },
 };

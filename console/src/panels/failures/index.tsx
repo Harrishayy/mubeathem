@@ -39,15 +39,15 @@ export default function Failures() {
 function Card({ ep }: { ep: Episode }) {
   const { st, actions } = useConsole();
   const r = st.byId[ep.robot], nx = nextAttempt(st, ep);
-  const changes = nx ? planDiff(ep.plan, nx.plan, ep.task) : [];
+  const changes = nx ? planDiff(ep.plan, nx.plan) : [];
   const lesson = ep.events.find((e) => e.kind === "lesson")?.lesson;
   const stop = ep.events.find((e) => e.kind === "escalate" || e.kind === "error");
-  const at = ep.resultAt ?? ep.failAt ?? (stop ? stop.at : ep.duration);
+  const at = ep.resultAt ?? (stop ? stop.at : ep.duration);
   return (
     <li className={s.card}>
       <button type="button" className={s.media} onClick={() => actions.replay(ep.robot, ep.id, { t: Math.max(0, at - 2) })} aria-label={`Watch ${r?.name} attempt fail`}>
         <EpisodeView ep={ep} still minimal t={() => at} />
-        <span className="vp-tag">{ep.world === "isaac" && ep.video ? "result frame" : ep.world === "text" ? "text world" : "at the failure"}</span>
+        <span className="vp-tag">{ep.video ? "result frame" : ep.world === "text" ? "text world" : "no video recorded"}</span>
       </button>
       <div className={s.body}>
         <div className={s.head}>
@@ -57,7 +57,7 @@ function Card({ ep }: { ep: Episode }) {
           <Pill status={ep.outcome} />
         </div>
         <p className={s.reason}>{ep.reason || STATUS_LABEL[ep.outcome]}</p>
-        <div className={s.kv}><span>Tried</span><span className="mono">{planBrief(ep.plan, ep.task) || "no plan was made"}</span></div>
+        <div className={s.kv}><span>Tried</span><span className="mono">{planBrief(ep.plan) || "no plan was made"}</span></div>
         {stop && <div className={s.kv}><span>{stop.kind === "error" ? "Error" : "Stopped"}</span><span>{stop.kind === "error" ? `${stop.where}: ${stop.error}` : stop.reason}</span></div>}
         {lesson && <div className={s.kv}><span>Learned</span><span><b>{lesson.id}</b> {lesson.text}</span></div>}
         <div className={s.kv}>

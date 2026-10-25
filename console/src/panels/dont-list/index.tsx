@@ -6,7 +6,7 @@ import { PanelActions, PanelSub, usePanel } from "@/console/Panel";
 import type { PanelMeta } from "@/console/types";
 import { Seg } from "@/ui/controls";
 import { fmtP, SHORT } from "@/engine/format";
-import { TASKS } from "@/engine/world";
+import { taskName } from "@/engine/task";
 import { planBrief } from "@/engine/text";
 import { nextAttempt, settingSplits, type SettingSplit } from "@/engine/history";
 import type { Episode, TaskKey } from "@/engine/types";
@@ -22,7 +22,7 @@ export default function DontList() {
   const [pick, setPick] = useState<TaskKey | null>(null);
   const task = pick && tasks.includes(pick) ? pick : tasks[0] || "pour";
   const eps = st.done.filter((e) => e.task === task);
-  const splits = settingSplits(eps, task);
+  const splits = settingSplits(eps, st.spec.params);
   const sep = splits.filter((x) => x.separated);
   const learned = eps.filter((e) => e.lessonWritten).slice(-40).reverse();
   const stops = new Map<string, Episode[]>();
@@ -31,14 +31,14 @@ export default function DontList() {
   return (
     <>
       <PanelSub>{sep.length ? <><b>{sep.length}</b> setting{sep.length > 1 ? "s" : ""} separate failures from successes · {learned.length} lessons</> : `${learned.length} lessons from failures`}</PanelSub>
-      {tasks.length > 1 && <PanelActions><Seg label="Task" value={task} onChange={setPick} options={tasks.map((k) => ({ value: k, label: TASKS[k].name.split(" ")[0] }))} /></PanelActions>}
+      {tasks.length > 1 && <PanelActions><Seg label="Task" value={task} onChange={setPick} options={tasks.map((k) => ({ value: k, label: taskName(k) }))} /></PanelActions>}
       {!collapsed && (
         <div className={s.wrap}>
           <section>
             <h4>Settings that failed</h4>
             {splits.length ? (
               <>
-                {splits.slice(0, 4).map((x) => <Split key={x.k} x={x} task={task} />)}
+                {splits.slice(0, 4).map((x) => <Split key={x.k} x={x} range={st.spec.params[x.k]} />)}
                 <p className={s.note}>From {eps.filter((e) => e.outcome === "failed").length} failed and {eps.filter((e) => e.outcome === "success").length} successful plans. Ranges are what was tried, not a model of the physics.</p>
               </>
             ) : <p className="empty">Needs at least one failed and one successful attempt.</p>}
@@ -53,7 +53,7 @@ export default function DontList() {
                   const stored = st.lessons.find((x) => x.id === ep.lessonWritten && (!ep.take || x.file?.includes(ep.take) || x.scope === "fleet"));
                   return (
                     <li key={ep.id}>
-                      <div className={s.dont}><span className={s.tag}>Don&apos;t</span><span><span className="mono">{planBrief(ep.plan, ep.task)}</span> for {ep.variant.subject}: {ep.reason}</span></div>
+                      <div className={s.dont}><span className={s.tag}>Don&apos;t</span><span><span className="mono">{planBrief(ep.plan)}</span> for {ep.variant.subject}: {ep.reason}</span></div>
                       <div className={s.do}><span className={s.tag}>Do</span><span>{l?.text || stored?.text || ep.lessonWritten}</span></div>
                       <div className={s.since}>
                         <button type="button" onClick={() => actions.replay(ep.robot, ep.id, { t: Math.max(0, (ep.resultAt ?? ep.duration) - 2) })}>{st.byId[ep.robot]?.name} {ep.take ? `attempt ${ep.attempt}` : `#${ep.n}`}</button>
@@ -85,8 +85,8 @@ export default function DontList() {
 }
 
 /** One setting: the range failed plans used against the range successful plans used, on the setting's full scale. */
-function Split({ x, task }: { x: SettingSplit; task: TaskKey }) {
-  const [lo, hi] = TASKS[task].params[x.k], pct = (v: number) => `${(((v - lo) / (hi - lo)) * 100).toFixed(1)}%`;
+function Split({ x, range }: { x: SettingSplit; range: [number, number] }) {
+  const [lo, hi] = range, pct = (v: number) => `${(hi > lo ? ((v - lo) / (hi - lo)) * 100 : 50).toFixed(1)}%`;
   const band = (r: [number, number]) => ({ left: pct(r[0]), width: `calc(${pct(r[1])} - ${pct(r[0])} + 2px)` });
   return (
     <div className={s.split}>

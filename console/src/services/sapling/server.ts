@@ -47,7 +47,7 @@ export const service: ServerService = {
     },
   ],
   async health() {
-    if (!url()) return { status: "off", summary: "SAPLING_URL isn't set. Takes then use the stand-in check through Mubit; offline runs use the scripted one." };
+    if (!url()) return { status: "off", summary: "SAPLING_URL isn't set, so safety checks go through Mubit instead." };
     const p = await probe();
     return p.up
       ? { status: "ok", summary: `Up at ${url()}${p.weights ? ` · weights ${p.weights.slice(0, 12)}…` : ""}`, detail: { url: url(), weights: p.weights } }

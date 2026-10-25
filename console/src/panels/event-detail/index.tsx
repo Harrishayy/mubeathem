@@ -25,7 +25,7 @@ export default function EventDetail() {
     <>
       <PanelSub><Glyph kind={l.kind} e={l.data} /> <b>{l.kind}</b> · {nameOf(st, l.robot)} · {fmtClock(l.abs, true)}</PanelSub>
       <div className={s.wrap}>
-        <p className={s.text}><EventText e={l.data} task={ep?.task || "pour"} /></p>
+        <p className={s.text}><EventText e={l.data} /></p>
         {ep && r && (
           <div className={s.ep}>
             <span>{r.name} · {ep.take ? `${ep.take} attempt ${ep.attempt}` : `episode #${ep.n}`} · {at?.toFixed?.(2)} s in</span>
@@ -34,7 +34,7 @@ export default function EventDetail() {
           </div>
         )}
         <div className={s.acts}>
-          {ep && r && <button className="btn sm primary" type="button" onClick={() => actions.replay(ep.robot, !r.imported && r.ep.id === ep.id && (r.kind !== "run" || r.live) ? "live" : ep.id, { t: l.at, paused: true })}>Replay this moment</button>}
+          {ep && r && <button className="btn sm primary" type="button" onClick={() => actions.replay(ep.robot, !r.imported && r.ep.id === ep.id && r.live ? "live" : ep.id, { t: l.at, paused: true })}>Replay this moment</button>}
           {ep && l.kind === "call" && <button className="btn sm" type="button" onClick={() => { const i = ep.events.indexOf(l.data); if (i >= 0) { actions.selectCallAt(ep, i); actions.go("calls"); } }}>Inspect the call</button>}
           <button className="btn sm" type="button" onClick={copy}>Copy JSON</button>
         </div>

@@ -10,7 +10,7 @@ import s from "./activity.module.css";
 
 export const meta: PanelMeta = { title: "Activity", minHeight: 140, about: "The fleet's latest decisions as they happen. Pass kinds in props to narrow it." };
 
-const DEFAULT_KINDS = ["hold", "escalate", "result", "lesson", "adapter"];
+const DEFAULT_KINDS = ["hold", "escalate", "result", "lesson", "error"];
 
 export default function Activity({ kinds = DEFAULT_KINDS, limit = 60 }: { kinds?: string[]; limit?: number }) {
   const { st, actions } = useConsole();
@@ -34,7 +34,7 @@ export default function Activity({ kinds = DEFAULT_KINDS, limit = 60 }: { kinds?
                 <button type="button" className={s.row} onClick={open} disabled={!open}>
                   <span className={`${s.at} mono`}>{fmtClock(l.abs)}</span>
                   <Glyph kind={l.kind} e={l.data} />
-                  <span className={s.main}><b>{nameOf(st, l.robot)}</b> <EventText e={l.data} task={ep?.task || "pour"} /></span>
+                  <span className={s.main}><b>{nameOf(st, l.robot)}</b> <EventText e={l.data} /></span>
                 </button>
               </li>
             );

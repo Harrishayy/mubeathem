@@ -2,11 +2,8 @@
 
 // Small controls shared by panels.
 
-import { useEffect, useRef } from "react";
-import { useFrame } from "@/console/hooks";
-import { drawScene } from "@/engine/scene";
 import { STATUS_LABEL } from "@/engine/text";
-import type { Episode, Robot } from "@/engine/types";
+import type { Episode } from "@/engine/types";
 
 /** A segmented control. */
 export function Seg<T extends string | number>({ options, value, onChange, label, size = "sm" }: {
@@ -30,24 +27,4 @@ export function EpisodeStrip({ eps, live, onPick, max = 18 }: { eps: Episode[]; 
       {live && <button type="button" className="eq live" title={`#${live.n} · running now`} aria-label={`Episode ${live.n}, running now`} onClick={(ev) => { ev.stopPropagation(); onPick?.("live"); }} />}
     </div>
   );
-}
-
-/** A canvas that redraws an episode every frame while it is on screen. */
-export function SceneCanvas({ source, minimal = false, label }: { source: () => { ep: Episode | null; t: number; robot?: Robot } | null; minimal?: boolean; label?: string }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const visible = useRef(true);
-  const src = useRef(source);
-  src.current = source;
-  useEffect(() => {
-    const el = ref.current; if (!el) return;
-    const io = new IntersectionObserver(([e]) => { visible.current = e.isIntersecting; });
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-  useFrame(() => {
-    if (!visible.current || !ref.current) return;
-    const s = src.current();
-    if (s) drawScene(ref.current, s.ep, s.t, s.robot, minimal);
-  });
-  return <canvas ref={ref} role={label ? "img" : undefined} aria-label={label} aria-hidden={label ? undefined : true} />;
 }

@@ -2,10 +2,9 @@
 // two plans, and the patterns behind failures ("what not to do").
 
 import { fmtP, median } from "./format";
-import { taskOf } from "./world";
-import type { Episode, Settings, State } from "./types";
+import type { Episode, Range, Settings, State } from "./types";
 
-/** The robot's next attempt at the same thing: the next attempt in the same take, or (demo) the next episode. */
+/** The robot's next attempt in the same take. */
 export function nextAttempt(st: State, ep: Episode): Episode | null {
   const r = st.byId[ep.robot]; if (!r) return null;
   const i = r.history.findIndex((e) => e.id === ep.id);
@@ -22,19 +21,19 @@ export function prevAttempt(st: State, ep: Episode): Episode | null {
 }
 
 export interface Change { k: string; from: number; to: number }
-export function planDiff(a: Settings, b: Settings, task = "pour"): Change[] {
-  return Object.keys(taskOf(task).params).filter((k) => a[k] != null && b[k] != null && a[k] !== b[k]).map((k) => ({ k, from: a[k], to: b[k] }));
+export function planDiff(a: Settings, b: Settings): Change[] {
+  return Object.keys(a).filter((k) => a[k] != null && b[k] != null && a[k] !== b[k]).map((k) => ({ k, from: a[k], to: b[k] }));
 }
 export const fmtChange = (c: Change) => `${c.k} ${fmtP(c.k, c.from)} → ${fmtP(c.k, c.to)}`;
 
 /** For each setting, the range failed plans used against the range successful ones used. */
 export interface SettingSplit { k: string; failed: [number, number]; ok: [number, number]; failedMedian: number; okMedian: number; nFailed: number; nOk: number; separated: boolean; dir: "hi" | "lo" }
 
-export function settingSplits(eps: Episode[], task = "pour"): SettingSplit[] {
-  const t = taskOf(task), failed = eps.filter((e) => e.outcome === "failed"), ok = eps.filter((e) => e.outcome === "success");
+export function settingSplits(eps: Episode[], params: Record<string, Range>): SettingSplit[] {
+  const failed = eps.filter((e) => e.outcome === "failed"), ok = eps.filter((e) => e.outcome === "success");
   if (!failed.length || !ok.length) return [];
   const out: SettingSplit[] = [];
-  for (const [k, [lo, hi]] of Object.entries(t.params)) {
+  for (const [k, [lo, hi]] of Object.entries(params)) {
     const f = failed.map((e) => e.plan[k]).filter((v) => typeof v === "number"), s = ok.map((e) => e.plan[k]).filter((v) => typeof v === "number");
     if (!f.length || !s.length) continue;
     const fm = median(f)!, sm = median(s)!;

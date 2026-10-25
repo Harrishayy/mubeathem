@@ -24,7 +24,6 @@ import * as practice from "./practice";
 import * as replayStage from "./replay-stage";
 import * as robotGrid from "./robot-grid";
 import * as robotList from "./robot-list";
-import * as sampledPlans from "./sampled-plans";
 import * as sapling from "./sapling";
 import * as services from "./services";
 import * as takes from "./takes";
@@ -53,7 +52,6 @@ export const PANELS: Record<string, PanelModule> = {
   "replay-stage": replayStage,
   "robot-grid": robotGrid,
   "robot-list": robotList,
-  "sampled-plans": sampledPlans,
   "sapling": sapling,
   "services": services,
   "takes": takes,

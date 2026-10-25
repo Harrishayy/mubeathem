@@ -19,12 +19,11 @@ export default function Sapling() {
   useTick(["robots", "episode:done", "mubit"], 1200);
   const [health, setHealth] = useState<Awaited<ReturnType<typeof saplingStatus>> | null>(null);
   useEffect(() => {
-    if (st.source.id === "demo") return;
     let alive = true;
     const poll = () => saplingStatus().then((h) => alive && setHealth(h)).catch(() => alive && setHealth(null));
     poll(); const id = setInterval(poll, 15000);
     return () => { alive = false; clearInterval(id); };
-  }, [st.source.id]);
+  }, []);
 
   const checks = Object.values(st.episodes).flatMap((ep) => ep.events.filter((e) => e.kind === "safety"));
   const by: Record<string, number> = {}, from: Record<string, number> = {};
@@ -67,7 +66,7 @@ export default function Sapling() {
               </div>
             </div>
           )}
-          {st.source.id !== "demo" && <Check configured={!!health?.configured} up={!!health?.up} url={health?.url || null} />}
+          <Check configured={!!health?.configured} up={!!health?.up} url={health?.url || null} />
         </div>
       )}
     </>

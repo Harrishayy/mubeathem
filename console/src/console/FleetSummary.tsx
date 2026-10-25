@@ -11,7 +11,6 @@ import s from "./FleetSummary.module.css";
 export function FleetSummary() {
   const { st } = useConsole();
   useTick(["episode:done", "lessons", "mubit", "robots"], 800);
-  const sim = st.source.caps.includes("sim");
   const d = st.done, last = d.slice(-50), first = d.slice(0, 50);
   const rl = successRate(last), delta = Math.round((rl - successRate(first)) * 100);
   const holds = d.reduce((a, e) => a + e.holds, 0), stops = d.filter((e) => e.outcome === "stopped").length;
@@ -21,17 +20,14 @@ export function FleetSummary() {
   const vlat = verifies.slice(-20).map((c) => c.ms);
   const failedCalls = st.calls.filter((c) => c.error).length;
   const bySapling = verifies.filter((c) => isSapling(c.via)).length;
-  const serving = Object.entries(st.mubit).filter(([, m]) => m.state === "serving").map(([k]) => k);
-  const training = Object.entries(st.mubit).filter(([, m]) => m.state === "training").map(([k]) => k);
-  const mubitLine = [serving.length ? `${serving.join(", ")} serving` : "", training.length ? `${training.join(", ")} training` : ""].filter(Boolean).join(" · ") || "collecting examples";
 
   return (
     <section className={s.band} aria-label="Fleet summary">
       <Stat label="Success · last 50" value={<>{Math.round(rl * 100)}<small>%</small></>} sub={<><b className={delta >= 0 ? s.up : s.down}>{delta >= 0 ? "+" : ""}{delta} pts</b> since the first 50</>} />
-      <Stat label={sim ? "Episodes" : "Attempts"} value={d.length} sub={sim ? `${st.robots.filter((r) => !r.imported).length} robots · 3 tasks` : `${st.robots.length} robot${st.robots.length === 1 ? "" : "s"} · ${st.takes.length} take${st.takes.length === 1 ? "" : "s"}`} />
+      <Stat label="Attempts" value={d.length} sub={`${st.robots.length} robot${st.robots.length === 1 ? "" : "s"} · ${st.takes.length} take${st.takes.length === 1 ? "" : "s"}`} />
       <Stat label="Fleet lessons" value={active.length} sub={uses ? `recalled ${uses}× · ${Math.round((succ / uses) * 100)}% then succeeded` : "none recalled yet"} />
       <Stat label="Holds · stops" value={<>{holds}<small> / {stops}</small></>} sub="safety holds / sent to an operator" />
-      <Stat label="Verify p50" value={<>{median(vlat) ?? "—"}<small> ms</small></>} sub={sim ? mubitLine : `${verifies.length ? `${Math.round((bySapling / verifies.length) * 100)}% by Sapling` : "no checks yet"}${failedCalls ? ` · ${failedCalls} calls failed` : ""}`} />
+      <Stat label="Verify p50" value={<>{median(vlat) ?? "—"}<small> ms</small></>} sub={`${verifies.length ? `${Math.round((bySapling / verifies.length) * 100)}% by Sapling` : "no checks yet"}${failedCalls ? ` · ${failedCalls} calls failed` : ""}`} />
     </section>
   );
 }

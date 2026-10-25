@@ -24,7 +24,7 @@ export default function DsTokens() {
         <div className={s.sw}>{TOKENS.map(([t, use]) => <div key={t}><i style={{ background: `var(${t})` }} /><span>{t}<small>{use} · {vals[t]}</small></span></div>)}</div>
         <div className={s.type}>
           <div><span className={s.label}>Stat 18 mono</span><span className="mono" style={{ fontSize: 18, fontWeight: 600 }}>92%</span></div>
-          <div><span className={s.label}>Body 12.5</span><span style={{ fontSize: 12.5 }}>Holding until the person leaves the 2 m zone.</span></div>
+          <div><span className={s.label}>Body 12.5</span><span style={{ fontSize: 12.5 }}>Holding until a fresh safety check comes back supported.</span></div>
           <div><span className={s.label}>Data 11.5 mono</span><span className="mono" style={{ fontSize: 11.5 }}>tilt_speed 0.36 · pour_height_cm 6 cm</span></div>
           <div><span className={s.label}>Panel title</span><span className="eyebrow" style={{ color: "var(--muted)", letterSpacing: ".18em", fontWeight: 600 }}>Decision trace</span></div>
         </div>

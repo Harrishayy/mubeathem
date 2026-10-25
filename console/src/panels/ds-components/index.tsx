@@ -7,15 +7,15 @@ import s from "../ds.module.css";
 
 export const meta: PanelMeta = { title: "Components", minHeight: 160, about: "The shared status vocabulary and controls in src/ui." };
 
-const GLYPHS: [string, Record<string, unknown> | null, string?][] = [["plan", null], ["safety", { label: "supported", status: "decided" }, "supported"], ["safety", { label: "violation", status: "decided" }, "violation"], ["hold", null], ["escalate", null], ["result", { success: true }, "ok"], ["result", { success: false }, "fail"], ["lesson", null], ["call", null], ["adapter", null]];
+const GLYPHS: [string, Record<string, unknown> | null, string?][] = [["plan", null], ["safety", { label: "supported", status: "decided" }, "supported"], ["safety", { label: "violation", status: "decided" }, "violation"], ["hold", null], ["escalate", null], ["result", { success: true }, "ok"], ["result", { success: false }, "fail"], ["lesson", null], ["call", null]];
 
 export default function DsComponents() {
   return (
     <>
-      <PanelSub>src/ui · status.tsx, controls.tsx, charts.tsx</PanelSub>
+      <PanelSub>src/ui · status.tsx, controls.tsx, media.tsx</PanelSub>
       <div className={s.body}>
         <span className={s.label}>Robot status · &lt;Pill&gt;</span>
-        <div className={s.row}>{["deciding", "running", "holding", "success", "failed", "stopped", "queued", "imported"].map((x) => <Pill key={x} status={x} />)}</div>
+        <div className={s.row}>{["deciding", "running", "holding", "success", "failed", "stopped", "imported"].map((x) => <Pill key={x} status={x} />)}</div>
         <span className={s.label}>Verifier verdicts · &lt;Verdict&gt;</span>
         <div className={s.row}><Verdict label="supported" status="decided" /><Verdict label="violation" status="decided" /><Verdict label="insufficient_information" status="decided" /><Verdict label="inconsistent_context" status="decided" /><Verdict label="supported" status="unsure" /></div>
         <span className={s.label}>Event glyphs · &lt;Glyph&gt;</span>

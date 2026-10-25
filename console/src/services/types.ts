@@ -25,7 +25,7 @@ export interface TakeSummary {
   mode: string;                 // "isaac" | "practice" | whatever the take event says
   offline: boolean;
   fixture: boolean;
-  verifier: string | null;      // "sapling" | "stand-in" | "sapling-offline"
+  verifier: string | null;      // "sapling" | "stand-in"
   model: string | null;
   started: number;              // unix seconds of the first event
   ended: number;
@@ -49,7 +49,7 @@ export interface StoredLesson {
 }
 export interface LessonFile { file: string; scope: string; shared: boolean; lessons: StoredLesson[]; mtime: number }
 
-export interface PracticeArgs { episodes: number; workers: number; offline: boolean; seed?: number | null }
+export interface PracticeArgs { episodes: number; workers: number; seed?: number | null }
 export interface PracticeStatus {
   running: boolean; pid: number | null; args: PracticeArgs | null;
   startedAt: number | null; endedAt: number | null; exitCode: number | null;

@@ -1,13 +1,12 @@
 "use client";
 
-// Everything around the tabs: brand, tab navigation, live state, clock, fleet controls,
-// the fleet summary band, and toasts. Present on every tab.
+// Everything around the tabs: brand, tab navigation, live state, clock, the fleet
+// summary band, and toasts. Present on every tab.
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { TABS } from "@/tabs";
-import { SOURCES } from "@/sources";
 import { fmtClock } from "@/engine/format";
 import { useConsole, useOn, useTick } from "./hooks";
 import { FleetSummary } from "./FleetSummary";
@@ -34,16 +33,14 @@ function Toaster() {
 function SourceStatus() {
   const { st } = useConsole();
   useTick(["source", "robots"], 500);
-  const src = st.source, sim = src.caps.includes("sim");
+  const src = st.source;
   const running = st.robots.filter((r) => r.live).length;
-  const text = sim ? (st.running ? "Simulated fleet · live" : "Simulated fleet · paused")
-    : !src.connected ? "Runs · reconnecting" : src.live ? `Runs · live · ${running} robot${running === 1 ? "" : "s"} working` : "Runs · idle";
-  return <span className={s.live} title={src.note || src.label}><span className={`pip${(sim ? st.running : src.live) ? "" : " off"}`} />{text}</span>;
+  const text = !src.connected ? "Runs · reconnecting" : src.live ? `Runs · live · ${running} robot${running === 1 ? "" : "s"} working` : "Runs · idle";
+  return <span className={s.live} title={src.note || src.label}><span className={`pip${src.live ? "" : " off"}`} />{text}</span>;
 }
 
 export function Shell({ children }: { children: ReactNode }) {
-  const { st, actions, sourceId, switchSource } = useConsole();
-  const sim = st.source.caps.includes("sim");
+  const { st } = useConsole();
   const router = useRouter();
   const path = usePathname();
   const active = path.split("/")[1] || "fleet";
@@ -86,15 +83,6 @@ export function Shell({ children }: { children: ReactNode }) {
         <span className="grow" />
         <SourceStatus />
         <Clock />
-        {sim && <button className="btn sm" type="button" onClick={actions.toggleRun}>{st.running ? "Pause fleet" : "Run fleet"}</button>}
-        {sim && (
-          <div className="seg sm" role="group" aria-label="Fleet speed">
-            {[1, 2, 4].map((n) => <button key={n} type="button" aria-pressed={st.speed === n} onClick={() => actions.setSpeed(n)}>{n}×</button>)}
-          </div>
-        )}
-        <div className="seg sm" role="group" aria-label="Data source">
-          {SOURCES.map((src) => <button key={src.id} type="button" aria-pressed={src.id === sourceId} title={src.about} onClick={() => switchSource(src.id)}>{src.short}</button>)}
-        </div>
       </header>
       <FleetSummary />
       {children}

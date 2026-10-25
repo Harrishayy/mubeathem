@@ -11,7 +11,7 @@ const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], 
 
 export const metadata: Metadata = {
   title: { default: "Steward Fleet", template: "%s · Steward Fleet" },
-  description: "Robots learning tasks in simulation: replay, debrief, fleet lessons and Mubit adapters.",
+  description: "Steward's robots on their real takes: replay, debrief, fleet lessons, and every Mubit and Sapling call.",
 };
 
 export const viewport: Viewport = {

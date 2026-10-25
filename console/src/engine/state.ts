@@ -1,26 +1,25 @@
 // The shape of the shared state, and small lookups every panel uses.
 
-import { HIST, MUBIT_CFG } from "./world";
-import type { Episode, LogEntry, MubitTask, SourceInfo, State } from "./types";
+import { EMPTY_SPEC } from "./task";
+import { EPOCH } from "./format";
+import type { Episode, LogEntry, SourceInfo, State } from "./types";
 
 export function initialState(source: SourceInfo): State {
-  const mubit: Record<string, MubitTask> = {};
-  for (const k of Object.keys(MUBIT_CFG)) mubit[k] = { calls: 0, kept: 0, state: "collecting", trainStart: null, servingSince: null, lat: [], recent: [] };
   return {
     source,
-    simNow: -HIST, speed: 1, running: true,
+    simNow: Date.now() / 1000 - EPOCH,
     robots: [], byId: {}, episodes: {}, done: [],
-    lessons: [], lessonSeq: 0,
+    lessons: [],
     log: [], logSeq: 0, logSel: null,
     calls: [], callSel: null, takes: [], manifests: {},
-    adapterMarks: [], mubit,
+    spec: EMPTY_SPEC, mubit: {},
     selection: { robotId: null, epId: null, live: false },
     playback: { t: 0, playing: false, rate: 0.5, pauseAt: true, holdUntil: 0 },
     chats: {},
   };
 }
 
-const NAMES: Record<string, string> = { operator: "Operator", mubit: "Mubit", fleet: "Fleet" };
+const NAMES: Record<string, string> = { operator: "Operator", steward: "Steward" };
 export const nameOf = (st: State, id: string) => st.byId[id]?.name || NAMES[id] || id;
 
 export function selectedEpisode(st: State): Episode | null {

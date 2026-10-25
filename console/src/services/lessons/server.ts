@@ -15,10 +15,12 @@ import type { LessonFile, StoredLesson } from "../types";
 
 /** The shared fleet file: practice runs read it, and Isaac takes can with --lessons. */
 export const FLEET_FILE = "practice-lessons.json";
+/** Written by `steward.practice --offline` from scripted stand-ins, so never shown or written here. */
+const OFFLINE_FILE = "offline-lessons.json";
 
 function lessonFiles(): string[] {
   const dir = runsDir(), out: string[] = [];
-  if (existsSync(dir)) for (const f of readdirSync(dir)) if (f.endsWith(".json") && /lesson/.test(f)) out.push(f);
+  if (existsSync(dir)) for (const f of readdirSync(dir)) if (f.endsWith(".json") && /lesson/.test(f) && f !== OFFLINE_FILE) out.push(f);
   const takes = path.join(dir, "takes");
   if (existsSync(takes)) for (const f of readdirSync(takes)) if (f.endsWith(".lessons.json")) out.push(path.join("takes", f));
   if (!out.includes(FLEET_FILE)) out.unshift(FLEET_FILE);

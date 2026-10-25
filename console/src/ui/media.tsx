@@ -3,8 +3,9 @@
 // What an episode looks like, by where it came from:
 //   <VideoStage>  an Isaac take's video, kept in step with the replay playhead
 //   <VideoStill>  one frame of a take's video, for tiles and lists
-//   <TextWorld>   the text-only practice world: the scene as Steward described it
-// <EpisodeView> picks one (or the simulation canvas) for you.
+//   <TextWorld>   no video (the text-only practice world, or an Isaac take recorded
+//                 without --video): the scene as Steward described it
+// <EpisodeView> picks one for you.
 
 import { useRef } from "react";
 import { useConsole, useFrame } from "@/console/hooks";
@@ -12,9 +13,7 @@ import { clamp } from "@/engine/format";
 import { isResting } from "@/engine/playback";
 import { eventIndexAt, currentPhase } from "@/engine/timeline";
 import { callFor, viaLabel } from "@/engine/calls";
-import { TASKS } from "@/engine/world";
 import { EventText } from "./status";
-import { SceneCanvas } from "./controls";
 import type { Episode } from "@/engine/types";
 
 /** The take's video for the selected episode. While playing, the video is the clock. */
@@ -55,28 +54,27 @@ export function VideoStill({ ep, t }: { ep: Episode; t?: number }) {
   return <video className="vp-video" src={`${vid.src}#t=${at.toFixed(2)}`} muted playsInline preload="metadata" aria-label={`Frame of take ${vid.take}`} />;
 }
 
-/** The practice world has no pictures: show what Steward told the planner, and where it is now. */
+/** No pictures: show what Steward told the planner, and where the attempt is now. */
 export function TextWorld({ ep, t, compact = false }: { ep: Episode; t: number; compact?: boolean }) {
   const { idx, now } = eventIndexAt(ep, t);
-  const ph = currentPhase(ep, t), phases = TASKS.pour.phases;
+  const { st } = useConsole();
+  const ph = currentPhase(ep, t), phases = st.spec.phases;
   const cur = now >= 0 ? ep.events[now] : null;
   const pending = idx >= 0 && ep.events[idx]?.kind !== "call" && idx === ep.events.length - 1 && !ep.outcome;
   const ci = now >= 0 ? callFor(ep, now) : -1, call = ci >= 0 ? ep.events[ci] : null;
   return (
     <div className={`textworld${compact ? " compact" : ""}`}>
-      <div className="tw-eyebrow">Text-only practice world</div>
+      <div className="tw-eyebrow">{ep.world === "isaac" ? "Isaac take · no video recorded" : "Text-only practice world"}</div>
       <p className="tw-scene">{ep.scene || ep.variant.subject}</p>
       <div className="tw-phases">{phases.map((p) => <span key={p} className={p === ph ? "on" : phases.indexOf(p) < phases.indexOf(ph || "") ? "past" : ""}>{p}</span>)}</div>
-      {cur && <p className="tw-now"><EventText e={cur} task="pour" />{call && <span className="tw-via"> · {viaLabel(call.via)} {call.ms} ms</span>}</p>}
+      {cur && <p className="tw-now"><EventText e={cur} />{call && <span className="tw-via"> · {viaLabel(call.via)} {call.ms} ms</span>}</p>}
       {pending && <p className="tw-wait">Waiting on a model call…</p>}
     </div>
   );
 }
 
-/** The right picture for an episode. `t` is read every frame by the canvas, so pass a function. */
+/** The right picture for an episode: its take's video, else the text view. */
 export function EpisodeView({ ep, t, minimal = false, still = false, label }: { ep: Episode; t: () => number; minimal?: boolean; still?: boolean; label?: string }) {
-  const { st } = useConsole();
-  if (ep.world === "isaac" && ep.video) return still ? <VideoStill ep={ep} /> : <VideoStage ep={ep} label={label} />;
-  if (ep.world === "text") return <TextWorld ep={ep} t={t()} compact={minimal} />;
-  return <SceneCanvas minimal={minimal} label={label} source={() => ({ ep: st.episodes[ep.id] || ep, t: t(), robot: st.byId[ep.robot] })} />;
+  if (ep.video) return still ? <VideoStill ep={ep} /> : <VideoStage ep={ep} label={label} />;
+  return <TextWorld ep={ep} t={t()} compact={minimal} />;
 }

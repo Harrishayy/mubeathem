@@ -12,7 +12,7 @@ import s from "./event-log.module.css";
 
 export const meta: PanelMeta = { title: "Event log", minHeight: 200, about: "Every Steward event across the fleet, newest first, filterable by kind and robot. Select a row for its detail." };
 
-const KINDS = ["all", "plan", "safety", "hold", "escalate", "result", "lesson", "call", "error", "adapter"];
+const KINDS = ["all", "plan", "safety", "hold", "escalate", "result", "lesson", "call", "error"];
 
 
 
@@ -45,7 +45,7 @@ export default function EventLog() {
         <select className="sel sm" aria-label="Filter by robot" value={robot} onChange={(e) => setRobot(e.target.value)}>
           <option value="all">All robots</option>
           {st.robots.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-          {st.source.id === "demo" ? <><option value="operator">Operator</option><option value="mubit">Mubit</option></> : <option value="steward">Take headers</option>}
+          <option value="steward">Take headers</option>
         </select>
       </div>
       {!collapsed && (shown.length ? (
@@ -59,7 +59,7 @@ export default function EventLog() {
                   <td className="n subtle">{fmtClock(l.abs, true)}</td>
                   <td className="n">{nameOf(st, l.robot)}</td>
                   <td><span className={s.kind}><Glyph kind={l.kind} e={l.data} />{l.kind}</span></td>
-                  <td className={s.sum}><EventText e={l.data} task={ep?.task || "pour"} /></td>
+                  <td className={s.sum}><EventText e={l.data} /></td>
                 </tr>
               );
             })}

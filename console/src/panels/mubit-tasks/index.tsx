@@ -4,38 +4,29 @@ import { useConsole, useTick } from "@/console/hooks";
 import { PanelSub } from "@/console/Panel";
 import type { PanelMeta } from "@/console/types";
 import { median } from "@/engine/format";
-import { MUBIT_CFG, KEEP_TO_TRAIN } from "@/engine/world";
 import s from "./mubit-tasks.module.css";
 
-export const meta: PanelMeta = { title: "Mubit tasks", minHeight: 180, about: "Steward's three recurring tasks: calls, kept examples toward an adapter (where known), and current latency." };
+export const meta: PanelMeta = { title: "Mubit tasks", minHeight: 180, about: "Steward's recurring Mubit tasks, from the logs: calls, failed calls and current latency." };
 
 export default function MubitTasks() {
   const { st } = useConsole();
   useTick(["mubit"], 700);
-  useTick(["frame"], 1000);
   const entries = Object.entries(st.mubit);
-  const known = entries.every(([, m]) => m.kept != null);
   return (
     <>
-      <PanelSub>{entries.map(([k, m]) => (m.state === "serving" ? `${k} ✓` : m.state === "training" ? `${k} training` : m.kept == null ? `${k} ${m.calls} calls` : `${k} ${m.kept}/${KEEP_TO_TRAIN}`)).join(" · ")}</PanelSub>
+      <PanelSub>{entries.length ? entries.map(([k, m]) => `${k} ${m.calls} call${m.calls === 1 ? "" : "s"}`).join(" · ") : "no Mubit calls yet"}</PanelSub>
       <div className={s.intro}>
-        Mubit groups calls by model, instructions and output schema, keeps good examples of each, and trains an adapter once {KEEP_TO_TRAIN} are kept.
-        {known ? " Plan examples count only when the attempt succeeded." : " Steward's logs don't say which calls Mubit kept or whether an adapter is serving; check the Mubit console for that. Counts below are calls through Mubit (Sapling checks aren't Mubit calls)."}
+        Mubit groups calls by model, instructions and output schema, and decides on its side which it keeps and trains on. Steward&apos;s logs record each call, not that decision, so check the Mubit console for kept examples and adapters. Sapling checks aren&apos;t Mubit calls.
       </div>
       <div className={s.grid}>
-        {entries.map(([k, m]) => {
-          const left = m.state === "training" && m.trainStart != null ? Math.max(0, Math.ceil(MUBIT_CFG[k].trainFor - (st.simNow - m.trainStart))) : 0;
-          const p50 = median(m.lat.slice(-40).map((x) => x.ms));
-          const kept = m.kept;
-          return (
-            <section key={k} className={s.card}>
-              <div className={s.top}><h3>{k}</h3><span className={`${s.state} ${s[m.state]}`}>{m.state === "serving" ? `${k}-v1 serving` : m.state === "training" ? `training · ${left} s left` : kept == null ? `${Math.min(m.calls, KEEP_TO_TRAIN)}/${KEEP_TO_TRAIN} calls` : `collecting ${kept}/${KEEP_TO_TRAIN}`}</span></div>
-              <p className="muted">{MUBIT_CFG[k].label}</p>
-              <div className={s.kv}><div><b>{m.calls}</b><span>calls</span></div><div><b>{kept ?? "—"}</b><span>{kept == null ? "kept · unknown" : "kept"}</span></div><div><b>{p50 ?? "—"}</b><span>p50 ms</span></div></div>
-              <div className="progress" title={kept == null ? `${m.calls} calls; Mubit decides which it keeps` : `${Math.min(kept, KEEP_TO_TRAIN)} of ${KEEP_TO_TRAIN} examples`}><i style={{ width: `${Math.min(100, ((kept ?? m.calls) / KEEP_TO_TRAIN) * 100)}%` }} /></div>
-            </section>
-          );
-        })}
+        {entries.map(([k, m]) => (
+          <section key={k} className={s.card}>
+            <div className={s.top}><h3>{k}</h3>{m.errors > 0 && <span className={s.state}>{m.errors} failed</span>}</div>
+            {st.spec.tasks[k] && <p className="muted">{st.spec.tasks[k].label}</p>}
+            <div className={s.kv}><div><b>{m.calls}</b><span>calls</span></div><div><b>{m.errors}</b><span>failed</span></div><div><b>{median(m.lat.slice(-40)) ?? "—"}</b><span>p50 ms</span></div></div>
+          </section>
+        ))}
+        {!entries.length && <p className="empty">{st.source.note || "No Mubit calls in the runs yet."}</p>}
       </div>
     </>
   );

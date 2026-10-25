@@ -12,7 +12,6 @@ const ICON: Record<string, React.ReactNode> = {
   failed: <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M2.2 2.2l5.6 5.6M7.8 2.2l-5.6 5.6" /></svg>,
   stopped: <svg viewBox="0 0 10 10"><rect x="1.8" y="1.8" width="6.4" height="6.4" fill="currentColor" /></svg>,
   imported: <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M5 1.5v5M2.8 4.5L5 6.7l2.2-2.2M1.5 8.5h7" /></svg>,
-  queued: <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="5" cy="5" r="3.5" /><path d="M5 3v2.2l1.4 1" /></svg>,
 };
 
 export function Pill({ status }: { status: Status | string }) {
@@ -41,7 +40,6 @@ export function Glyph({ kind, e }: { kind: string; e?: Partial<SEvent> | null })
     case "result": return svg(e?.success ? "var(--ok)" : "var(--fail)", <rect x="2" y="2" width="8" height="8" rx="1" />);
     case "lesson": return svg("var(--fg)", <path d="M6 1l1.4 3.6L11 6l-3.6 1.4L6 11 4.6 7.4 1 6l3.6-1.4z" />);
     case "outcome": return svg(e?.outcome === "success" ? "var(--ok)" : "var(--fail)", <path d="M2 2h8v8H2z" stroke="currentColor" strokeWidth="1.6" />, false);
-    case "adapter": return svg("var(--ok)", <path d="M6 1l5 5-5 5-5-5z" stroke="currentColor" strokeWidth="1.6" />, false);
     case "call": return svg("var(--muted)", <circle cx="6" cy="6" r="1.8" />);
     case "phase": return svg("var(--muted)", <rect x="5.2" y="1" width="1.6" height="10" />);
     case "lessons": return svg("var(--muted)", <path d="M2 3h8M2 6h8M2 9h5" stroke="currentColor" strokeWidth="1.4" />, false);
@@ -50,7 +48,7 @@ export function Glyph({ kind, e }: { kind: string; e?: Partial<SEvent> | null })
 }
 
 /** One line describing an event, with the verdict badge for safety checks. */
-export function EventText({ e, task }: { e: SEvent; task: string }) {
+export function EventText({ e }: { e: SEvent }) {
   if (e.kind === "safety") return <><Verdict label={e.label} status={e.status} /> {e.reason}</>;
-  return <>{eventText(e, task)}</>;
+  return <>{eventText(e)}</>;
 }

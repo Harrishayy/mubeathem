@@ -9,8 +9,7 @@ import { SaplingBars } from "@/ui/sapling";
 import { fmtClock, fmtP, SHORT } from "@/engine/format";
 import { nameOf, selectedEpisode } from "@/engine/state";
 import { eventIndexAt } from "@/engine/timeline";
-import { callFor, decisionFor, isOffline, isSapling, viaLabel } from "@/engine/calls";
-import { TASKS } from "@/engine/world";
+import { callFor, decisionFor, isSapling, viaLabel } from "@/engine/calls";
 import type { Episode, SEvent } from "@/engine/types";
 import s from "./call-inspector.module.css";
 
@@ -44,7 +43,6 @@ export default function CallInspector() {
   const di = decisionFor(ep, idx), decision = di >= 0 ? ep.events[di] : null;
   const manifest = ep.take ? st.manifests[ep.take] : undefined;
   const fixed = manifest?.tasks?.[e.task];
-  const sim = ep.world === "sim" || !ep.world;
   const sapling = isSapling(e.via);
   const copy = async (v: unknown, what: string) => { try { await navigator.clipboard.writeText(pretty(v)); actions.toast(`Copied the ${what}.`); } catch { actions.toast("Copying isn't allowed here. Select the text instead."); } };
 
@@ -64,13 +62,11 @@ export default function CallInspector() {
           {e.model && <div><dt>Model</dt><dd className="mono">{e.model}</dd></div>}
           {e.usage && <div><dt>Tokens</dt><dd className="mono">{e.usage.prompt_tokens ?? "?"} in · {e.usage.completion_tokens ?? "?"} out</dd></div>}
         </dl>
-        {isOffline(e.via) && <p className={s.note}>A scripted offline stand-in answered this call (steward/offline.py), not a model.</p>}
-        {sim && <p className={s.note}>The demo fleet simulates its calls, so there is no payload. Switch the source to Steward runs to see what was sent and returned.</p>}
 
         {view === "raw" ? <pre className={s.code}>{pretty(Object.fromEntries(Object.entries(e).filter(([k]) => k !== "at")))}</pre> : (
           <>
             {e.error && <div className={s.error}><b>The call failed.</b> {e.error} Steward fails closed: the robot {e.task === "verify" ? "stopped instead of acting" : "stopped"}.</div>}
-            {!sim && !e.sent && !e.error && <p className={s.note}>This take was recorded before Steward logged call payloads; only the timing{e.request_id ? " and request id" : ""} survive.</p>}
+            {!e.sent && !e.error && <p className={s.note}>This take was recorded before Steward logged call payloads; only the timing{e.request_id ? " and request id" : ""} survive.</p>}
 
             {e.sent && (
               <section className={s.block}>
@@ -104,7 +100,7 @@ export default function CallInspector() {
               <section className={s.block}>
                 <h4>Became</h4>
                 <button type="button" className={s.became} onClick={() => actions.replay(ep.robot, ep.id, { t: decision.at, paused: true })}>
-                  <Glyph kind={decision.kind} e={decision} /><span><b>{decision.kind}</b> <EventText e={decision} task={ep.task} /></span><span className="subtle">{decision.at.toFixed(2)} s · replay</span>
+                  <Glyph kind={decision.kind} e={decision} /><span><b>{decision.kind}</b> <EventText e={decision} /></span><span className="subtle">{decision.at.toFixed(2)} s · replay</span>
                 </button>
               </section>
             )}
@@ -123,7 +119,7 @@ function Field({ name, text }: { name: string; text?: string }) {
 function Returned({ e }: { e: SEvent }) {
   const g = e.got;
   if (e.task === "plan") {
-    const keys = Object.keys(TASKS.pour.params).filter((k) => typeof g[k] === "number");
+    const keys = Object.keys(g).filter((k) => typeof g[k] === "number");
     return (
       <>
         <div className={s.settings}>{keys.map((k) => <span key={k}><small>{SHORT[k] || k}</small><b className="mono">{fmtP(k, g[k])}</b></span>)}</div>

@@ -12,7 +12,7 @@ import s from "./debrief.module.css";
 
 export const meta: PanelMeta = { title: "Debrief", minHeight: 260, mobileHeight: "520px", about: "A conversation about the selected episode. Asking for a fix gives an editable proposal you can add to lessons or re-run." };
 
-const SOURCE_LABEL = { claude: "Claude, using only this episode's log", mubit: "Mubit's gateway, using only this episode's log", log: "replies built from this episode's log" };
+const SOURCE_LABEL = { claude: "Claude, using only this episode's log", mubit: "Mubit's gateway, using only this episode's log", none: "no model connected: set MUBIT_API_KEY to ask" };
 
 /** Turn times like "6.4 s" into buttons that seek the replay. */
 function Answer({ text, ep, onSeek }: { text: string; ep: Episode; onSeek: (t: number) => void }) {
@@ -35,7 +35,7 @@ export default function Debrief() {
   const { st, store, actions } = useConsole();
   useTick(["select", "chat"]);
   const ep = selectedEpisode(st);
-  const [source, setSource] = useState<"claude" | "mubit" | "log">("log");
+  const [source, setSource] = useState<"claude" | "mubit" | "none">("none");
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState("");
   const ctl = useRef<AbortController | null>(null);
@@ -58,11 +58,10 @@ export default function Debrief() {
     setBusy(true); changed();
     ctl.current = new AbortController();
     const res = await ask(st, ep, convo, { signal: ctl.current.signal, onText: (text) => { msg.text = text; msg.pending = false; changed(); } });
-    Object.assign(msg, { text: res.text, pending: false, offline: !!res.offline, note: res.note || "", via: res.via });
+    Object.assign(msg, { text: res.text, pending: false, failed: !!res.failed, note: res.note || "", via: res.via });
     if (res.fix) chat.items.push({ role: "fix", fix: res.fix });
     ctl.current = null; setBusy(false); changed();
   }
-  const sim = st.source.caps.includes("sim");
   async function act(f: Fix, what: "add" | "rerun" | "dismiss") {
     if (!ep) return;
     if (what === "dismiss") { f.status = "dismissed"; changed(); return; }
@@ -71,7 +70,7 @@ export default function Debrief() {
       const id = await actions.addLesson({ task: ep.task, text, applies_to: f.applies_to, settings: { [f.param]: f.value } }, ep);
       if (!id) return;
       f.lessonId = id; f.status = "added";
-      actions.toast(sim ? `Added ${id} to fleet lessons.` : `Added ${id} to runs/practice-lessons.json. Running robots recall it from their next attempt.`, "View lessons", () => actions.go("lessons"));
+      actions.toast(`Added ${id} to the fleet lessons. Running robots recall it from their next attempt.`, "View lessons", () => actions.go("lessons"));
     }
     if (what === "rerun") {
       f.lesson = text;
@@ -97,16 +96,16 @@ export default function Debrief() {
                   {f.status === "open" ? (
                     <div className={s.acts}>
                       {actions.can.addLesson && <button className="btn sm primary" type="button" onClick={() => act(f, "add")}>Add to fleet lessons</button>}
-                      {actions.can.rerun && !r.imported && <button className="btn sm" type="button" onClick={() => act(f, "rerun")}>{sim ? `Re-run ${r.name} with this fix` : "Add it and start a practice run"}</button>}
+                      {actions.can.rerun && !r.imported && <button className="btn sm" type="button" onClick={() => act(f, "rerun")}>{ep.world === "isaac" ? "Add it for the next Isaac take" : "Add it and start a practice run"}</button>}
                       <button className="btn sm ghost" type="button" onClick={() => act(f, "dismiss")}>Dismiss</button>
                     </div>
                   ) : (
-                    <div className={s.done}>{f.status === "added" ? `Added as ${f.lessonId}. Robots recall it when two of its words match their task.` : f.status === "queued" ? (sim ? `${r.name} runs this subject next with ${f.param} ${fmtP(f.param, f.value)}.` : "Added to the fleet lessons, and a practice run started. Watch it on the Fleet tab.") : "Dismissed."}</div>
+                    <div className={s.done}>{f.status === "added" ? `Added as ${f.lessonId}. Robots recall it when two of its words match their task.` : f.status === "queued" ? (ep.world === "isaac" ? "Added to the fleet lessons. The next Isaac take on the DGX recalls it." : "Added to the fleet lessons, and a practice run started. Watch it on the Fleet tab.") : "Dismissed."}</div>
                   )}
                 </div>
               );
             }
-            const who = m.role === "user" ? "You" : m.role === "read" ? "Steward's read" : m.offline ? "Steward · from the log" : m.via === "mubit" ? "Mubit" : "Claude";
+            const who = m.role === "user" ? "You" : m.role === "read" ? "Steward's read" : m.failed ? "No answer" : m.via === "mubit" ? "Mubit" : "Claude";
             return (
               <div key={i} className={`${s.msg} ${m.role === "user" ? s.user : m.role === "read" ? s.read : ""}`}>
                 <div className={s.who}>{who}</div>

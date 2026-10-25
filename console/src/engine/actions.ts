@@ -7,7 +7,7 @@ import { clamp } from "./format";
 import { DECISION_KINDS } from "./timeline";
 import { selectedEpisode } from "./state";
 import type { Store } from "./store";
-import type { CallRef, Episode, Fix, Lesson, Variant } from "./types";
+import type { CallRef, Episode, Fix, Lesson } from "./types";
 import type { NewLesson, SourceOps } from "@/sources/types";
 
 export function createActions(store: Store, ops: SourceOps) {
@@ -19,7 +19,7 @@ export function createActions(store: Store, ops: SourceOps) {
     /** Replay a robot's episode. epId "live" follows whatever it is running now. */
     select(robotId: string, epId: string = "live", opts: { t?: number; paused?: boolean } = {}) {
       const r = st.byId[robotId]; if (!r) return;
-      const live = epId === "live" && !r.imported;
+      const live = epId === "live" && !!r.live;
       const ep = live ? r.ep : st.episodes[epId] || r.history[r.history.length - 1] || r.ep;
       Object.assign(sel, { robotId, epId: ep.id, live });
       Object.assign(pb, { t: live ? st.simNow - ep.start : clamp(opts.t ?? 0, 0, ep.duration), playing: !live && opts.t == null && !opts.paused, holdUntil: 0 });
@@ -56,9 +56,6 @@ export function createActions(store: Store, ops: SourceOps) {
       a.seek(t != null ? t : dir > 0 ? ep.duration : 0);
     },
 
-    setSpeed(n: number) { st.speed = n; emit("fleet"); },
-    toggleRun() { st.running = !st.running; emit("fleet"); },
-
     /** Which source-dependent actions are available. */
     can: { addLesson: !!ops.addLesson, retireLesson: !!ops.retireLesson, rerun: !!ops.rerun, openTake: !!ops.openTake },
 
@@ -77,12 +74,6 @@ export function createActions(store: Store, ops: SourceOps) {
       if (!ops.rerun) return false;
       try { a.toast(await ops.rerun(ep, fix), "Watch", () => a.select(ep.robot, "live")); emit("fleet"); return true; }
       catch (err) { a.toast(`Couldn't start the re-run: ${(err as Error).message}`); return false; }
-    },
-    /** Demo only: the next episode of this robot uses `override`. */
-    queueRerun(robotId: string, variant: Variant, override: Record<string, number>) {
-      const r = st.byId[robotId]; if (!r || r.imported) return;
-      r.queued = { variant, override };
-      emit("fleet");
     },
 
     /** Show one model call in the call inspector. */

@@ -4,17 +4,16 @@ import { useEffect, useState } from "react";
 import { useConsole } from "@/console/hooks";
 import { PanelActions, PanelSub } from "@/console/Panel";
 import type { PanelMeta } from "@/console/types";
-import { SOURCES } from "@/sources";
 import { getHealth } from "@/services/health";
 import type { HealthReport } from "@/services/types";
 import s from "./services.module.css";
 
-export const meta: PanelMeta = { title: "Services", minHeight: 220, about: "Every backend service the console is plugged into, its health and settings, and the data sources you can switch between." };
+export const meta: PanelMeta = { title: "Services", minHeight: 220, about: "Every backend service the console is plugged into, with its health and settings." };
 
 const STATUS = { ok: "Up", idle: "Idle", off: "Off", error: "Down" } as const;
 
 export default function Services() {
-  const { st, sourceId, switchSource } = useConsole();
+  const { st } = useConsole();
   const [h, setH] = useState<HealthReport | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [n, setN] = useState(0);
@@ -27,20 +26,10 @@ export default function Services() {
   const up = h?.services.filter((x) => x.health.status === "ok").length ?? 0;
   return (
     <>
-      <PanelSub>{h ? <><b>{up}</b> of {h.services.length} up · source <b>{st.source.label}</b></> : err ? "backend unreachable" : "checking…"}</PanelSub>
+      <PanelSub>{h ? <><b>{up}</b> of {h.services.length} up</> : err ? "backend unreachable" : "checking…"}</PanelSub>
       <PanelActions><button className="btn sm" type="button" onClick={() => setN((x) => x + 1)}>Recheck</button></PanelActions>
       <div className={s.wrap}>
-        <section>
-          <h4>Data source</h4>
-          <div className={s.sources}>
-            {SOURCES.map((src) => (
-              <button key={src.id} type="button" className={s.source} aria-pressed={src.id === sourceId} onClick={() => switchSource(src.id)}>
-                <b>{src.label}</b><span>{src.about}</span><small className="mono">src/sources/{src.id} · {src.caps.join(" · ")}</small>
-              </button>
-            ))}
-          </div>
-          {st.source.note && <p className={s.note}>{st.source.note}</p>}
-        </section>
+        {st.source.note && <p className={s.note}>{st.source.note}</p>}
         <section>
           <h4>Backend services <span>/api/&lt;id&gt; · src/services/&lt;id&gt;</span></h4>
           {err && <p className={s.err}>Couldn&apos;t reach /api/health: {err}. Is the console running with <code>pnpm dev</code> or <code>pnpm start</code>?</p>}

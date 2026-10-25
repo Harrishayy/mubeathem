@@ -6,15 +6,13 @@
 //   select (selection)           the replayed robot or episode changed
 //   playback (playback)          play, pause, rate or follow-live changed
 //   seek (t)                     the playhead jumped
-//   event ({ep, e})              the simulation fired one Steward event
 //   episode:done ({ep, robot})   an episode finished
 //   lessons ()                   fleet lessons changed
-//   mubit ()                     Mubit call counts or adapter state changed
-//   adapter ({task})             an adapter started serving
+//   mubit ()                     Mubit call counts changed
 //   log (entry)                  a line was added to the event log
 //   logsel (seq | null)          a log row was selected
 //   robots ()                    the robot list changed (a take was imported)
-//   fleet ()                     fleet speed, run/pause or a queued re-run changed
+//   fleet ()                     a re-run started
 //   chat (episodeId)             a debrief conversation changed
 //   navigate (tabId)             something asked to switch tabs
 //   toast ({msg, label?, run?})  show a short message

@@ -45,9 +45,9 @@ async function debrief(req: Request) {
 export const service: ServerService = {
   id: "mubit",
   label: "Mubit gateway",
-  about: "Plans, safety stand-ins and lessons go through Mubit's OpenAI-compatible gateway; the console uses it for debriefs.",
+  about: "Plans, lessons and (without Sapling) safety checks go through Mubit's OpenAI-compatible gateway; the console uses it for debriefs.",
   env: [
-    { key: "MUBIT_API_KEY", about: "Mubit key. Needed for live practice runs and Mubit debriefs.", secret: true },
+    { key: "MUBIT_API_KEY", about: "Mubit key. Needed for practice runs and debriefs.", secret: true },
     { key: "MUBIT_BASE_URL", about: "Gateway URL (default https://api.mubit.ai/openai/v1)." },
     { key: "STEWARD_MODEL", about: "Model Steward asks for (default gpt-6-luna)." },
     { key: "STEWARD_DEBRIEF_MODEL", about: "Model for debriefs (default STEWARD_MODEL)." },
@@ -60,6 +60,6 @@ export const service: ServerService = {
     // No network call here: health checks must never spend anything.
     return env("MUBIT_API_KEY")
       ? { status: "ok", summary: `Key set · model ${model()} · ${new URL(baseUrl()).host}`, detail: { model: model() } }
-      : { status: "off", summary: "MUBIT_API_KEY isn't set: live practice runs and Mubit debriefs are off. Offline runs still work." };
+      : { status: "off", summary: "MUBIT_API_KEY isn't set: practice runs and debriefs are off." };
   },
 };

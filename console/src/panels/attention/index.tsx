@@ -16,9 +16,9 @@ function items(st: State): Item[] {
   const out: Item[] = [];
   for (const r of st.robots) {
     if (r.imported) continue;
-    const status = liveStatus(st, r), last = r.history[r.history.length - 1];
+    const status = liveStatus(r), last = r.history[r.history.length - 1];
     const failedCall = r.ep.events.find((e) => e.kind === "call" && e.error);
-    if (status === "holding") out.push({ r, rank: 0, kind: "hold", text: r.ep.person ? `Holding now: a person is ${r.ep.person.dist.toFixed(1)} m away during #${r.ep.n}.` : `Holding now: ${[...r.ep.events].reverse().find((e) => e.kind === "hold")?.reason || "the last check wasn't safe"}`, epId: "live" });
+    if (status === "holding") out.push({ r, rank: 0, kind: "hold", text: `Holding now during #${r.ep.n}: ${[...r.ep.events].reverse().find((e) => e.kind === "hold")?.reason || "the last check wasn't safe"}`, epId: "live" });
     else if (failedCall && r.ep.outcome === "stopped") out.push({ r, rank: 1, kind: "escalate", text: `#${r.ep.n}: a ${failedCall.task} call failed (${failedCall.error}), so it stopped.`, epId: r.ep.id });
     else if (last?.outcome === "stopped") out.push({ r, rank: 1, kind: "escalate", text: `#${last.n} stopped for an operator. ${last.reason}`, epId: last.id });
     else if (last?.outcome === "failed") out.push({ r, rank: 2, kind: "result", e: { success: false }, text: `#${last.n} failed. ${last.reason}`, epId: last.id });

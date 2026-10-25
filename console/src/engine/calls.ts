@@ -33,14 +33,11 @@ export function decisionFor(ep: Episode, ci: number): number {
 }
 
 export const isSapling = (via?: string) => !!via && via.startsWith("sapling");
-export const isOffline = (via?: string) => !!via && via.includes("offline");
 
 export function viaLabel(via?: string): string {
   switch (via) {
     case "mubit": return "Mubit";
     case "sapling": return "Sapling";
-    case "offline": return "Offline stand-in";
-    case "sapling-offline": return "Sapling (offline stand-in)";
     case undefined: case "": return "Mubit";
     default: return via;
   }
@@ -57,7 +54,7 @@ export function callResult(e: SEvent): string {
   if (e.error) return `failed: ${e.error}`;
   const g = e.got;
   if (!g) return e.request_id ? String(e.request_id) : "no payload logged";
-  if (e.task === "plan") return planBrief(g, "pour") || "plan";
+  if (e.task === "plan") return planBrief(g) || "plan";
   if (e.task === "verify") {
     const label = g.label || g.raw_label || g.status, p = topProbability(e);
     const unsure = g.status === "unsure";

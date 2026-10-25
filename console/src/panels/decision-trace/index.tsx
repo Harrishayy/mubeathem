@@ -54,7 +54,7 @@ export default function DecisionTrace() {
               <Glyph kind={e.kind} e={e} />
               <div>
                 <div className={s.k}>{e.kind === "call" ? `${e.task} via ${viaLabel(e.via)}${e.ms != null ? ` · ${e.ms} ms` : ""}` : e.kind}</div>
-                <div className={s.d}>{e.kind === "call" ? callResult(e) : <EventText e={e} task={ep.task} />}</div>
+                <div className={s.d}>{e.kind === "call" ? callResult(e) : <EventText e={e} />}</div>
               </div>
             </li>
           );

@@ -8,11 +8,7 @@ import type { Store } from "@/engine/store";
 import type { Actions } from "@/engine/actions";
 import type { State } from "@/engine/types";
 
-export interface Console {
-  store: Store; actions: Actions;
-  /** The running data source, and a way to switch to another (see src/sources). */
-  sourceId: string; switchSource: (id: string) => void;
-}
+export interface Console { store: Store; actions: Actions }
 export const ConsoleCtx = createContext<Console | null>(null);
 
 export function useConsole(): Console & { st: State } {
