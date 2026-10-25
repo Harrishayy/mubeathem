@@ -1,0 +1,26 @@
+.wrap { height: 100%; padding: 10px; }
+.grid { display: grid; gap: 10px; min-height: 0; }
+.tile { background: var(--s1); border: 1px solid var(--line); border-radius: var(--r); padding: 10px; display: flex; flex-direction: column; gap: 7px; cursor: pointer; min-width: 0; min-height: 0; transition: border-color .15s, background .15s; }
+.tile:hover { border-color: var(--line-2); background: var(--s2); }
+.attn { border-color: color-mix(in srgb, var(--fail) 45%, var(--line)); }
+.holdattn { border-color: color-mix(in srgb, var(--hold) 50%, var(--line)); }
+.head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.id { flex: 1 1 auto; min-width: 0; }
+.name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub { font: 500 9.5px var(--font-mono); color: var(--subtle); letter-spacing: .06em; text-transform: uppercase; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.view { position: relative; flex: 1 1 auto; min-height: 80px; background: var(--bg); border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+.view canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.tl { top: 5px; left: 5px; }
+.tr { top: 5px; right: 5px; color: var(--fg); border: 1px dashed var(--line-2); }
+.bl { bottom: 5px; left: 5px; max-width: calc(100% - 10px); overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: .02em; }
+.phases { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+.phases span { display: grid; gap: 3px; }
+.phases i { display: block; height: 3px; background: var(--s3); border-radius: 1px; overflow: hidden; position: relative; }
+.phases i::after { content: ""; position: absolute; inset: 0; width: var(--p, 0%); background: var(--fg); }
+.phases b { font: 500 9px var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--subtle); }
+.phases .on b { color: var(--fg); }
+.last { display: flex; gap: 7px; align-items: flex-start; font-size: 11.5px; color: var(--muted); min-height: 32px; }
+.txt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-width: 0; }
+.foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); padding-top: 7px; }
+.rate { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+.rate b { color: var(--fg); font-weight: 600; }

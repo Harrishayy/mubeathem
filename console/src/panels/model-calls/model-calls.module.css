@@ -1,0 +1,2 @@
+.ret { max-width: 0; width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
+.bad { color: var(--fail); }

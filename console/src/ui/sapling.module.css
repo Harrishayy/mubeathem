@@ -1,0 +1,10 @@
+.why { margin: 0; font-size: 12.5px; line-height: 1.5; }
+.probs { display: grid; gap: 4px; }
+.probs > div { display: grid; grid-template-columns: 150px minmax(0, 1fr) 52px; gap: 8px; align-items: center; padding: 3px 5px; border: 1px solid transparent; border-radius: 2px; }
+.probs > div.inset { border-color: var(--line-2); background: var(--s2); }
+.track { height: 6px; background: var(--s3); border-radius: 1px; overflow: hidden; }
+.track i { display: block; height: 100%; }
+.ok { background: var(--ok); }
+.bad { background: var(--fail); }
+.mid { background: var(--hold); }
+.foot { margin: 0; font-size: 11px; color: var(--subtle); }

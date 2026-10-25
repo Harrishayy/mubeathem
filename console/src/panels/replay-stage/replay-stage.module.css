@@ -1,0 +1,23 @@
+.stage { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.view { position: relative; flex: 1 1 auto; min-height: 150px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.view canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.view :global(.vp-tag) { font-size: 10px; padding: 4px 7px; }
+.tl { top: 8px; left: 8px; }
+.tr { top: 8px; right: 8px; color: var(--fg); border: 1px dashed var(--line-2); }
+.bl { bottom: 8px; left: 8px; }
+.tl2 { position: relative; padding: 6px 12px 0; user-select: none; touch-action: none; cursor: ew-resize; flex: none; outline-offset: -2px; }
+.marks { position: relative; height: 18px; }
+.marks button { position: absolute; top: 1px; transform: translateX(-50%); width: 16px; height: 16px; padding: 2px; border: 0; background: transparent; display: grid; place-items: center; border-radius: 2px; }
+.marks button:hover { background: var(--s3); }
+.lane { position: relative; height: 20px; background: var(--s2); border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+.lane > span { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 5px; overflow: hidden; white-space: nowrap; font: 500 9px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.motion { background: var(--s3); border-left: 1px solid var(--line-2); }
+.decide { background: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in srgb, var(--fg) 14%, transparent) 3px 4px); }
+.lane > .hold { background: color-mix(in srgb, var(--hold) 22%, transparent); color: var(--hold); }
+.metric { display: block; width: 100%; height: 26px; margin-top: 3px; }
+.ticks { display: flex; justify-content: space-between; gap: 8px; font: 500 9.5px var(--font-mono); color: var(--subtle); padding: 1px 0 4px; }
+.head { position: absolute; top: 4px; bottom: 20px; width: 1px; background: var(--fg); pointer-events: none; left: 12px; }
+.head::before { content: ""; position: absolute; top: -2px; left: -4px; border: 4.5px solid transparent; border-top-color: var(--fg); }
+.ctl { display: flex; align-items: center; gap: 8px; padding: 7px 12px 9px; flex-wrap: wrap; flex: none; border-top: 1px solid var(--line); }
+.time { font-size: 12px; min-width: 92px; }
+.time b { font-weight: 600; }

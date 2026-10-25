@@ -1,0 +1,10 @@
+.wrap { padding: 12px; display: grid; gap: 10px; align-content: start; }
+.drop { border: 1px dashed var(--line-2); border-radius: var(--r); padding: 16px; display: grid; gap: 8px; justify-items: center; text-align: center; font-size: 12.5px; color: var(--muted); }
+.over { border-color: var(--fg); background: var(--s2); }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+.list b { color: var(--fg); font-family: var(--font-mono); }
+.fmt summary { cursor: pointer; font: 500 9.5px var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--subtle); }
+.fmt p { font-size: 12px; color: var(--muted); margin: 6px 0; }
+.fmt code { font: 500 11px var(--font-mono); background: var(--s3); padding: 0 4px; border-radius: 2px; }
+.fmt pre { margin: 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); font: 500 10.5px/1.5 var(--font-mono); color: var(--subtle); overflow: auto; }

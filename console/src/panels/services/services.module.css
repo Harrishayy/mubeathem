@@ -1,0 +1,25 @@
+.wrap { padding: 10px 12px 14px; display: grid; gap: 14px; align-content: start; }
+.wrap h4 { margin: 0 0 7px; display: flex; gap: 10px; align-items: baseline; font: 600 10px var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fg); }
+.wrap h4 span { color: var(--subtle); letter-spacing: .02em; text-transform: none; font-weight: 500; }
+.sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.source { display: grid; gap: 4px; text-align: left; font: inherit; color: var(--muted); font-size: 12px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r); padding: 9px 10px; cursor: pointer; }
+.source b { color: var(--fg); font-size: 13px; }
+.source small { font-size: 10px; color: var(--subtle); }
+.source[aria-pressed="true"] { border-color: var(--fg); background: var(--s2); }
+.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.svc { border: 1px solid var(--line); border-radius: var(--r); background: var(--s1); padding: 9px 10px; display: grid; gap: 4px; }
+.svcHead { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.svcHead code { font: 500 10.5px var(--font-mono); color: var(--subtle); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--subtle); flex: none; }
+.state { font: 600 9.5px var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.dot.ok { background: var(--ok); } .state.ok { color: var(--ok); }
+.dot.error { background: var(--fail); } .state.error { color: var(--fail); }
+.dot.idle { background: var(--muted); }
+.sum { margin: 0; font-size: 12px; color: var(--fg); }
+.about { margin: 0; font-size: 11.5px; color: var(--muted); }
+.env { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--subtle); }
+.env code { font: 500 10.5px var(--font-mono); }
+.env .set { color: var(--muted); }
+.env .set code { color: var(--fg); }
+.note { margin: 6px 0 0; font-size: 11.5px; color: var(--subtle); }
+.err { margin: 0 0 6px; font-size: 12px; color: var(--fail); }

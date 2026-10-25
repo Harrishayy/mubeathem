@@ -1,0 +1,24 @@
+.wrap { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.msgs { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px 12px; display: grid; gap: 11px; align-content: start; }
+.msg { display: grid; gap: 4px; }
+.who { font: 500 9.5px var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--subtle); }
+.body { font-size: 12.5px; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.user { justify-items: end; }
+.user .body { background: var(--s3); padding: 7px 10px; border-radius: var(--r); max-width: 88%; }
+.read .body { background: var(--s2); padding: 8px 10px; border-radius: var(--r); color: var(--muted); }
+.note { font-size: 11.5px; color: var(--hold); }
+.t { background: none; border: 0; padding: 0 1px; font: 500 11.5px var(--font-mono); color: var(--fg); text-decoration: underline dotted; text-underline-offset: 3px; }
+.thinking { color: var(--subtle); }
+@media (prefers-reduced-motion: no-preference) { .thinking::after { content: "…"; animation: pulse 1.2s infinite; } }
+.fix { border: 1px solid var(--line-2); border-radius: var(--r); background: var(--s2); padding: 10px; display: grid; gap: 8px; }
+.chg { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12.5px; }
+.chg s { color: var(--subtle); }
+.fix textarea { width: 100%; resize: vertical; min-height: 50px; padding: 7px 9px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--s1); font-size: 12px; line-height: 1.45; }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.done { font-size: 12px; color: var(--ok); }
+.sugg { display: flex; gap: 5px; flex-wrap: wrap; padding: 0 12px 8px; flex: none; }
+.sugg button { height: 24px; padding: 0 9px; border: 1px solid var(--line-2); background: transparent; border-radius: 12px; font-size: 11.5px; color: var(--muted); }
+.sugg button:hover { color: var(--fg); border-color: var(--fg); }
+.ask { display: flex; gap: 6px; padding: 8px 12px 10px; border-top: 1px solid var(--line); align-items: flex-end; flex: none; }
+.ask textarea { flex: 1; min-width: 0; resize: none; height: 36px; max-height: 110px; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--s2); font-size: 12.5px; }
+.ask textarea:focus { border-color: var(--fg); outline: none; }

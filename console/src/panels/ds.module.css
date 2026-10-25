@@ -1,0 +1,16 @@
+/* Shared by the design-system panels on the System tab. */
+.list { margin: 0; padding: 12px 14px 12px 30px; display: grid; gap: 7px; color: var(--muted); font-size: 12.5px; max-width: 80ch; }
+.list b { color: var(--fg); font-weight: 500; }
+.body { padding: 12px 14px; display: grid; gap: 12px; align-content: start; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sw { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
+.sw div { border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+.sw i { display: block; height: 34px; border-bottom: 1px solid var(--line); }
+.sw span { display: grid; padding: 5px 8px; font: 500 10.5px var(--font-mono); }
+.sw small { color: var(--subtle); font-size: 10px; }
+.type { display: grid; gap: 8px; }
+.type div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.glyphs { display: flex; gap: 14px; flex-wrap: wrap; font: 500 10.5px var(--font-mono); color: var(--muted); }
+.glyphs span { display: inline-flex; gap: 6px; align-items: center; }
+.label { font: 500 9.5px var(--font-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--subtle); }
+.code { font: 500 11px var(--font-mono); background: var(--s3); padding: 1px 5px; border-radius: 2px; }

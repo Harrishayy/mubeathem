@@ -1,0 +1,31 @@
+/* Steward design tokens. Dark first; the light theme mirrors every token.
+   Hue is reserved for outcomes (--ok, --fail, --hold). Chrome stays monotone. */
+:root {
+  --bg: #0A0B0D; --s1: #101215; --s2: #15181C; --s3: #1C2026;
+  --line: #23272D; --line-2: #343A42;
+  --fg: #EDEFEC; --muted: #9AA0A7; --subtle: #6A7078; --inverse: #0A0B0D;
+  --ok: #5CC491; --fail: #EF6B5D; --hold: #E3B14E;
+  --font-ui: var(--font-plex-sans), "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 3px;
+  --gap: 10px;
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F3F3F0; --s1: #FFFFFF; --s2: #F4F4F1; --s3: #E9EAE6;
+    --line: #E0E1DC; --line-2: #C6C8C2;
+    --fg: #121416; --muted: #555A60; --subtle: #72777E; --inverse: #FFFFFF;
+    --ok: #1C8A59; --fail: #C8412F; --hold: #9C6800;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #F3F3F0; --s1: #FFFFFF; --s2: #F4F4F1; --s3: #E9EAE6;
+  --line: #E0E1DC; --line-2: #C6C8C2;
+  --fg: #121416; --muted: #555A60; --subtle: #72777E; --inverse: #FFFFFF;
+  --ok: #1C8A59; --fail: #C8412F; --hold: #9C6800;
+  color-scheme: light;
+}
