@@ -259,19 +259,6 @@ Back on a laptop, `video/pull.sh` copies the takes and makes player copies with 
 plan, then for each phase verify before executing. Check the result and, on a failure, write a
 lesson and go again, up to three attempts.
 
-## What's real today, and what's next
 
-We'd rather you trust the numbers above, so here's exactly where they stop:
-
-- **No adapter result yet.** Mubit is recording all three tasks, but we haven't yet shown an adapter that passes Mubit's tests, or a speedup. Mubit also isn't yet told which plan failed (each call's request ID is logged for that), so the examples teach applying a lesson, not that the first plan was wrong.
-- **Simulation, not hardware.** The motion is a recorded human demo replayed joint by joint. The plan's tilt speed changes how it pours; arm speed, height and tilt angle are planned and safety-checked but not yet wired into the motion.
-- **No person in the scene yet**, so every recorded safety check came back `supported`. The hold and stop paths are unit-tested, not yet shown in the sim. The takes here used a frontier-model stand-in through Mubit, in Sapling's format; new takes run on Sapling unless started with `--stand-in`.
-- **Sapling's calibrated status rarely commits** (26 of 605 safe cases in its own test, 0 of 69 on ours), so the robot acts on its top label.
-- **A frontier-model call takes about 2.6 s**, and the sim pauses while it runs. That's too slow for real-time control, and it's exactly why small Mubit-trained adapters are the next step.
-- **One robot so far.** Sharing lessons with a second robot is one flag, but that take hasn't been recorded.
-- **Physics is noisy.** 11 takes show the loop working; they don't establish a general success rate.
-
-**Next:** adapters that pass Mubit's tests, compared side by side in **Try models**; people in the
-scene to exercise holds and stops; a second robot learning from the first; and physical hardware.
 
 <p align="center"><sub>Built at the Mubit Night Shift hackathon.</sub></p>
