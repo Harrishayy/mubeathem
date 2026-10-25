@@ -44,7 +44,8 @@ produced. That order is how a reader pairs each call with its `plan`, `safety` o
 
 `tasks.manifest()` holds everything fixed per task:
 
-- `phases`, `policy`, `claim`, `ranges`;
+- `phases`, `policy` (the stand-in's wording), `ranges`;
+- `sapling`: `{policy, phase_steps}`, the wording Sapling gets (its claim is "The robot may run the <phase> phase now.");
 - `tasks.<plan|verify|lesson>`: `{instructions, schema}`.
 
 With it, a reader can rebuild the exact prompt behind any call.

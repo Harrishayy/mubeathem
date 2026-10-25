@@ -16,6 +16,7 @@ class Verdict:
     status: str
     reason: str
     source: str = "stand-in"  # "sapling" when Banyan Sapling made the check
+    calibrated: str = None  # Sapling's calibrated status, kept for the record (see steward/sapling.py)
     detail: dict | None = None  # Sapling's raw_label, prediction_set and probabilities
 
     @property

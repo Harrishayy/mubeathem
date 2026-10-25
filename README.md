@@ -66,28 +66,49 @@ physics step), and plays at 0.5× by default (Speed menu) — slow motion of a r
 physics ran at full speed. The page plays it with the panel beside it, in sync:
 at each decision (plan, safety check, result, lesson) it pauses briefly and reveals it,
 because the simulation itself was paused while each model call ran. Scrubbing jumps the
-panel straight to that moment. Pick a take from the menu; it opens on a clean
-"spills → lands" one. `/panel/` is the same panel following a take live.
+panel straight to that moment. Pick a take from the menu; it opens on one where a
+spill is followed by a successful retry. `/panel/` is the same panel following a take live.
 
 ## The loop (`steward/loop.py`)
 
 Per attempt: reset the scene → recall lessons → plan → for each phase (approach,
 pour, return): verify, then execute → check the result → on failure write a lesson
-and start again from the top. The robot only moves on a verdict that is `supported`
-and `decided`; anything else, including a failed call, holds or stops it.
+and start again from the top. The robot only moves on a `supported` verdict;
+`violation` or `insufficient_information` holds it for another check,
+`inconsistent_context` stops it for a person, and a failed call stops it.
+
+## The safety check: Banyan Sapling (`steward/sapling.py`, `sapling/`)
+
+Isaac takes check every phase with Banyan Sapling (`MubitLabs/banyan-sapling`, 23B,
+open weights), served on the DGX next to Isaac Sim. Plans and lessons still go
+through Mubit. Start it once (it takes about 46 GB of memory and loads in about a minute):
+
+```
+cd ~/steward/sapling && nohup .venv/bin/python ~/steward/repo/sapling/serve.py > serve.log 2>&1 &
+# SAPLING_URL=http://127.0.0.1:8765 in ~/steward/repo/.env; run_pour.py refuses to start without it
+# (--stand-in uses the old GPT check through Mubit instead, and the take log says so)
+```
+
+Sapling returns a top label with probabilities and a calibrated status. The calibrated
+status almost never commits (in Sapling's own test it approved 26 of 605 safe cases, and
+on our checks 0 of 69), so the robot acts on the top label and the reason line shows both.
+The rules are reworded for Sapling (`SAPLING_POLICY`); `python3 sapling/probe.py` scores
+that wording: 65 of 69 checks right, 0 of 21 unsafe checks approved, about 0.85 s per
+check on the GB10. Safe plans with `arm_speed` just above 0.2 are sometimes blocked.
 
 `isaac/pour_world.py` implements the `World` protocol and counts nuts in the bowl
 to decide success. After a spill, the lesson model reads the failed settings and
 result; the next plan reads the saved lesson. Retries reset the scene and are
 limited to three attempts by default.
 
-Physics is noisy. In the six most recent takes, first plans chose `tilt_speed`
-0.55–1.0 and failed five times (four spills, one nut left in the beaker). Pours at 0.5 or below landed six of eight times.
-All seven retries were slower than the preceding attempt; every finished take
-succeeded within three attempts. Takes are selected for the demo.
+Physics is noisy. Across the 11 finished takes, first plans (no lessons) landed all
+three nuts 3 times in 11, at an average `tilt_speed` of 0.63. Retries, each with a
+lesson in the prompt, landed 8 times in 11, at an average of 0.24. Every retry poured
+more slowly than the attempt before it, and every take succeeded within three
+attempts. Pours at 0.5 or below landed 10 of 13 times; faster pours landed 1 of 9.
 
-No person is present in the Isaac scene; all 45 recorded Isaac safety checks
-returned `supported`. The hold/stop path is unit-tested but not shown in the sim.
+No person is present in the Isaac scene; all 69 Isaac safety checks recorded before
+Sapling was connected (by the stand-in) returned `supported`. The hold/stop path is unit-tested but not shown in the sim.
 Median model-call latency was 2.53 s over 735 practice calls and 2.59 s over
 81 Isaac calls.
 
@@ -96,7 +117,7 @@ Median model-call latency was 2.53 s over 735 practice calls and 2.59 s over
 | Task | Input | Output |
 |---|---|---|
 | plan | scene + fleet lessons | arm speed, pour height, tilt speed, tilt angle, justification |
-| verify | policy, evidence, claim (Banyan Sapling's inputs) | label, status, reason |
+| verify (stand-in only) | policy, evidence, claim in one message | label, status, reason |
 | lesson | description, settings used, what went wrong | one-sentence lesson + match words |
 
 Instructions and schemas are fixed per task; anything that changes per call goes in

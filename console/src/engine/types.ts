@@ -73,7 +73,8 @@ export type ChatItem =
   | { role: "fix"; fix: Fix };
 
 export interface Manifest {
-  phases?: string[]; policy?: string; claim?: string; ranges?: Record<string, [number, number]>;
+  phases?: string[]; policy?: string; ranges?: Record<string, [number, number]>;
+  sapling?: { policy: string; phase_steps: Record<string, string> };
   tasks?: Record<string, { instructions: string; schema: unknown }>;
 }
 

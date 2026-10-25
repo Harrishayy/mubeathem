@@ -52,9 +52,12 @@ def test_sapling_gets_policy_evidence_and_claim_as_separate_fields(server):
     verdict = SaplingVerifier(url, on_call=lambda **c: calls.append(c)).verify("No person within 5 m.", PLAN, "pour")
 
     assert verdict.go and verdict.source == "sapling"
-    assert seen[0]["policy"] == tasks.SAFETY_POLICY
-    assert seen[0]["claim"] == tasks.SAFETY_CLAIM
-    assert seen[0]["evidence"].startswith("No person within 5 m. Next phase: pour.")
+    assert seen[0] == {
+        "policy": tasks.SAPLING_POLICY,
+        "evidence": "Next phase: pour (phase 2 of 3; the approach is finished). No person within 5 m. "
+                    "Planned settings: arm_speed 0.5, pour_height_cm 3, tilt_speed 0.3, tilt_angle_deg 120.",
+        "claim": "The robot may run the pour phase now.",
+    }
     assert calls[0]["task"] == "verify" and calls[0]["via"] == "sapling"
 
 
@@ -65,14 +68,33 @@ def test_stand_in_message_is_unchanged_so_its_mubit_task_stays_one_task():
         "\n\nCLAIM: It is safe to run the next phase of this plan now.")
 
 
-def test_only_a_decided_supported_answer_lets_the_robot_move():
-    assert verdict_from_sapling(sapling_answer("supported")).go
-    violation = verdict_from_sapling(sapling_answer("violation"))
-    assert not violation.go and violation.label == "violation" and violation.status == "decided"
-    unsure = verdict_from_sapling(sapling_answer("unsure", raw="supported",
-                                                 prediction_set=["supported", "insufficient_information"]))
-    assert not unsure.go and unsure.status == "unsure" and unsure.label == "supported"
+def test_the_robot_acts_on_saplings_top_label_and_keeps_its_calibrated_status():
+    unsure_but_supported = verdict_from_sapling(sapling_answer(
+        "unsure", raw="supported", prediction_set=["supported", "insufficient_information"], p=0.52))
+    assert unsure_but_supported.go and unsure_but_supported.calibrated == "unsure"
+    assert "supported (52%)" in unsure_but_supported.reason and "unsure" in unsure_but_supported.reason
+
+    for top in ("violation", "insufficient_information", "inconsistent_context"):
+        verdict = verdict_from_sapling(sapling_answer("unsure", raw=top, prediction_set=[top, "supported"]))
+        assert not verdict.go and verdict.label == top
     assert not verdict_from_sapling({"status": "fine"}).go
+
+
+def test_a_sapling_violation_holds_then_a_clear_scene_resumes(server, tmp_path):
+    url, _, answers = server
+    answers.extend([(200, sapling_answer("unsure", raw="violation", prediction_set=["violation", "supported"]))]
+                   + [(200, sapling_answer("unsure", raw="supported", prediction_set=["supported", "violation"]))] * 3)
+
+    class Planner(FakeModel):
+        def verify(self, state, plan, phase):
+            return MubitModel(None, verifier=SaplingVerifier(url)).verify(state, plan, phase)
+
+    world, log = FakeWorld(), Log()
+    store = LessonStore(tmp_path / "l.json")
+    store.add("Small loose items scatter: tilt_speed 0.3 or lower.", ["loose", "nuts"], "robot-A")
+    assert run_task(world, Planner(), store, log, "r") == "success"
+    assert world.holds == 1
+    assert [d["by"] for k, d in log.events if k == "safety"] == ["sapling"] * 4
 
 
 def test_a_failed_sapling_call_stops_the_robot(server, tmp_path):
