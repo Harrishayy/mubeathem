@@ -5,3 +5,8 @@ __pycache__/
 .pytest_cache/
 node_modules/
 .DS_Store
+# Recordings and their physics files stay on the machine that made them; evidence/ commits only the data.
+/evidence/**/*.mp4
+/evidence/**/*.physics.json
+/evidence/**/*.render.json
+/evidence/**/*.presentation.json

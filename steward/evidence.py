@@ -25,6 +25,9 @@ from . import config
 EVIDENCE_DIR = config.ROOT / "evidence"
 TEXT = {".json", ".jsonl", ".log", ".txt", ".md", ".py", ".csv", ".html", ".yaml", ".yml", ".sh", ".ts", ".tsx", ".js"}
 REDACTED = "<redacted endpoint>"
+# Recordings and the files bound to them stay on the machine that made them. The report
+# keeps each recording's measured metrics, so the console still shows every result.
+LOCAL_ONLY = ("*.mp4", "*.physics.json", "*.render.json", "*.presentation.json")
 # Hosted endpoints whose URL alone would let someone spend our credits.
 ENDPOINT = re.compile(r"https?://[A-Za-z0-9.-]*(?:modal\.run|ngrok(?:-free)?\.(?:app|io|dev)|trycloudflare\.com)[^\s\"'<>)\]]*")
 SHAPES = [
@@ -92,7 +95,7 @@ def export_take(take, runs=config.RUNS_DIR, out=EVIDENCE_DIR):
         raise SystemExit(f"No take {log}.")
     if not is_real_take(log):
         raise SystemExit(f"{take} is an offline or fixture take; evidence holds real takes only.")
-    files = [p for p in (runs / "takes").glob(f"{take}.*")] + [p for p in [runs / "web" / f"{take}.mp4"] if p.exists()]
+    files = [p for p in (runs / "takes").glob(f"{take}.*") if not any(p.match(pattern) for pattern in LOCAL_ONLY)]
     for source in files:
         copy(source, out / source.relative_to(runs))
     return files
@@ -106,17 +109,27 @@ def export_security(run, runs=config.RUNS_DIR, out=EVIDENCE_DIR):
     data = json.loads(report.read_text())
     if data.get("mode") != "live" or data.get("offline") or data.get("fixture"):
         raise SystemExit(f"{run} is not a live run; evidence holds real runs only.")
-    files = [p for p in directory.rglob("*") if p.is_file() and not p.name.endswith(".tmp")]
+    files = [p for p in directory.rglob("*") if p.is_file() and not p.name.endswith(".tmp")
+             and not any(p.match(pattern) for pattern in LOCAL_ONLY)]
     for source in files:
         copy(source, out / source.relative_to(runs))
     return files
 
 
+LOCAL_DIRS = {".git", "node_modules", "runs", ".next", "__pycache__", ".pytest_cache"}
+
+
 def committed_files():
-    """Every file git would commit: tracked, plus untracked files that aren't ignored."""
-    out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-                         cwd=config.ROOT, capture_output=True, check=True).stdout
-    return [config.ROOT / p for p in out.decode().split("\0") if p]
+    """Every file git would commit: tracked, plus untracked files that aren't ignored. Without
+    git (a downloaded archive), every file outside the folders .gitignore keeps local."""
+    try:
+        out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                             cwd=config.ROOT, capture_output=True, check=True).stdout
+        return [config.ROOT / p for p in out.decode().split("\0") if p]
+    except (OSError, subprocess.CalledProcessError):
+        return [p for p in config.ROOT.rglob("*") if p.is_file() and p.name != ".env"
+                and not LOCAL_DIRS & set(p.relative_to(config.ROOT).parts)
+                and not any(p.match(pattern) for pattern in LOCAL_ONLY)]
 
 
 def check(paths):

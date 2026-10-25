@@ -89,11 +89,16 @@ with sync_playwright() as p:
     if not report:
         notes.append("skip no completed safety report in the runs dir")
     else:
-        case = next(c for c in report["cases"] if c["videos"]["baseline"])
-        status, headers, _ = request(f"/api/safety/{report['run_id']}/{case['id']}/baseline/video", headers={"Range": "bytes=0-1023"})
-        check(status == 206 and headers.get("Content-Type") == "video/mp4", f"a paired safety video seeks ({status})")
-        page.wait_for_selector('[data-panel="safety"] video', timeout=20000)
-        check(page.locator('[data-panel="safety"] video').count() >= 2, "the Safety lab shows both recordings")
+        page.wait_for_selector('[data-panel="safety"] h1', timeout=20000)
+        case = next((c for c in report["cases"] if c["videos"]["baseline"]), None)
+        if not case:  # evidence/ commits reports without their recordings
+            notes.append("skip the safety report's recordings aren't on this machine")
+            check(page.locator('[data-panel="safety"] [role="alert"]').count() == 0, "the Safety lab shows the report without recordings, with no errors")
+        else:
+            status, headers, _ = request(f"/api/safety/{report['run_id']}/{case['id']}/baseline/video", headers={"Range": "bytes=0-1023"})
+            check(status == 206 and headers.get("Content-Type") == "video/mp4", f"a paired safety video seeks ({status})")
+            page.wait_for_selector('[data-panel="safety"] video', timeout=20000)
+            check(page.locator('[data-panel="safety"] video').count() >= 2, "the Safety lab shows both recordings")
     shot(page, "safety")
 
     # --- writes: only this console's own pages, only JSON --------------------------------

@@ -9,6 +9,8 @@ import type { SafetyReport, SafetyResult } from "./types";
 
 // No dots, slashes, encoded paths or filesystem paths supplied by reports.
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,159}$/;
+/** A recording's file name, as reports name them: "<case>.<variant>.mp4". */
+const ID_FILE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,200}\.mp4$/;
 const root = () => path.join(runsDir(), "security");
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const finite = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0;
@@ -122,11 +124,17 @@ function readReport(id: string): SafetyReport | null {
   if (!ID.test(id)) return null;
   const file = path.join(root(), id, "report.json");
   if (!contained(file) || !statSync(file).isFile() || statSync(file).size > 32 * 1024 * 1024) return null;
-  const st = statSync(file), key = `${st.size}:${st.mtimeMs}`, hit = cache.get(file);
+  const st = statSync(file), key = `${st.size}:${st.mtimeMs}:${statSync(path.dirname(file)).mtimeMs}`, hit = cache.get(file);
   if (hit?.key === key) return hit.report;
   let report: SafetyReport | null = null;
   try { const data: unknown = JSON.parse(readFileSync(file, "utf8")); report = validReport(data, id) ? scrub(data) as SafetyReport : null; }
   catch { report = null; }
+  // Recordings stay on the machine that made them (evidence/ commits only the data), so a
+  // recording the report names but this copy lacks is shown as not recorded, not as broken.
+  if (report) for (const c of report.cases) for (const v of ["baseline", "protected"] as const) {
+    const video = c.videos[v];
+    if (video && !(ID_FILE.test(video) && contained(path.join(root(), id, video)))) c.videos[v] = null;
+  }
   cache.set(file, { key, report });
   return report;
 }

@@ -195,7 +195,8 @@ served next to Isaac Sim. It reads the policy, the evidence and the claim separa
 label with probabilities. We reworded the rules for it and scored that wording with
 `sapling/probe.py`. On the DGX: **65 of 69 checks right, 0 of 21 unsafe plans approved, about
 0.85 s per check.** The same 69 cases on the Modal H100 deployment: **64 of 69 right, 1 of 21
-unsafe approved**, about 0.5 s per check (`runs/security/infra/validation.json`). That miss is why
+unsafe approved**, about 0.5 s per check (`validation` in
+`evidence/security/safety-20261025-showcase/report.json`). That miss is why
 the Safety lab shows its wider probe beside every comparison.
 
 The loop fails closed. The robot moves only on `supported`. A `violation` or missing information

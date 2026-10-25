@@ -58,7 +58,9 @@ export default function CallInspector() {
           <div><dt>{ep.take ? "Take" : "Episode"}</dt><dd>{ep.take ? `${ep.take} · attempt ${ep.attempt}` : `#${ep.n}`}</dd></div>
           <div><dt>At</dt><dd className="mono">{fmtClock(ep.start + e.at, true)} · {e.at.toFixed(2)} s in</dd></div>
           <div><dt>Latency</dt><dd className="mono">{e.ms} ms</dd></div>
-          {e.request_id && <div><dt>Request</dt><dd className="mono">{e.request_id}</dd></div>}
+          {/* Mubit's own id for the call (x-middleware-request-id), as its console lists it; request_id is the provider's. */}
+          {e.mubit_request_id && <div><dt>Mubit request</dt><dd className="mono">{e.mubit_request_id}</dd></div>}
+          {e.request_id && <div><dt>{e.mubit_request_id ? "Provider request" : "Request"}</dt><dd className="mono">{e.request_id}</dd></div>}
           {e.model && <div><dt>Model</dt><dd className="mono">{e.model}</dd></div>}
           {e.usage && <div><dt>Tokens</dt><dd className="mono">{e.usage.prompt_tokens ?? "?"} in · {e.usage.completion_tokens ?? "?"} out</dd></div>}
         </dl>
