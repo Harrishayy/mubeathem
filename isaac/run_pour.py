@@ -47,7 +47,7 @@ import pinocchio  # noqa: F401,E402  (the pour task's config imports Pink IK)
 app = AppLauncher(args).app
 
 from isaac.pour_world import PourWorld  # noqa: E402
-from steward import config  # noqa: E402
+from steward import config, tasks  # noqa: E402
 from steward.events import EventLog  # noqa: E402
 from steward.lessons import LessonStore  # noqa: E402
 from steward.loop import run_task  # noqa: E402
@@ -74,7 +74,8 @@ def main():
         log("take", mode="isaac", demo=args.demo, use_lessons=not args.no_lessons,
             lessons=[] if args.no_lessons else store.lessons,
             verifier="sapling" if sapling else "stand-in",
-            sapling_weights=sapling["weights_sha256"] if sapling else None)
+            sapling_weights=sapling["weights_sha256"] if sapling else None,
+            model=config.MODEL, lessons_file=str(store.path), steward=tasks.manifest())
 
         if args.video:
             world.start_recording(takes_dir / f"{take}.mp4")

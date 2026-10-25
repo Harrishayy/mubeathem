@@ -144,3 +144,21 @@ def lesson_message(subject, plan, reason):
         f"Settings used: {json.dumps(plan_settings(plan))}\n"
         f"What went wrong: {reason}"
     )
+
+
+# --- the manifest -------------------------------------------------------------
+
+def manifest():
+    """Everything fixed per task, logged once in each take's `take` event, so a reader of
+    the log (the console) can show the whole prompt behind any call."""
+    return {
+        "phases": list(PHASES),
+        "policy": SAFETY_POLICY,
+        "claim": SAFETY_CLAIM,
+        "ranges": {key: list(bounds) for key, bounds in PLAN_RANGES.items()},
+        "tasks": {
+            "plan": {"instructions": PLAN_INSTRUCTIONS, "schema": PLAN_SCHEMA},
+            "verify": {"instructions": VERIFY_INSTRUCTIONS, "schema": VERIFY_SCHEMA},
+            "lesson": {"instructions": LESSON_INSTRUCTIONS, "schema": LESSON_SCHEMA},
+        },
+    }

@@ -5,6 +5,10 @@ The spill outcome here is a toy formula, not physics. Say "text-only practice ru
 when you mention these. Every plan, verdict and lesson is still a live call.
 
     python -m steward.practice --episodes 40 --workers 4
+    python -m steward.practice --offline     # scripted Mubit and Sapling stand-ins, no keys
+
+--offline runs the same loop against steward/offline.py, so the console can be tried
+end to end without spending anything; its takes say offline: true.
 """
 
 import argparse
@@ -13,11 +17,12 @@ import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
-from . import config
+from . import config, tasks
 from .events import EventLog
 from .lessons import LessonStore
 from .loop import run_task
 from .model import MubitModel, mubit_client
+from .offline import OfflineClient, OfflineSapling
 from .sapling import SaplingVerifier
 
 # (description, how readily it bounces or slides out of a stream)
@@ -94,27 +99,35 @@ def main():
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--lessons", default=str(config.RUNS_DIR / "practice-lessons.json"))
+    parser.add_argument("--take", default=None, help="Name for this run's take (default: a timestamp).")
+    parser.add_argument("--offline", action="store_true",
+                        help="Scripted Mubit and Sapling stand-ins (steward/offline.py): no keys, no network.")
     args = parser.parse_args()
 
-    client = mubit_client()
+    client = OfflineClient(args.seed) if args.offline else mubit_client()
     store = LessonStore(args.lessons)
-    log = EventLog(config.RUNS_DIR, take=None)
-    log("take", mode="practice", lessons=store.lessons, use_lessons=True,
-        verifier="sapling" if config.SAPLING_URL else "stand-in")
+    log = EventLog(config.RUNS_DIR, take=args.take)
+    verifier = "sapling-offline" if args.offline else "sapling" if config.SAPLING_URL else "stand-in"
+    log("take", mode="practice", offline=args.offline, lessons=store.lessons, use_lessons=True,
+        verifier=verifier, model=config.MODEL, lessons_file=str(args.lessons), steward=tasks.manifest())
     calls = Counter()
     calls_lock = threading.Lock()
 
     def episode(index):
         robot = f"practice-{index % args.workers + 1}"
-        rng = random.Random(None if args.seed is None else args.seed + index)
+        seed = None if args.seed is None else args.seed + index
+        rng = random.Random(seed)
 
-        def on_call(task, ms, via, request_id=None):
+        def on_call(**call):
             with calls_lock:
-                calls[f"{task} via {via}"] += 1
-            log("call", robot=robot, task=task, ms=ms, via=via, request_id=request_id)
+                calls[f"{call['task']} via {call['via']}"] += 1
+            log("call", robot=robot, **call)
 
-        sapling = SaplingVerifier(config.SAPLING_URL, on_call=on_call) if config.SAPLING_URL else None
-        model = MubitModel(client, on_call=on_call, verifier=sapling)
+        if args.offline:
+            sapling = OfflineSapling(on_call=on_call, seed=seed)
+        else:
+            sapling = SaplingVerifier(config.SAPLING_URL, on_call=on_call) if config.SAPLING_URL else None
+        model = MubitModel(client, on_call=on_call, verifier=sapling, via="offline" if args.offline else None)
         return run_task(PracticeWorld(robot, rng), model, store, log, robot)
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:

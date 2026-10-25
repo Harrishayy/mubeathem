@@ -16,12 +16,13 @@ from .model import Verdict
 def verdict_from_sapling(out):
     status, raw = out.get("status"), out.get("raw_label")
     probabilities = out.get("probabilities") or {}
+    detail = {"raw_label": raw, "prediction_set": out.get("prediction_set"), "probabilities": probabilities}
     if status in tasks.LABELS:
-        return Verdict(status, "decided", f"Sapling: {status} ({probabilities.get(status, 0):.0%}).", "sapling")
+        return Verdict(status, "decided", f"Sapling: {status} ({probabilities.get(status, 0):.0%}).", "sapling", detail)
     if status == "unsure" and raw in tasks.LABELS:
         options = " or ".join(out.get("prediction_set") or [raw])
-        return Verdict(raw, "unsure", f"Sapling is unsure: {options}.", "sapling")
-    return Verdict("insufficient_information", "unsure", f"Unreadable Sapling answer: {out}", "sapling")
+        return Verdict(raw, "unsure", f"Sapling is unsure: {options}.", "sapling", detail)
+    return Verdict("insufficient_information", "unsure", f"Unreadable Sapling answer: {out}", "sapling", detail)
 
 
 class SaplingVerifier:
@@ -37,13 +38,24 @@ class SaplingVerifier:
             return json.load(resp)
 
     def verify(self, state, plan, phase):
-        body = json.dumps(tasks.verify_fields(state, plan, phase)).encode()
-        request = urllib.request.Request(f"{self.url}/verify", data=body,
+        """on_call sees the three fields sent and Sapling's whole answer (see steward/EVENTS.md)."""
+        fields = tasks.verify_fields(state, plan, phase)
+        request = urllib.request.Request(f"{self.url}/verify", data=json.dumps(fields).encode(),
                                          headers={"Content-Type": "application/json"})
         start = time.perf_counter()
-        with urllib.request.urlopen(request, timeout=self.timeout) as resp:
-            out = json.load(resp)
-        ms = round((time.perf_counter() - start) * 1000)
-        if self.on_call:
-            self.on_call(task="verify", ms=ms, via="sapling")
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as resp:
+                out = json.load(resp)
+        except Exception as error:
+            self._report(ms=_ms(start), sent=fields, error=str(error))
+            raise
+        self._report(ms=_ms(start), sent=fields, got=out)
         return verdict_from_sapling(out)
+
+    def _report(self, **call):
+        if self.on_call:
+            self.on_call(task="verify", via="sapling", **call)
+
+
+def _ms(start):
+    return round((time.perf_counter() - start) * 1000)

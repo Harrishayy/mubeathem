@@ -9,12 +9,14 @@ frames without moving any in time, so the log stays in sync.
 """
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TAKES = ROOT / "runs/takes"
-WEB = ROOT / "runs/web"
+RUNS = Path(os.environ.get("STEWARD_RUNS_DIR", ROOT / "runs"))  # as steward/config.py reads it
+TAKES = RUNS / "takes"
+WEB = RUNS / "web"
 
 
 def story(events):

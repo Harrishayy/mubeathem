@@ -16,6 +16,7 @@ class Verdict:
     status: str
     reason: str
     source: str = "stand-in"  # "sapling" when Banyan Sapling made the check
+    detail: dict | None = None  # Sapling's raw_label, prediction_set and probabilities
 
     @property
     def go(self):
@@ -40,14 +41,19 @@ def mubit_client():
 
 
 class MubitModel:
-    """One robot's view of the three tasks. on_call(task=, ms=, via=, request_id=) sees each
-    call. With a verifier (Sapling), safety checks go to it instead of through Mubit."""
+    """One robot's view of the three tasks. on_call(task=, ms=, via=, ...) sees each call,
+    with what was sent and what came back (see steward/EVENTS.md). With a verifier
+    (Sapling), safety checks go to it instead of through Mubit."""
 
-    def __init__(self, client, model=config.MODEL, on_call=None, verifier=None):
+    via = "mubit"
+
+    def __init__(self, client, model=config.MODEL, on_call=None, verifier=None, via=None):
         self.client = client
         self.model = model
         self.on_call = on_call
         self.verifier = verifier
+        if via:
+            self.via = via
 
     def _call(self, task, instructions, message, schema):
         kwargs = {
@@ -63,12 +69,26 @@ class MubitModel:
         }
         if config.TEMPERATURE is not None:
             kwargs["temperature"] = float(config.TEMPERATURE)
+        # The instructions and schema are fixed per task and logged once per take (the
+        # take event's `steward` manifest), so each call logs only the user message.
+        sent = {"user": message}
         start = time.perf_counter()
-        resp = self.client.chat.completions.create(**kwargs)
-        ms = round((time.perf_counter() - start) * 1000)
+        try:
+            resp = self.client.chat.completions.create(**kwargs)
+            content = resp.choices[0].message.content
+            got = json.loads(content)
+        except Exception as error:
+            self._report(task=task, ms=_ms(start), model=self.model, sent=sent, error=str(error))
+            raise
+        choice = resp.choices[0]
+        self._report(task=task, ms=_ms(start), request_id=getattr(resp, "id", None),
+                     model=getattr(resp, "model", None) or self.model, sent=sent, got=got,
+                     usage=_usage(resp), finish_reason=getattr(choice, "finish_reason", None))
+        return got
+
+    def _report(self, **call):
         if self.on_call:
-            self.on_call(task=task, ms=ms, via="mubit", request_id=resp.id)
-        return json.loads(resp.choices[0].message.content)
+            self.on_call(via=self.via, **call)
 
     def plan(self, state, lessons):
         raw = self._call("plan", tasks.PLAN_INSTRUCTIONS,
@@ -86,3 +106,15 @@ class MubitModel:
         raw = self._call("lesson", tasks.LESSON_INSTRUCTIONS,
                          tasks.lesson_message(subject, plan, reason), tasks.LESSON_SCHEMA)
         return {"text": raw["text"].strip(), "applies_to": raw["applies_to"]}
+
+
+def _ms(start):
+    return round((time.perf_counter() - start) * 1000)
+
+
+def _usage(resp):
+    usage = getattr(resp, "usage", None)
+    if usage is None:
+        return None
+    keys = ("prompt_tokens", "completion_tokens", "total_tokens")
+    return {k: getattr(usage, k, None) for k in keys if getattr(usage, k, None) is not None} or None
