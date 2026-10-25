@@ -1,0 +1,61 @@
+# Steward: notes for agents
+
+Steward is a governing layer for robot fleets. For each attempt it recalls lessons, plans
+through Mubit, safety-checks every phase with Banyan Sapling, acts, checks the result, and
+writes a lesson when it fails. `console/` is the Next.js website that shows all of it: takes,
+video, every call and what came back, failures, lessons, and the backend services.
+
+## Map
+
+| Path | What it is |
+|---|---|
+| `steward/` | The loop (`loop.py`), model calls (`model.py` Mubit, `sapling.py` Sapling, `offline.py` scripted stand-ins), tasks and prompts (`tasks.py`), lessons (`lessons.py`), event log (`events.py`), practice runs (`practice.py`) |
+| `steward/EVENTS.md` | **The contract.** What every log line, call payload and take file holds. The console reads only these files. |
+| `isaac/` | Isaac Sim takes on the DGX (`run_pour.py`, `pour_world.py`) |
+| `sapling/serve.py` | Serves Banyan Sapling on the DGX (`SAPLING_URL`) |
+| `video/` | `pull.sh` copies takes from the DGX; `prepare.py` makes the player copies in `runs/web/` |
+| `console/` | The Next.js app, run with pnpm. Services live in `src/services/<id>/` (a `server.ts` behind `/api/<id>`, plus a `client.ts`), registered in `src/services/server/registry.ts`. Panels are folders in `src/panels/`, registered in `src/panels/index.ts` and placed in `src/tabs.ts`. |
+| `console/e2e/` | `smoke.py` drives the site in a browser against a real runs dir |
+| `runs/` | Gitignored output: `takes/`, `web/`, `latest.jsonl`, `practice-lessons.json` |
+| `player/`, `panel/` | The older static player and live panel (`video/serve.py`) |
+| `apps/`, `packages/`, `test-results/` | Untracked leftovers of the earlier Cue product. Not part of Steward; leave them alone. |
+
+## Commands
+
+```bash
+python -m pytest -q tests                                  # offline, no model calls
+python -m steward.practice --offline --episodes 6          # whole loop, scripted stand-ins, free; never shown in the console
+python -m steward.practice --episodes 40 --workers 4       # live: real Mubit calls (spends the key)
+cd console && pnpm install && pnpm dev                     # http://localhost:3100
+cd console && pnpm typecheck && pnpm build
+STEWARD_RUNS_DIR=<real runs dir> pnpm --dir console start -p 3199
+python3 console/e2e/smoke.py http://127.0.0.1:3199          # read-only; --write / --live change state
+```
+
+## Settings
+
+All of these live in `.env` at the repo root. Python and the console read it the same way: the real environment wins over the file.
+
+| Variable | What it does |
+|---|---|
+| `MUBIT_API_KEY` | Required for live runs and Mubit debriefs. |
+| `MUBIT_BASE_URL` | Mubit's gateway URL. |
+| `STEWARD_MODEL` | The model Steward asks Mubit for. |
+| `SAPLING_URL` | Where `sapling/serve.py` answers. |
+| `STEWARD_RUNS_DIR` | Where runs are written and read (default `<repo>/runs`). |
+| `STEWARD_PYTHON` | The Python the console uses to start practice runs. |
+| `STEWARD_SERVICES_OFF` | Comma-separated console service ids to switch off. |
+
+## Changing things end to end
+
+1. **A new field or event.** Log it in `steward/`, document it in `steward/EVENTS.md`, test it in `tests/test_events.py`, then read it in the console. Real runs are turned into console state in one place, `console/src/sources/runs/build.ts`.
+2. **A new backend service.** Create `console/src/services/<id>/server.ts` exporting `service: ServerService` (routes, health, env). Add one line to `src/services/server/registry.ts`. Put the browser side in `client.ts`, using `services/http.ts`. Health checks must never make paid calls.
+3. **A new panel.** Copy `console/src/panels/_template`, register it in `src/panels/index.ts`, and add `{ id }` to a tab in `src/tabs.ts`. Panels read state through `useConsole()` and change it only through `actions`.
+
+## Rules
+
+- Never fabricate data. The console shows only real takes: it has no demo source, and takes marked `offline` or `fixture` are never served (`isReal` in `console/src/services/runs/server.ts` and `console/src/sources/runs/build.ts`). The task (phases, ranges, policy) comes from each take's manifest, never from console code.
+- Health checks and page loads must not spend money. Only a run the operator starts may make live Mubit calls.
+- Keep the safety loop fail-closed: a robot moves only on a `supported` + `decided` verdict.
+- Modal deploys use the token in `.env`, never the user's own Modal CLI login.
+- Commit only when asked, and never add AI co-author trailers. Don't push or rebase without asking.
