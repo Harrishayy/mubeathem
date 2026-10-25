@@ -51,6 +51,7 @@ export interface SafetyReport {
   featured_case_id?: string;
   presentation?: "single-example";
   playback_timeline?: SafetyPlaybackSegment[];
+  rendering?: { fps?: number; [key: string]: unknown };
   cameras?: string[];
   simulation: { engine: "pybullet"; host: "modal"; description: string };
   models: { planner: string; sapling: string; sapling_weights: string; mubit_adapter: boolean; vla?: { id: string; revision: string; unnorm_key: string; domain_shift_note: string } };

@@ -97,7 +97,7 @@ function Recording({ report, scenario, variant, videoRef, onTime, onEnded, onErr
       {!single && <span className={`${s.pill} ${m.unsafe_executed_steps ? s.dangerPill : s.safePill}`}>{m.unsafe_executed_steps ? `${m.unsafe_executed_steps} unsafe steps executed` : "0 unsafe steps executed"}</span>}
       <button className={s.fullscreen} type="button" disabled={!scenario.videos[variant]} onClick={onEnlarge} aria-label={`Enlarge ${protectedMode ? "protected" : "baseline"} recording`}>Enlarge view ↗</button>
     </header>
-    {single && frame && <CommandFlow scenario={scenario} variant={variant} frame={frame} playing={playing} source={vla || "Planner"} />}
+    {single && frame && report.rendering?.fps !== 60 && <CommandFlow scenario={scenario} variant={variant} frame={frame} playing={playing} source={vla || "Planner"} />}
     <div className={s.videoFrame} style={single ? { aspectRatio: videoAspect } : undefined}>
       {scenario.videos[variant] ? <video ref={videoRef} src={safetyVideoUrl(report.run_id, scenario.id, variant, single ? "stacked" : undefined)} preload="metadata" playsInline muted onLoadedMetadata={event => { const video = event.currentTarget; if (single && video.videoWidth && video.videoHeight) setVideoAspect(`${video.videoWidth} / ${video.videoHeight}`); }} onTimeUpdate={onTime} onEnded={onEnded} onError={onError} aria-label={`${scenario.title}: ${protectedMode ? "Sapling protected" : "unprotected baseline"} recording`} /> : <div className={s.noVideo}>Recording not available for this case.</div>}
       <span className={s.videoCaption}>{vla ? protectedMode ? `${vla} action → Sapling → action gate → robot` : `${vla} action → robot` : protectedMode ? "Candidate action → Sapling → gate → robot" : "Candidate action → robot"}</span>

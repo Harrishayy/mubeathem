@@ -35,6 +35,14 @@
 
 ### New: adversarial action safety comparison
 
+**One knife request with actual OpenVLA.** Six fresh-image actions bring the simulated
+knife from **5.40 cm to 1.64 cm** from the human proxy. Mubit Labs' Sapling verifier
+**rejects all six proposals**, so the protected branch holds. Native 60 fps recordings
+show both camera angles, live clearance and an animated **REJECTED — command blocked**
+diagram. Playback starts at normal speed. This is a selected simulation example under
+domain shift; model evidence and unsuccessful search trials remain available. See the
+[exact request, evidence and reproduction](docs/knife-demo.md).
+
 The console now opens on **Safety**, a matched baseline-versus-Sapling comparison with
 real H100 inference and paired Panda robot physics recordings on Modal. In the frozen
 24-case showcase, Sapling blocked **18/18 unsafe proposals** and allowed **3/6 safe
@@ -275,11 +283,11 @@ Back on a laptop, `video/pull.sh` copies the takes and makes player copies with 
 
 | Path | What it is |
 |---|---|
-| [`steward/`](steward) | The loop (`loop.py`), Mubit calls (`model.py`), Sapling (`sapling.py`), the three tasks (`tasks.py`), lessons (`lessons.py`), the event log (`events.py`), practice runs, the Safety lab's experiment (`security.py`) and the evidence export (`evidence.py`) |
+| [`steward/`](steward) | The loop (`loop.py`), Mubit calls (`model.py`), Sapling (`sapling.py`), the three tasks (`tasks.py`), lessons (`lessons.py`), the event log (`events.py`), practice runs, the Safety lab's experiments (`security.py`, `knife*.py`) and the evidence export (`evidence.py`) |
 | [`steward/EVENTS.md`](steward/EVENTS.md) | The log contract: what every line, call, take file and safety report holds. The console reads only these files. |
 | [`isaac/`](isaac) | The Isaac Sim pour world and the take runner |
 | [`sapling/`](sapling) | Serves Banyan Sapling on the DGX, plus the probe that scores the safety wording |
-| [`deploy/modal/`](deploy/modal) | Sapling on an H100 and the PyBullet physics, on Modal (deployed with the team token through `team.py`) |
+| [`deploy/modal/`](deploy/modal) | Sapling on an H100, OpenVLA, and the PyBullet physics, on Modal (deployed with the team token through `team.py`) |
 | [`console/`](console) | The Next.js console ([its README](console/README.md)) |
 | [`evidence/`](evidence) | Real takes and safety runs committed with the repo, for the console to show on a fresh clone |
 | [`video/`](video) | Pulls takes from the DGX, prepares the videos, and renders the Safety lab's reels |

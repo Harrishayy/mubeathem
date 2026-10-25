@@ -103,3 +103,48 @@ separate measurement. These are replayed Panda actions in PyBullet on Modal, not
 outputs, fluid simulation or injury estimates. Mubit planner calls retain their original
 manifest and replies; `models.mubit_adapter` is false. Wider infrastructure probe
 results and batching validation appear in `report.validation`, when available.
+
+### Knife / actual VLA extension
+
+Reports with `task: knife-handover` keep schema version 1 and the same event sequence,
+but have a task-specific plan: `{action: [7 finite values], duration_s, justification}`.
+`bowl_known` and `person_m` are not required for this task. Each check additionally
+records `instruction`, `action`, measured `telemetry`, full `physics_telemetry`, raw
+`vla_call` and the effective `execute` mask. The VLA call includes actual generated
+tokens, exact prompt, model revision, dataset statistics, image SHA-256 and runtime.
+Snapshots and input images are retained under `frames/<step>/`.
+
+`models.vla` supplies `{id, revision, unnorm_key, domain_shift_note}`. `cameras` names
+the simultaneous human-eye and side views. Physics outputs include source/job hashes,
+requested/applied targets, clipping, realized knife trajectory, minimum clearance,
+tool contacts and per-camera visibility. `safe_proposals[_allowed]` and
+`unsafe_proposals[_allowed]` count raw verifier decisions; `safe_allowed` counts whole
+safe episodes approved at every step. A denied episode stays held, even if later raw
+labels are supported. `mubit_calls` is zero for this experiment: the planner is actual
+OpenVLA, and Sapling is the Mubit Labs verifier. Earlier pour reports remain valid.
+
+`presentation: single-example` selects the focused viewer and is valid only for a
+one-case knife report. `featured_case_id` identifies that case. `selection` records
+the preserved development episode's path and SHA-256, prompt-search manifest and
+selection note. Selecting an observed approach for presentation does not turn it
+into a held-out benchmark. All development candidates remain on disk. The importer
+checks source-image hashes, independently decodes generated action tokens, verifies
+the observation histories and final measured trajectory, then obtains fresh Sapling
+decisions from the protected branch's measured state. It publishes only after both
+rendered physics jobs match their exact action and source hashes.
+
+The near-touch extension uses `scenario: near-close` and explicit `human_x_m` in
+both paired jobs. `scene_source_sha256` binds the closer placement, applied before
+all real VLA observations. Canonical jobs can use `render: false`; their trajectory
+and numeric metrics remain unchanged. Separate `*.render.json` files bind native
+60 fps camera recordings to each canonical file's SHA-256 and verify every shared
+measurement tick. The report retains those manifests in each variant's `rendering`.
+
+`playback_timeline` contains ordered `{start_s, end_s, step_index, kind,
+physics_start_s, physics_end_s}` segments. `step_index: null` is an initial hold;
+an end hold retains its last action index and fixed physics time. Diagrams use real
+recorded labels and admission masks. Clearance is interpolated from canonical
+telemetry in the page, and measured directly from dense geometry inside the video.
+Initial and final display holds freeze physics, while inference waiting time is
+omitted. `rendering.fps` describes the visual recording; canonical `fps` describes
+the original measurement cadence when no canonical video was generated.

@@ -32,6 +32,7 @@ function validReport(v: unknown, id: string): v is SafetyReport {
   if (!object(models) || ![models.planner, models.sapling, models.sapling_weights].every(string) || typeof models.mubit_adapter !== "boolean") return false;
   if (v.task !== undefined && !string(v.task)) return false;
   if (v.presentation !== undefined && (v.presentation !== "single-example" || v.task !== "knife-handover")) return false;
+  if (v.rendering !== undefined && (!object(v.rendering) || (v.rendering.fps !== undefined && (!finite(v.rendering.fps) || v.rendering.fps === 0)))) return false;
   if (v.cameras !== undefined && (!Array.isArray(v.cameras) || !v.cameras.every(string))) return false;
   if (models.vla !== undefined && (!object(models.vla) || ![models.vla.id, models.vla.revision, models.vla.unnorm_key, models.vla.domain_shift_note].every(string))) return false;
   if (!string(v.policy) || !Array.isArray(v.limitations) || !v.limitations.every(string) || !object(summary)) return false;

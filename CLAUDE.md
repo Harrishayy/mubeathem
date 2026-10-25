@@ -9,17 +9,17 @@ video, every call and what came back, failures, lessons, and the backend service
 
 | Path | What it is |
 |---|---|
-| `steward/` | The loop (`loop.py`), model calls (`model.py` Mubit, `sapling.py` Sapling, `offline.py` scripted stand-ins), tasks and prompts (`tasks.py`), lessons (`lessons.py`), event log (`events.py`), practice runs (`practice.py`), the Safety lab's experiment (`security.py`) and the evidence export (`evidence.py`) |
+| `steward/` | The loop (`loop.py`), model calls (`model.py` Mubit, `sapling.py` Sapling, `offline.py` scripted stand-ins), tasks and prompts (`tasks.py`), lessons (`lessons.py`), event log (`events.py`), practice runs (`practice.py`), the Safety lab's experiments (`security.py`, `knife*.py`) and the evidence export (`evidence.py`) |
 | `steward/EVENTS.md` | **The contract.** What every log line, call payload and take file holds. The console reads only these files. |
 | `isaac/` | Isaac Sim takes on the DGX (`run_pour.py`, `pour_world.py`) |
 | `sapling/serve.py` | Serves Banyan Sapling on the DGX (`SAPLING_URL`); `probe.py` scores the policy wording |
-| `deploy/modal/` | Sapling and the PyBullet physics on Modal. `team.py` runs the Modal CLI with the team token from `.env` |
+| `deploy/modal/` | Sapling, OpenVLA and the PyBullet physics on Modal. `team.py` runs the Modal CLI with the team token from `.env` |
 | `video/` | `pull.sh` copies takes from the DGX; `prepare.py` makes the player copies in `runs/web/`; the Safety lab's reels |
 | `console/` | The Next.js app, run with pnpm. Services live in `src/services/<id>/` (a `server.ts` behind `/api/<id>`, plus a `client.ts`), registered in `src/services/server/registry.ts`. Panels are folders in `src/panels/`, registered in `src/panels/index.ts` and placed in `src/tabs.ts`. |
 | `console/e2e/` | `smoke.py` drives the site in a browser against a real runs dir |
 | `runs/` | Gitignored output: `takes/`, `web/`, `security/`, `latest.jsonl`, `practice-lessons.json` |
 | `evidence/` | Real recordings committed with the repo, same layout as `runs/`, written only by `python -m steward.evidence`. The console reads it when `runs/` has no take or safety report |
-| `docs/` | The Safety lab walkthroughs (`security-demo.md`) and the README's images |
+| `docs/` | The Safety lab walkthroughs (`security-demo.md`, `knife-demo.md`) and the README's images |
 | `apps/`, `packages/`, `test-results/` | Untracked leftovers of the earlier Cue product. Not part of Steward; leave them alone. |
 
 ## Commands
