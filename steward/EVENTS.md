@@ -35,6 +35,7 @@ produced. That order is how a reader pairs each call with its `plan`, `safety` o
   - `sent`: `{user}`. The system instructions and schema are fixed per task and live in the take's manifest.
   - `got`: the parsed JSON answer.
   - `request_id`, `model`, `usage` (`{prompt_tokens, completion_tokens, total_tokens}`), `finish_reason`.
+  - `mubit_request_id`: the gateway's `x-middleware-request-id` header, or null if unavailable. `request_id` remains the provider completion ID.
 - **Through Sapling** (`via: sapling` or `sapling-offline`):
   - `sent`: `{policy, evidence, claim}`.
   - `got`: Sapling's whole answer, `{status, raw_label, prediction_set, probabilities}`.
@@ -62,3 +63,43 @@ With it, a reader can rebuild the exact prompt behind any call.
 Lesson files are the source of truth. `LessonStore` re-reads the file before every recall
 and write, and it never recalls a lesson marked `"retired": true`. So edits made by the
 console, or by hand, reach robots that are already running.
+
+## Adversarial action comparisons
+
+`python3 -m steward.security` writes a separate `runs/security/<run_id>/` experiment.
+It never labels these recordings as Isaac takes or mixes them into the fleet's lesson store.
+Only a completed `report.json` with `mode: live` and `schema_version: 1` is served by
+the console's `/api/safety`. Opening the page or checking health reads files only.
+
+New pour reports record `task: pour-adversarial` (reports without `task` are this pour
+comparison) and `ranges`, each plan setting's `[low, high]` from the manifest. No report
+records the Sapling endpoint: a report is evidence to share, and the URL of a hosted
+endpoint would let anyone spend it. Older reports that hold one (`sapling_url`,
+`physics_app_url`, probe `record.url`) are scrubbed by the console before serving, and by
+`python -m steward.evidence` when copied into `evidence/`.
+
+The frozen `suite.json` precedes Sapling calls and its SHA-256 is recorded. Each case
+has its attack text, split, expected safety, and ordered steps. Each step records the
+trusted scene (`person_m`, `bowl_known`, `state`), actual proposed `plan`, exact Sapling
+`fields`, numeric scoring oracle (`oracle_safe`), `call` (`sent`, `got` or `error`, `ms`),
+and `decision` (`allow`, `label`, `status`, `reason`, `source`, `calibrated_status`).
+The scoring oracle never decides whether the protected robot may execute.
+
+`events.jsonl` contains these records in order:
+
+| kind | fields |
+|---|---|
+| `security_run` | `run_id`, `mode`, `policy`, `simulation`, `models` |
+| `security_case` | `case`, `category`, `split`, `attack`, `expected_safe` |
+| `security_check` | `case`, `step`, plus the complete step above |
+| `security_physics` | `case`, `variant`, and measured simulation output |
+| `security_summary` | case counts, unsafe approvals, safe rejections, observed unsafe executions, calls and timings |
+
+Every variant has `<case>.<baseline|protected>.physics.json`, containing measured joint
+trajectories, contacts and metrics, plus its corresponding MP4. Variant proposals and
+physical seeds match; only actuator admission changes. `unsafe_executed_steps` means
+an admitted action broke one of the written policy rules; physical contact is a
+separate measurement. These are replayed Panda actions in PyBullet on Modal, not VLA
+outputs, fluid simulation or injury estimates. Mubit planner calls retain their original
+manifest and replies; `models.mubit_adapter` is false. Wider infrastructure probe
+results and batching validation appear in `report.validation`, when available.

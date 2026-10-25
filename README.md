@@ -24,7 +24,7 @@
   <tr>
     <td align="center"><h3>3/11 → 8/11</h3>first tries that landed<br>vs retries with a lesson</td>
     <td align="center"><h3>11/11</h3>takes succeeded<br>within three attempts</td>
-    <td align="center"><h3>0/21</h3>unsafe plans approved<br>by our safety verifier</td>
+    <td align="center"><h3>18/18</h3>unsafe actions blocked<br>by Sapling in the Safety lab</td>
     <td align="center"><h3>830+</h3>live AI calls<br>routed through Mubit</td>
   </tr>
 </table>
@@ -33,7 +33,20 @@
 
 ## How Mubit is used
 
-**Every decision the robot makes is an AI call through Mubit.** The settings it uses, the go or
+### New: adversarial action safety comparison
+
+The console now opens on **Safety**, a matched baseline-versus-Sapling comparison with
+real H100 inference and paired Panda robot physics recordings on Modal. In the frozen
+24-case showcase, Sapling blocked **18/18 unsafe proposals** and allowed **3/6 safe
+controls**. The wider reference probe also exposed **1 unsafe approval in 21 unsafe
+cases**; the interface preserves that miss and the safe false positives.
+
+These are scripted compromised action proposals, not a learned VLA evaluation. Mubit
+records a provider planner call; no Mubit adapter is invoked. The demo shows the value
+and limits of the gate without claiming universal safety. See the
+[demo walkthrough, evidence and reproduction commands](docs/security-demo.md).
+
+**In the original Isaac takes above, every decision was an AI call through Mubit.** The settings it uses, the go or
 no-go before every move, and every lesson it writes all come from these calls. Here's one attempt,
 with each Mubit call in blue:
 
@@ -167,8 +180,11 @@ A web console that reads the robots' own logs and shows everything they decided,
 - **Lessons.** The fleet's memory: what each lesson matches on, how often it was recalled, and how often recalls succeeded. Retire one and running robots stop recalling it.
 - **Debrief.** Ask an AI, through Mubit, why an attempt failed, and turn its answer into a fleet lesson with one click.
 - **Fleet.** Every robot at a glance, live while a run is writing.
+- **Safety lab.** The matched comparisons below: the same proposed actions with and without Sapling, side by side, with every check's input, probabilities and decision.
+- **System.** Every Mubit and Sapling call (what was sent, what came back, how long it took), each Mubit task's latency, and the health of every backend service.
 
-Nothing in the console is simulated: it shows only real takes, and with none it says so.
+Nothing in the console is simulated: it shows only real takes and completed live reports, and with none it says so.
+Opening it never makes a paid call.
 
 <img src="docs/console-failures.jpg" alt="The console's Failures tab: the failed attempt, the lesson it wrote, and the settings the retry changed">
 
@@ -177,7 +193,10 @@ Nothing in the console is simulated: it shows only real takes, and with none it 
 On the DGX, the safety check runs on **Banyan Sapling**, Mubit Labs' open-weights 23B verifier,
 served next to Isaac Sim. It reads the policy, the evidence and the claim separately and returns a
 label with probabilities. We reworded the rules for it and scored that wording with
-`sapling/probe.py`: **65 of 69 checks right, 0 of 21 unsafe plans approved, about 0.85 s per check.**
+`sapling/probe.py`. On the DGX: **65 of 69 checks right, 0 of 21 unsafe plans approved, about
+0.85 s per check.** The same 69 cases on the Modal H100 deployment: **64 of 69 right, 1 of 21
+unsafe approved**, about 0.5 s per check (`runs/security/infra/validation.json`). That miss is why
+the Safety lab shows its wider probe beside every comparison.
 
 The loop fails closed. The robot moves only on `supported`. A `violation` or missing information
 holds it for another check, contradictory evidence stops it for a person, and a failed call stops it.
@@ -208,8 +227,16 @@ corepack pnpm install         # the console pins pnpm 10; corepack uses that ver
 corepack pnpm dev             # http://localhost:3100
 ```
 
-The console reads takes from `runs/` (set `STEWARD_RUNS_DIR` to read another folder). Takes are
-recorded on the DGX; `video/pull.sh` copies them here.
+The console reads takes and safety reports from `runs/` (set `STEWARD_RUNS_DIR` to read another
+folder). Takes are recorded on the DGX; `video/pull.sh` copies them here. A fresh clone has no
+`runs/`, so the console shows `evidence/`: real takes and safety runs committed with the repo,
+copied there by `python -m steward.evidence`, which redacts endpoint URLs and local paths and stops
+on anything credential-shaped. The console never writes to `evidence/`.
+
+**Keys and credits.** No key or hosted endpoint URL is in the repo, and `tests/test_evidence.py`
+fails if one is about to be committed. Keys live only in your `.env`. The Modal Sapling deployment
+refuses checks without `SAPLING_TOKEN`. The console accepts writes only from its own pages, and
+`STEWARD_READ_ONLY=1` refuses them all for a console other people can reach.
 
 **Practice runs** exercise the whole loop without Isaac Sim, on a text-only world whose spill outcome
 is a toy formula:
@@ -247,13 +274,15 @@ Back on a laptop, `video/pull.sh` copies the takes and makes player copies with 
 
 | Path | What it is |
 |---|---|
-| [`steward/`](steward) | The loop (`loop.py`), Mubit calls (`model.py`), Sapling (`sapling.py`), the three tasks (`tasks.py`), lessons (`lessons.py`), the event log (`events.py`), practice runs |
-| [`steward/EVENTS.md`](steward/EVENTS.md) | The log contract: what every line, call and take file holds. The console reads only these files. |
+| [`steward/`](steward) | The loop (`loop.py`), Mubit calls (`model.py`), Sapling (`sapling.py`), the three tasks (`tasks.py`), lessons (`lessons.py`), the event log (`events.py`), practice runs, the Safety lab's experiment (`security.py`) and the evidence export (`evidence.py`) |
+| [`steward/EVENTS.md`](steward/EVENTS.md) | The log contract: what every line, call, take file and safety report holds. The console reads only these files. |
 | [`isaac/`](isaac) | The Isaac Sim pour world and the take runner |
 | [`sapling/`](sapling) | Serves Banyan Sapling on the DGX, plus the probe that scores the safety wording |
+| [`deploy/modal/`](deploy/modal) | Sapling on an H100 and the PyBullet physics, on Modal (deployed with the team token through `team.py`) |
 | [`console/`](console) | The Next.js console ([its README](console/README.md)) |
-| [`video/`](video) | Pulls takes from the DGX and prepares the videos |
-| [`tests/`](tests) | Offline tests of the loop, the Sapling verifier and the log contract |
+| [`evidence/`](evidence) | Real takes and safety runs committed with the repo, for the console to show on a fresh clone |
+| [`video/`](video) | Pulls takes from the DGX, prepares the videos, and renders the Safety lab's reels |
+| [`tests/`](tests) | Offline tests of the loop, the Sapling verifier, the log contract, the safety experiments and the evidence guard |
 
 **The loop** ([`steward/loop.py`](steward/loop.py)): for each attempt, reset the scene, recall lessons,
 plan, then for each phase verify before executing. Check the result and, on a failure, write a

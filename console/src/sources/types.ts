@@ -1,6 +1,6 @@
 // What a data source is. A source fills the engine state (src/engine/types.ts) and keeps
 // it current; panels never know which source is running, only which capabilities it has.
-// See src/sources/CLAUDE.md.
+// Real runs become state in one place, sources/runs/build.ts (see the repo's CLAUDE.md).
 
 import type { Store } from "@/engine/store";
 import type { Cap, Episode, Fix, Lesson, Settings, TaskKey } from "@/engine/types";

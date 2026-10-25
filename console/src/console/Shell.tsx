@@ -43,7 +43,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const { st } = useConsole();
   const router = useRouter();
   const path = usePathname();
-  const active = path.split("/")[1] || "fleet";
+  const active = path.split("/")[1] || TABS[0].id;
   useTick(["fleet", "lessons", "robots"], 300);
   useOn("navigate", (tab: string) => router.push(`/${tab}`));
 
@@ -60,6 +60,8 @@ export function Shell({ children }: { children: ReactNode }) {
   }, [router]);
 
   const badge = (id: string) => {
+    // The Safety lab reads its own reports, so the takes may not be loaded yet: no counts then.
+    if (!st.source.connected) return null;
     if (id === "lessons") return st.lessons.filter((l) => !l.retired).length;
     if (id === "fleet") return st.robots.filter((r) => !r.imported).length;
     if (id === "failures") return st.done.filter((e) => e.outcome === "failed" || e.outcome === "stopped").length || null;
@@ -67,7 +69,7 @@ export function Shell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="console">
+    <div className="console" style={active === "safety" ? { gridTemplateRows: "auto minmax(0, 1fr)" } : undefined}>
       <header className={s.top}>
         <div className={s.brand}>
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M3 17h6M6 17V12" /><circle cx="6" cy="11" r="1.6" /><path d="M7.3 10l4.8-4" /><circle cx="13.2" cy="5" r="1.4" /><path d="M14.4 5.8l2.4 3.4M15.2 9.8l1.6-.6" /></svg>
@@ -81,10 +83,9 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <span className="grow" />
-        <SourceStatus />
-        <Clock />
+        {active === "safety" ? <span className={s.live}>Recorded evaluations</span> : <><SourceStatus /><Clock /></>}
       </header>
-      <FleetSummary />
+      {active !== "safety" && <FleetSummary />}
       {children}
       <Toaster />
     </div>

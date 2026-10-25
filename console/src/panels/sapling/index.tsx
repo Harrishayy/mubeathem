@@ -66,7 +66,7 @@ export default function Sapling() {
               </div>
             </div>
           )}
-          <Check configured={!!health?.configured} up={!!health?.up} url={health?.url || null} />
+          <Check configured={!!health?.configured} up={!!health?.up} where={health?.where || null} />
         </div>
       )}
     </>
@@ -74,7 +74,7 @@ export default function Sapling() {
 }
 
 /** Send Sapling one policy / evidence / claim and see its answer. Prefilled from the latest check. */
-function Check({ configured, up, url }: { configured: boolean; up: boolean; url: string | null }) {
+function Check({ configured, up, where }: { configured: boolean; up: boolean; where: string | null }) {
   const { st } = useConsole();
   const last = [...st.calls].reverse().find((c) => isSapling(c.via) && st.episodes[c.epId]?.events[c.idx]?.sent);
   const sent = last ? st.episodes[last.epId].events[last.idx].sent : null;
@@ -87,12 +87,12 @@ function Check({ configured, up, url }: { configured: boolean; up: boolean; url:
   return (
     <details className={s.check}>
       <summary>Send Sapling a check by hand{configured ? "" : " · needs SAPLING_URL"}</summary>
-      {!configured ? <p className="subtle">Set SAPLING_URL in the repo&apos;s .env (for example an SSH tunnel to sapling/serve.py on the DGX) to send checks.</p> : (
+      {!configured ? <p className="subtle">Set SAPLING_URL in the repo&apos;s .env (an SSH tunnel to sapling/serve.py on the DGX, or the Modal deployment with SAPLING_TOKEN) to send checks.</p> : (
         <form onSubmit={async (e) => { e.preventDefault(); setBusy(true); setErr(null); try { setRes(await checkClaim(form)); } catch (x) { setErr((x as Error).message); } setBusy(false); }}>
           <label>Policy<textarea rows={3} value={form.policy} onChange={set("policy")} /></label>
           <label>Evidence<textarea rows={4} value={form.evidence} onChange={set("evidence")} /></label>
           <label>Claim<textarea rows={1} value={form.claim} onChange={set("claim")} /></label>
-          <div className={s.acts}><button className="btn sm primary" type="submit" disabled={busy || !up}>{busy ? "Checking…" : "Check"}</button><span className="subtle">{up ? `Sapling at ${url}` : `Sapling isn't answering at ${url}`}</span></div>
+          <div className={s.acts}><button className="btn sm primary" type="submit" disabled={busy || !up}>{busy ? "Checking…" : "Check"}</button><span className="subtle">{up ? `Sapling on ${where}` : `Sapling isn't answering on ${where}`}</span></div>
           {err && <p className={s.err}>{err}</p>}
           {res && <div className={s.res}><SaplingBars got={res} /><span className="subtle mono">{res.ms} ms</span></div>}
         </form>

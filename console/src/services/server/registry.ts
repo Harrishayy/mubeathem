@@ -4,7 +4,7 @@
 //                        STEWARD_SERVICES_OFF to switch it off without a code change.
 //   Plug one in:         create src/services/<id>/server.ts exporting `service`, add it here.
 //
-// See src/services/CLAUDE.md.
+// How to add one: "A new backend service" in the repo's CLAUDE.md.
 
 import type { ServerService } from "./types";
 import { service as runs } from "../runs/server";
@@ -13,5 +13,6 @@ import { service as lessons } from "../lessons/server";
 import { service as mubit } from "../mubit/server";
 import { service as sapling } from "../sapling/server";
 import { service as practice } from "../practice/server";
+import { service as safety } from "../safety/server";
 
-export const SERVER_SERVICES: ServerService[] = [runs, live, lessons, mubit, sapling, practice];
+export const SERVER_SERVICES: ServerService[] = [runs, live, lessons, mubit, sapling, practice, safety];

@@ -17,12 +17,6 @@ export function useConsole(): Console & { st: State } {
   return { ...c, st: c.store.state };
 }
 
-/** Whether the running source offers every capability in `needs`. */
-export function useCaps(needs: string[] = []) {
-  const { st } = useConsole();
-  return needs.every((n) => (st.source.caps as string[]).includes(n));
-}
-
 /** Run fn on an engine event. The latest fn is always used; no need to memoize it. */
 export function useOn(evt: string, fn: (payload: any, state: State) => void) {
   const { store } = useConsole();

@@ -13,13 +13,6 @@ export function nextAttempt(st: State, ep: Episode): Episode | null {
   return ep.take != null && nx.take !== ep.take ? null : nx;
 }
 
-export function prevAttempt(st: State, ep: Episode): Episode | null {
-  const r = st.byId[ep.robot]; if (!r) return null;
-  const i = r.history.findIndex((e) => e.id === ep.id);
-  const pv = i > 0 ? r.history[i - 1] : null;
-  return pv && (ep.take == null || pv.take === ep.take) ? pv : null;
-}
-
 export interface Change { k: string; from: number; to: number }
 export function planDiff(a: Settings, b: Settings): Change[] {
   return Object.keys(a).filter((k) => a[k] != null && b[k] != null && a[k] !== b[k]).map((k) => ({ k, from: a[k], to: b[k] }));

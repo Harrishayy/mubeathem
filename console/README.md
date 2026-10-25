@@ -21,13 +21,17 @@ and a collapsed panel shrinks to its header, which still shows a one-line summar
 
 | Tab | Route | What it is for |
 | --- | --- | --- |
+| Safety lab | `/safety` | The latest completed live safety report: the same proposed actions with and without Sapling, paired recordings, and every check's input, probabilities and decision. `/` opens here. |
 | Fleet | `/fleet` | Every robot's take video (or practice-world scene), status, phase and recent outcomes. Click one to replay it. |
 | Replay | `/replay` | Scrub an attempt, step between decisions, read the trace and the call behind each decision, and debrief it. |
 | Failures | `/failures` | Every failed or stopped attempt, the lesson it wrote, what the next attempt changed, and what not to do. |
 | Lessons | `/lessons` | Fleet lessons from the lesson files: what each applies to, how often it was recalled, and whether recalls then succeeded. Retire or restore one. |
+| System | `/system` | Every Mubit and Sapling call and what it sent and returned, each Mubit task's latency, Sapling's health, every backend service and its settings, the takes, and starting a practice run. |
 
-Keys `1`–`4` switch tabs. The engine lives in the root layout, so switching tabs keeps
-following the runs dir and keeps your place in a replay.
+Keys `1`–`6` switch tabs. The engine lives in the root layout, so switching tabs keeps
+following the runs dir and keeps your place in a replay. The Safety lab reads its own
+reports, so opened first it renders without loading the takes; they load when you open
+another tab.
 
 ## Adding, removing and moving panels
 
@@ -96,7 +100,10 @@ Everything comes from the files Steward writes (the contract is `steward/EVENTS.
 - **Takes**: `runs/takes/<take>.jsonl`, one attempt per `attempt` event per robot. Isaac
   takes add `.mp4`, `.pov.mp4` and `.frames.json`, which put every event on the video's
   timeline. Pull them from the DGX with `video/pull.sh`, or point `STEWARD_RUNS_DIR` at a
-  mounted copy.
+  mounted copy. With nothing in `runs/`, the console reads the committed `evidence/`
+  folder instead, and refuses to add lessons to it.
+- **Safety reports**: `runs/security/<run>/report.json`, served only when it is a completed
+  `live` report. Endpoint URLs and local paths are stripped before it reaches the browser.
 - **The task**: phases, plan ranges, safety policy and each model task's instructions come
   from the manifest in each take's `take` event, not from the console.
 - **Live runs**: `runs/latest.jsonl`, streamed as it grows.
@@ -127,7 +134,17 @@ Settings come from the environment, falling back to the repo's `.env`:
 | `MUBIT_API_KEY` | required for debriefs and practice runs |
 | `MUBIT_BASE_URL` | `https://api.mubit.ai/openai/v1` |
 | `STEWARD_DEBRIEF_MODEL` | falls back to `STEWARD_MODEL`, then `gpt-6-luna` |
-| `SAPLING_URL` | unset: safety checks go through Mubit |
+| `SAPLING_URL` | unset: safety checks go through Mubit. Never sent to the browser. |
+| `SAPLING_TOKEN` | sent as a bearer token to Sapling; required by the Modal deployment |
+| `STEWARD_PYTHON` | `python3`, for practice runs |
+| `STEWARD_READ_ONLY` | unset. `1` refuses every POST and DELETE: set it on a console others can reach |
+| `STEWARD_SERVICES_OFF` | unset. Comma-separated service ids to switch off |
+| `STEWARD_ROOT` | found from the working directory |
+
+Every POST and DELETE must come from the console's own pages (a browser's `Origin` must
+match) and every POST must be JSON, so another site can't start a paid run through your
+browser. Health checks make no paid calls; Sapling's `/health` answer is reused for five
+minutes, since on Modal it wakes a container.
 
 ## Smoke test
 
@@ -136,7 +153,10 @@ STEWARD_RUNS_DIR=<real runs dir> pnpm start -p 3199
 python3 e2e/smoke.py http://127.0.0.1:3199 [screenshots dir] [--write]
 ```
 
-`--write` adds a debrief fix to the lesson files; leave it off for a read-only pass.
+It checks `/` opens the Safety lab, every tab fits, no endpoint URL reaches the browser, a
+paired video seeks, and cross-site or non-JSON writes are refused, then replays a take.
+`--write` asks Mubit for a debrief fix and adds it to the lesson files; leave it off for a
+read-only pass.
 
 ## Versions
 

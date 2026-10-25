@@ -3,17 +3,24 @@
     STEWARD_RUNS_DIR=<real runs dir> pnpm --dir console start -p 3199
     python3 console/e2e/smoke.py http://127.0.0.1:3199 [screenshots dir] [--write]
 
-Checks every tab fits one viewport with no console errors, then drives the read-only
-flows on whatever real takes the runs dir holds: replaying a take's video in step with its
-decisions, inspecting what a call sent and returned, and the failures and what-not-to-do
-views.
+Checks / opens the Safety lab on its own, every tab fits one viewport with no console
+errors, recorded reports and the Sapling status carry no endpoint URL, a paired safety
+video seeks, and writes from another site or without JSON are refused. Then it drives the
+read-only flows on whatever real takes the runs dir holds: replaying a take's video in step
+with its decisions, inspecting what a call sent and returned, and the failures and
+what-not-to-do views. With no takes (an evidence/ folder of safety runs only) those are
+skipped, not failed.
 
 One flow changes real state, so it only runs when asked:
   --write  asks the debrief for a fix (a Mubit call) and adds it to the fleet lessons
 Needs Python Playwright (pip install playwright). Exits non-zero on any failure.
 """
 
+import json
+import re
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -22,7 +29,8 @@ ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
 WRITE = "--write" in sys.argv
 BASE = ARGS[0].rstrip("/") if ARGS else "http://127.0.0.1:3199"
 SHOTS = Path(ARGS[1]) if len(ARGS) > 1 else None
-TABS = ["fleet", "replay", "failures", "lessons"]
+TABS = ["safety", "fleet", "replay", "failures", "lessons", "system"]
+ENDPOINT = re.compile(r"https?://[A-Za-z0-9.-]*(?:modal\.run|ngrok|trycloudflare\.com)")
 problems, notes = [], []
 
 
@@ -48,6 +56,16 @@ def tab(page, name):
     page.wait_for_timeout(1200)
 
 
+def request(path, method="GET", body=None, headers=None):
+    """(status, headers, body) for one request straight to the API, with no browser."""
+    req = urllib.request.Request(f"{BASE}{path}", data=body, method=method, headers=headers or {})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, r.headers, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.headers, e.read()
+
+
 def fits(page):
     return page.evaluate("({sh: document.documentElement.scrollHeight, ih: innerHeight, sw: document.documentElement.scrollWidth, iw: innerWidth, crashed: document.querySelectorAll('.panel-error').length})")
 
@@ -56,8 +74,36 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     errors = []
 
-    # --- every tab -----------------------------------------------------------------
+    # --- the Safety lab opens first, without waiting on the takes ---------------------
     page = new_page(browser, errors)
+    page.goto(BASE)
+    page.wait_for_selector('[data-panel="safety"]', timeout=20000)
+    check(page.url.rstrip("/").endswith("/safety"), f"/ opens the Safety lab ({page.url})")
+
+    status, _, body = request("/api/safety")
+    safety = json.loads(body)
+    check(status == 200 and not ENDPOINT.search(body.decode()), "/api/safety carries no endpoint URL")
+    status, _, body = request("/api/sapling")
+    check(status == 200 and "url" not in json.loads(body) and not ENDPOINT.search(body.decode()), "/api/sapling says where Sapling is, not its URL")
+    report = safety.get("report")
+    if not report:
+        notes.append("skip no completed safety report in the runs dir")
+    else:
+        case = next(c for c in report["cases"] if c["videos"]["baseline"])
+        status, headers, _ = request(f"/api/safety/{report['run_id']}/{case['id']}/baseline/video", headers={"Range": "bytes=0-1023"})
+        check(status == 206 and headers.get("Content-Type") == "video/mp4", f"a paired safety video seeks ({status})")
+        page.wait_for_selector('[data-panel="safety"] video', timeout=20000)
+        check(page.locator('[data-panel="safety"] video').count() >= 2, "the Safety lab shows both recordings")
+    shot(page, "safety")
+
+    # --- writes: only this console's own pages, only JSON --------------------------------
+    status, _, _ = request("/api/lessons", "POST", b'{"text": "x", "applies_to": ["x"]}',
+                           {"Content-Type": "application/json", "Origin": "https://example.com"})
+    check(status == 403, f"a write from another site is refused ({status})")
+    status, _, _ = request("/api/practice", "POST", b'{"episodes": 1, "workers": 1}', {"Content-Type": "text/plain"})
+    check(status in (403, 415), f"a write without JSON is refused ({status})")
+
+    # --- every tab -----------------------------------------------------------------
     page.goto(f"{BASE}/fleet")
     page.wait_for_selector(".panel", timeout=20000)
     page.wait_for_timeout(1500)
@@ -68,7 +114,8 @@ with sync_playwright() as p:
         check(m["crashed"] == 0, f"{t} has no crashed panels")
         shot(page, t)
     takes = page.evaluate(f"fetch('{BASE}/api/runs').then(r => r.json())")["takes"]
-    check(len(takes) > 0, f"the runs dir has real takes ({len(takes)})")
+    if not takes:
+        notes.append("skip the runs dir has no takes; pull Isaac takes with video/pull.sh")
     with_video = [t["id"] for t in takes if t.get("video")]
     tab(page, "fleet")
 

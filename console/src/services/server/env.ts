@@ -1,6 +1,6 @@
 // Where Steward lives and what its .env says. Server only: never import from a client file.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 // Paths here are only known at runtime (they come from the working directory and .env),
@@ -38,11 +38,33 @@ export function env(key: string): string | undefined {
   return fileEnv[key] || undefined;
 }
 
-/** Steward's runs dir (STEWARD_RUNS_DIR, else <repo>/runs). Resolved against the repo root. */
-export function runsDir(): string {
+/** Where runs are written: STEWARD_RUNS_DIR, else <repo>/runs, as steward/config.py writes them. Never evidence/. */
+export function writeRunsDir(): string {
   const v = env("STEWARD_RUNS_DIR");
   return v ? path.resolve(repoRoot(), v) : path.join(repoRoot(), "runs");
 }
+
+/** Whether a runs dir holds anything the console shows: a take, or a safety report. */
+function hasRecords(dir: string): boolean {
+  const takes = path.join(dir, "takes"), security = path.join(dir, "security");
+  if (existsSync(takes) && readdirSync(takes).some((f) => f.endsWith(".jsonl"))) return true;
+  return existsSync(security) && readdirSync(security).some((d) => existsSync(path.join(security, d, "report.json")));
+}
+
+/** Where runs are read: STEWARD_RUNS_DIR; else <repo>/runs once it holds a take or a safety
+ *  report; else <repo>/evidence, the real recordings committed with the repo (steward/evidence.py). */
+export function runsDir(): string {
+  const dir = writeRunsDir();
+  if (env("STEWARD_RUNS_DIR")) return dir;
+  const evidence = path.join(repoRoot(), "evidence");
+  return !hasRecords(dir) && hasRecords(evidence) ? evidence : dir;
+}
+
+/** The committed evidence/ folder is only ever read: lessons can't be added to it. */
+export const readingEvidence = () => runsDir() !== writeRunsDir();
+
+/** STEWARD_READ_ONLY=1 refuses every POST and DELETE, for a console others can reach. */
+export const readOnly = () => /^(1|true|yes)$/i.test(env("STEWARD_READ_ONLY") || "");
 
 /** Services named in STEWARD_SERVICES_OFF (comma-separated) are unplugged at runtime. */
 export function disabledServices(): string[] {

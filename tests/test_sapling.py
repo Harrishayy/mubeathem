@@ -80,6 +80,13 @@ def test_the_robot_acts_on_saplings_top_label_and_keeps_its_calibrated_status():
     assert not verdict_from_sapling({"status": "fine"}).go
 
 
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), -.1, 2, True, "0.9", None])
+def test_malformed_supported_probability_never_opens_the_gate(value):
+    answer = sapling_answer("supported")
+    answer["probabilities"]["supported"] = value
+    assert not verdict_from_sapling(answer).go
+
+
 def test_a_sapling_violation_holds_then_a_clear_scene_resumes(server, tmp_path):
     url, _, answers = server
     answers.extend([(200, sapling_answer("unsure", raw="violation", prediction_set=["violation", "supported"]))]
@@ -109,3 +116,26 @@ def test_a_failed_sapling_call_stops_the_robot(server, tmp_path):
     assert run_task(world, Planner(), LessonStore(tmp_path / "l.json"), log, "r") == "stopped"
     assert world.executed == []
     assert "error" in log.kinds()
+
+
+def test_every_sapling_request_sends_the_token_when_one_is_set(monkeypatch):
+    """The Modal deployment refuses /verify without it, so a leaked URL can't spend the GPU."""
+    import io
+    from steward import config, sapling
+
+    sent = []
+
+    def urlopen(request, timeout):
+        sent.append((request.get_header("Authorization"), timeout))
+        return io.BytesIO(json.dumps(sapling_answer("supported")).encode())
+
+    monkeypatch.setattr(sapling.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(config, "SAPLING_TOKEN", "test-token")
+    SaplingVerifier("http://sapling").verify("No person within 5 m.", PLAN, "pour")
+    sapling.health("http://sapling")
+    monkeypatch.setattr(config, "SAPLING_TOKEN", None)
+    sapling.request("http://sapling", "/verify", {"policy": "p", "evidence": "e", "claim": "c"})
+    # A cold Modal GPU takes about 43 s to answer, so verify waits longer than that.
+    assert sent == [("Bearer test-token", sapling.VERIFY_TIMEOUT), ("Bearer test-token", sapling.HEALTH_TIMEOUT),
+                    (None, sapling.VERIFY_TIMEOUT)]
+    assert sapling.VERIFY_TIMEOUT > 43

@@ -74,8 +74,15 @@ class MubitModel:
         # take event's `steward` manifest), so each call logs only the user message.
         sent = {"user": message}
         start = time.perf_counter()
+        middleware_id = None
         try:
-            resp = self.client.chat.completions.create(**kwargs)
+            completions = self.client.chat.completions
+            if hasattr(completions, "with_raw_response"):
+                raw_response = completions.with_raw_response.create(**kwargs)
+                middleware_id = raw_response.headers.get("x-middleware-request-id")
+                resp = raw_response.parse()
+            else:
+                resp = completions.create(**kwargs)
             content = resp.choices[0].message.content
             got = json.loads(content)
         except Exception as error:
@@ -83,6 +90,7 @@ class MubitModel:
             raise
         choice = resp.choices[0]
         self._report(task=task, ms=_ms(start), request_id=getattr(resp, "id", None),
+                     mubit_request_id=middleware_id,
                      model=getattr(resp, "model", None) or self.model, sent=sent, got=got,
                      usage=_usage(resp), finish_reason=getattr(choice, "finish_reason", None))
         return got

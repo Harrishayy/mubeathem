@@ -7,10 +7,16 @@ POST /verify with {"policy", "evidence", "claim"} returns Sapling's own answer: 
 (one of the four labels, or unsure), raw_label, prediction_set and calibrated
 probabilities. GET /health says it is up. The model (about 46 GB) loads once with the
 loader shipped in the weights package and answers one request at a time.
+
+With SAPLING_TOKEN set (or --token), /verify answers only requests that send it as
+"Authorization: Bearer <token>", which steward/sapling.py does. Without one, it answers
+anyone who can reach it, so keep it on 127.0.0.1 behind an SSH tunnel.
 """
 
 import argparse
+import hmac
 import json
+import os
 import sys
 import threading
 import time
@@ -25,7 +31,10 @@ def main():
     parser.add_argument("--model-dir", type=Path, default=Path.home() / "steward/sapling/model")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--token", default=os.environ.get("SAPLING_TOKEN"),
+                        help="Require this bearer token on /verify (default: SAPLING_TOKEN).")
     args = parser.parse_args()
+    expected = f"Bearer {args.token}" if args.token else None
 
     # The package's own serving loader: the reference inference.py loader, minus its exact
     # version pins and the 46 GB re-hash (run `inference.py --check-files` once instead).
@@ -57,6 +66,8 @@ def main():
         def do_POST(self):
             if self.path != "/verify":
                 return self.send(404, {"error": "not found"})
+            if expected and not hmac.compare_digest(self.headers.get("Authorization", ""), expected):
+                return self.send(401, {"error": "missing or wrong bearer token"})
             try:
                 request = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
             except ValueError:

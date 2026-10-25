@@ -7,12 +7,6 @@ import * as callInspector from "./call-inspector";
 import * as debrief from "./debrief";
 import * as decisionTrace from "./decision-trace";
 import * as dontList from "./dont-list";
-import * as dsComponents from "./ds-components";
-import * as dsLayout from "./ds-layout";
-import * as dsPrinciples from "./ds-principles";
-import * as dsTokens from "./ds-tokens";
-import * as eventDetail from "./event-detail";
-import * as eventLog from "./event-log";
 import * as failures from "./failures";
 import * as learningCurve from "./learning-curve";
 import * as lessonImpact from "./lesson-impact";
@@ -23,7 +17,7 @@ import * as mubitTasks from "./mubit-tasks";
 import * as practice from "./practice";
 import * as replayStage from "./replay-stage";
 import * as robotGrid from "./robot-grid";
-import * as robotList from "./robot-list";
+import * as safety from "./safety";
 import * as sapling from "./sapling";
 import * as services from "./services";
 import * as takes from "./takes";
@@ -35,12 +29,6 @@ export const PANELS: Record<string, PanelModule> = {
   "debrief": debrief,
   "decision-trace": decisionTrace,
   "dont-list": dontList,
-  "ds-components": dsComponents,
-  "ds-layout": dsLayout,
-  "ds-principles": dsPrinciples,
-  "ds-tokens": dsTokens,
-  "event-detail": eventDetail,
-  "event-log": eventLog,
   "failures": failures,
   "learning-curve": learningCurve,
   "lesson-impact": lessonImpact,
@@ -51,7 +39,7 @@ export const PANELS: Record<string, PanelModule> = {
   "practice": practice,
   "replay-stage": replayStage,
   "robot-grid": robotGrid,
-  "robot-list": robotList,
+  "safety": safety,
   "sapling": sapling,
   "services": services,
   "takes": takes,

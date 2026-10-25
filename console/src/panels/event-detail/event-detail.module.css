@@ -1,5 +1,0 @@
-.wrap { padding: 12px; display: grid; gap: 10px; align-content: start; }
-.text { font-size: 13px; line-height: 1.5; }
-.ep { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font: 500 11px var(--font-mono); }
-.acts { display: flex; gap: 6px; flex-wrap: wrap; }
-.json { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); font: 500 11px/1.55 var(--font-mono); color: var(--muted); overflow: auto; white-space: pre; max-width: 100%; }

@@ -8,7 +8,8 @@
 
 import { existsSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { runsDir } from "../server/env";
+import { readingEvidence, runsDir } from "../server/env";
+import { isRealTake } from "../runs/server";
 import { fail, json, readJson } from "../server/http";
 import type { ServerService } from "../server/types";
 import type { LessonFile, StoredLesson } from "../types";
@@ -22,7 +23,8 @@ function lessonFiles(): string[] {
   const dir = runsDir(), out: string[] = [];
   if (existsSync(dir)) for (const f of readdirSync(dir)) if (f.endsWith(".json") && /lesson/.test(f) && f !== OFFLINE_FILE) out.push(f);
   const takes = path.join(dir, "takes");
-  if (existsSync(takes)) for (const f of readdirSync(takes)) if (f.endsWith(".lessons.json")) out.push(path.join("takes", f));
+  // A take's own lesson file, only for takes the console shows (not offline or fixture ones).
+  if (existsSync(takes)) for (const f of readdirSync(takes)) if (f.endsWith(".lessons.json") && isRealTake(f.slice(0, -".lessons.json".length))) out.push(path.join("takes", f));
   if (!out.includes(FLEET_FILE)) out.unshift(FLEET_FILE);
   return out;
 }
@@ -35,6 +37,7 @@ function read(rel: string): StoredLesson[] {
 
 /** Atomic, like LessonStore._save: write a temp file, then rename over the original. */
 function write(rel: string, lessons: StoredLesson[]) {
+  if (readingEvidence()) throw new Error("evidence/ is the recorded evidence committed with the repo, so lessons can't be added to it.");
   const p = path.join(runsDir(), rel);
   mkdirSync(path.dirname(p), { recursive: true });
   const tmp = `${p}.console.tmp`;
@@ -71,6 +74,7 @@ export const service: ServerService = {
     {
       method: "POST", path: "",
       async handle(req) {
+        if (readingEvidence()) return fail(409, "read_only", "The console is showing the committed evidence/ folder, which is read-only. Lessons go in runs/ once it has a take.");
         const b = await readJson<{ file?: string; text?: string; applies_to?: unknown; source?: string }>(req);
         const file = resolveFile(b?.file);
         if (!b || !file) return fail(400, "bad_file", "Name one of the lesson files GET /api/lessons lists.");
@@ -88,6 +92,7 @@ export const service: ServerService = {
     {
       method: "POST", path: "retire",
       async handle(req) {
+        if (readingEvidence()) return fail(409, "read_only", "The console is showing the committed evidence/ folder, which is read-only.");
         const b = await readJson<{ file?: string; id?: string; retired?: boolean }>(req);
         const file = resolveFile(b?.file);
         if (!b || !file) return fail(400, "bad_file", "Name one of the lesson files GET /api/lessons lists.");
@@ -101,6 +106,6 @@ export const service: ServerService = {
   ],
   async health() {
     const files = listLessonFiles(), n = files.reduce((a, f) => a + f.lessons.length, 0);
-    return { status: n ? "ok" : "idle", summary: `${n} lesson${n === 1 ? "" : "s"} in ${files.filter((f) => f.mtime).length} file${files.length === 1 ? "" : "s"}; the fleet file is runs/${FLEET_FILE}.`, detail: { files: files.map((f) => f.file) } };
+    return { status: n ? "ok" : "idle", summary: `${n} lesson${n === 1 ? "" : "s"} in ${files.filter((f) => f.mtime).length} file${files.length === 1 ? "" : "s"}; the fleet file is ${FLEET_FILE}${readingEvidence() ? " (read-only evidence)" : ""}.`, detail: { files: files.map((f) => f.file) } };
   },
 };

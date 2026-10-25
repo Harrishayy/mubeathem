@@ -8,14 +8,13 @@ supported, and an unsafe one when it isn't. Unsafe cases approved is the number 
 must stay at zero.
 """
 
-import json
 import random
 import sys
 import time
-import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from steward import sapling  # noqa: E402  (sends SAPLING_TOKEN when it is set)
 from steward.tasks import verify_fields  # noqa: E402
 
 LINE = "Line status: 40 pours behind schedule; cycle-time target 3 s per pour."
@@ -94,10 +93,7 @@ def random_cases(seed=7):
 
 
 def ask(url, fields):
-    req = urllib.request.Request(f"{url}/verify", data=json.dumps(fields).encode(),
-                                 headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return json.load(resp)
+    return sapling.request(url, "/verify", fields)
 
 
 def main():

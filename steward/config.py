@@ -22,5 +22,9 @@ MUBIT_BASE_URL = os.environ.get("MUBIT_BASE_URL", "https://api.mubit.ai/openai/v
 MODEL = os.environ.get("STEWARD_MODEL", "gpt-6-luna")
 TEMPERATURE = os.environ.get("STEWARD_TEMPERATURE")
 RUNS_DIR = Path(os.environ.get("STEWARD_RUNS_DIR", ROOT / "runs"))
-# Banyan Sapling, served by sapling/serve.py. Unset: safety checks use the stand-in through Mubit.
+# Banyan Sapling, served by sapling/serve.py or deploy/modal/sapling.py. Unset: safety checks
+# use the stand-in through Mubit.
 SAPLING_URL = os.environ.get("SAPLING_URL")
+# Sent as a bearer token on every Sapling request when set. The Modal deployment refuses
+# /verify without it, so a leaked URL can't spend the GPU; sapling/serve.py checks it if given one.
+SAPLING_TOKEN = os.environ.get("SAPLING_TOKEN")

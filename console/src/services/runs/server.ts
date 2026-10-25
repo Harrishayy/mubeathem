@@ -158,6 +158,9 @@ function realTake(id: string): Parsed | null {
   return p && p.events.length && isReal(p.events) ? p : null;
 }
 
+/** Whether a take is one the console shows. Its lesson file is listed only if so. */
+export const isRealTake = (id: string) => !!realTake(id);
+
 const notFound = (id: string) => fail(404, "no_take", `No real take "${id}" in ${takesDir()}.`);
 
 export const service: ServerService = {

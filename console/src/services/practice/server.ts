@@ -10,7 +10,7 @@
 
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
-import { env, repoRoot, runsDir } from "../server/env";
+import { env, repoRoot, writeRunsDir } from "../server/env";
 import { fail, json, readJson } from "../server/http";
 import type { ServerService } from "../server/types";
 import type { PracticeArgs, PracticeStatus } from "../types";
@@ -42,7 +42,7 @@ async function start(req: Request) {
   const argv = ["-m", "steward.practice", "--episodes", String(args.episodes), "--workers", String(args.workers)];
   if (args.seed != null) argv.push("--seed", String(args.seed));
   Object.assign(run, { args, startedAt: Date.now() / 1000, endedAt: null, exitCode: null, output: [`$ ${python()} ${argv.join(" ")}`] });
-  const proc = spawn(/*turbopackIgnore: true*/ python(), argv, { cwd: path.resolve(/*turbopackIgnore: true*/ repoRoot()), env: { ...process.env, STEWARD_RUNS_DIR: runsDir(), PYTHONUNBUFFERED: "1" }, stdio: ["ignore", "pipe", "pipe"] });
+  const proc = spawn(/*turbopackIgnore: true*/ python(), argv, { cwd: path.resolve(/*turbopackIgnore: true*/ repoRoot()), env: { ...process.env, STEWARD_RUNS_DIR: writeRunsDir(), PYTHONUNBUFFERED: "1" }, stdio: ["ignore", "pipe", "pipe"] });
   run.proc = proc;
   const take = (chunk: Buffer) => { for (const l of chunk.toString("utf8").split("\n")) if (l.trim()) run.output.push(l); if (run.output.length > MAX_LINES * 2) run.output.splice(0, run.output.length - MAX_LINES); };
   proc.stdout?.on("data", take);

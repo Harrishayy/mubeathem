@@ -1,4 +1,4 @@
-// What a service's server half exports. See src/services/CLAUDE.md.
+// What a service's server half exports. Adding one: "A new backend service" in the repo's CLAUDE.md.
 
 import type { EnvVar, Health } from "../types";
 

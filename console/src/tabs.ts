@@ -19,6 +19,10 @@ export interface TabDef { id: string; label: string; hint: string; columns: Colu
 
 export const TABS: TabDef[] = [
   {
+    id: "safety", label: "Safety lab", hint: "Adversarial actions, matched baseline and Sapling protection",
+    columns: [{ id: "safety", label: "Safety comparison", width: "minmax(0, 1fr)", panels: [{ id: "safety", minHeight: 400 }] }],
+  },
+  {
     id: "fleet", label: "Fleet", hint: "Every robot, live",
     columns: [
       { id: "robots", label: "Robots", width: "minmax(0, 1fr)", panels: [{ id: "robot-grid" }] },
@@ -64,6 +68,27 @@ export const TABS: TabDef[] = [
           { id: "lesson-impact", grow: 1.3 },
           { id: "activity", title: "Lesson activity", grow: 1, props: { kinds: ["lesson", "result"] } },
         ],
+      },
+    ],
+  },
+  {
+    id: "system", label: "System", hint: "Every Mubit and Sapling call, and the services behind the console",
+    columns: [
+      {
+        id: "calls", label: "Model calls", width: "minmax(0, 1fr)",
+        panels: [
+          { id: "model-calls", grow: 1.4, minHeight: 220 },
+          { id: "call-inspector", title: "Selected call", grow: 1, minHeight: 160 },
+        ],
+      },
+      {
+        id: "models", label: "Mubit and Sapling", width: "minmax(320px, 28%)",
+        panels: [{ id: "mubit-tasks" }, { id: "mubit-latency" }, { id: "sapling", grow: 1.4 }],
+      },
+      {
+        id: "backend", label: "Services", width: "minmax(320px, 26%)",
+        // Practice starts live Mubit calls, so it starts collapsed.
+        panels: [{ id: "services", grow: 1.3 }, { id: "takes" }, { id: "practice", collapsed: true }],
       },
     ],
   },

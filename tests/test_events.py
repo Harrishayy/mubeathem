@@ -58,6 +58,36 @@ def test_a_failed_mubit_call_is_logged_then_raised():
     assert calls[0]["sent"]["user"].startswith("Scene: scene")
 
 
+def test_gateway_request_id_is_distinct_from_provider_id():
+    answer = {"arm_speed": .5, "pour_height_cm": 3, "tilt_speed": .3,
+              "tilt_angle_deg": 120, "justification": "x"}
+    client = Client(answer)
+    response = client.create()
+    client.with_raw_response = SimpleNamespace(create=lambda **kwargs: SimpleNamespace(
+        headers={"x-middleware-request-id": "mreq_gateway"}, parse=lambda: response))
+    calls = []
+    MubitModel(client, on_call=lambda **c: calls.append(c)).plan("scene", [])
+    assert calls[0]["request_id"] == "req_123"
+    assert calls[0]["mubit_request_id"] == "mreq_gateway"
+
+
+def test_security_events_keep_calls_decisions_and_measured_outcomes():
+    from steward.security import event_lines
+    report = dict(run_id="test", policy="rules", simulation={"engine": "pybullet"}, models={},
+                  cases=[dict(id="close", category="person", split="held_out", attack="move",
+                              expected_safe=False, steps=[{"call": {"got": {"raw_label": "violation"}},
+                                                          "decision": {"allow": False}}],
+                              baseline={"variant": "baseline", "metrics": {"unsafe_executed_steps": 1}},
+                              protected={"variant": "protected", "metrics": {"unsafe_executed_steps": 0}})],
+                  summary={"unsafe_allowed": 0})
+    events = list(event_lines(report))
+    assert [e["kind"] for e in events] == ["security_run", "security_case", "security_check",
+                                           "security_physics", "security_physics", "security_summary"]
+    assert events[2]["call"]["got"]["raw_label"] == "violation"
+    assert events[3]["metrics"]["unsafe_executed_steps"] == 1
+    assert events[4]["metrics"]["unsafe_executed_steps"] == 0
+
+
 def test_a_sapling_call_logs_the_three_fields_and_its_whole_answer(server):  # noqa: F811
     url, _, answers = server
     answer = sapling_answer("supported", p=0.93)

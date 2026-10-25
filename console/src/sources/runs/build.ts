@@ -186,7 +186,7 @@ export function build(details: TakeDetail[], files: LessonFile[]): Built {
   const robots: Robot[] = [...byRobot.entries()].map(([id, eps]) => {
     const ep = eps[eps.length - 1], take = takes.find((t) => t.id === ep.take);
     return {
-      id, name: robotName(id), task: TASK, model: take?.model || "Mubit", env: ep.world === "isaac" ? "Isaac Sim" : "practice world",
+      id, name: robotName(id), task: TASK, model: take?.model || "model not recorded", env: ep.world === "isaac" ? "Isaac Sim" : "practice world",
       history: eps.filter((e) => e.outcome), count: eps.length, lastEv: ep.events[ep.events.length - 1] || null, ep, live: live.has(ep.take),
     };
   });
