@@ -1,30 +1,28 @@
 """Browser smoke test of the whole console against a running server on real runs.
 
     STEWARD_RUNS_DIR=<real runs dir> pnpm --dir console start -p 3199
-    python3 console/e2e/smoke.py http://127.0.0.1:3199 [screenshots dir] [--write] [--live]
+    python3 console/e2e/smoke.py http://127.0.0.1:3199 [screenshots dir] [--write]
 
 Checks every tab fits one viewport with no console errors, then drives the read-only
 flows on whatever real takes the runs dir holds: replaying a take's video in step with its
-decisions, inspecting what a call sent and returned, the calls table, and the failures and
-what-not-to-do views.
+decisions, inspecting what a call sent and returned, and the failures and what-not-to-do
+views.
 
-Two flows change real state, so they only run when asked:
+One flow changes real state, so it only runs when asked:
   --write  asks the debrief for a fix (a Mubit call) and adds it to the fleet lessons
-  --live   starts a one-episode practice run through Mubit and watches it arrive live
 Needs Python Playwright (pip install playwright). Exits non-zero on any failure.
 """
 
 import sys
-import time
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
 ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
-WRITE, LIVE = "--write" in sys.argv, "--live" in sys.argv
+WRITE = "--write" in sys.argv
 BASE = ARGS[0].rstrip("/") if ARGS else "http://127.0.0.1:3199"
 SHOTS = Path(ARGS[1]) if len(ARGS) > 1 else None
-TABS = ["fleet", "replay", "failures", "lessons", "calls", "log", "services", "system"]
+TABS = ["fleet", "replay", "failures", "lessons"]
 problems, notes = [], []
 
 
@@ -75,14 +73,14 @@ with sync_playwright() as p:
     tab(page, "fleet")
 
     # --- replay a take with video ---------------------------------------------------
-    tab(page, "replay")
-    robots = page.locator('[data-panel="robot-list"] [role="button"]')
+    # Each Fleet tile opens its robot on the Replay tab.
     vid = None
-    for i in range(robots.count()):
+    for i in range(page.locator('[data-panel="robot-grid"] [role="button"]').count()):
         if vid or not with_video:
             break
-        robots.nth(i).click()
-        page.wait_for_timeout(600)
+        tab(page, "fleet")
+        page.locator('[data-panel="robot-grid"] [role="button"]').nth(i).click()
+        page.wait_for_timeout(1200)
         opts = page.eval_on_selector_all('[data-panel="replay-stage"] select option', "os => os.map(o => [o.value, o.textContent])")
         vid = next((v for v, label in opts if any(t in label for t in with_video)), None)
     if not with_video:
@@ -118,15 +116,6 @@ with sync_playwright() as p:
                 check("%" in text and "prediction set" in text, "a Sapling call shows calibrated probabilities")
             shot(page, "replay-inspector")
 
-    # --- calls tab ----------------------------------------------------------------------
-    tab(page, "calls")
-    rows = page.locator('[data-panel="model-calls"] tbody tr')
-    check(rows.count() > 0, f"the calls table lists calls ({rows.count()})")
-    rows.first.click()
-    page.wait_for_timeout(400)
-    check("LATENCY" in page.locator('[data-panel="call-inspector"]').inner_text().upper(), "selecting a call inspects it")
-    shot(page, "calls")
-
     # --- failures ---------------------------------------------------------------------
     tab(page, "failures")
     cards = page.locator('[data-panel="failures"] li')
@@ -145,30 +134,6 @@ with sync_playwright() as p:
         page.click('[data-panel="debrief"] button:has-text("Add to fleet lessons")')
         page.wait_for_timeout(1500)
         check(lessons() == before + 1, "Add to fleet lessons writes the lesson file")
-
-    tab(page, "services")
-    check("UP" in page.locator('[data-panel="services"]').inner_text().upper(), "the services panel reports health")
-
-    # --- a one-episode practice run through Mubit (--live: spends real calls) ---------------
-    if LIVE:
-        page.fill('[data-panel="practice"] input[type="number"] >> nth=0', "1")
-        page.fill('[data-panel="practice"] input[type="number"] >> nth=1', "1")
-        page.click('[data-panel="practice"] button:has-text("Start through Mubit")')
-        deadline = time.time() + 40
-        seen_live = False
-        while time.time() < deadline:
-            page.wait_for_timeout(1000)
-            if "working" in page.locator("header").first.inner_text():
-                seen_live = True
-                break
-        check(seen_live, "the top bar shows robots working during the run")
-        tab(page, "fleet")
-        shot(page, "live-fleet")
-        tab(page, "services")
-        deadline = time.time() + 90
-        while time.time() < deadline and "pid" in page.locator('[data-panel="practice"] .panel-sub').inner_text():
-            page.wait_for_timeout(1000)
-        check("exited 0" in page.locator('[data-panel="practice"]').inner_text(), "the practice run finishes cleanly")
 
     # --- light theme and phone ------------------------------------------------------------
     for (w, h, scheme, name) in [(1280, 800, "light", "light"), (400, 860, "dark", "phone")]:

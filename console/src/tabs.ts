@@ -35,19 +35,14 @@ export const TABS: TabDef[] = [
   {
     id: "replay", label: "Replay", hint: "One episode, decision by decision",
     columns: [
-      { id: "pick", label: "Robots", width: "minmax(270px, 20%)", panels: [{ id: "robot-list" }] },
+      // The video gets the whole column height; pick another robot from the Fleet tab.
+      { id: "stage", label: "Replay", width: "minmax(0, 1fr)", panels: [{ id: "replay-stage", minHeight: 330 }] },
       {
-        id: "stage", label: "Replay", width: "minmax(0, 1fr)",
+        id: "assist", label: "Debrief", width: "minmax(340px, 30%)",
         panels: [
-          { id: "replay-stage", grow: 3, minHeight: 330 },
-          { id: "decision-trace", grow: 1.5 },
-        ],
-      },
-      {
-        id: "assist", label: "Debrief", width: "minmax(320px, 27%)",
-        panels: [
-          { id: "debrief", grow: 2.3, minHeight: 260 },
-          { id: "call-inspector", title: "Call behind this decision", grow: 1.6, minHeight: 180 },
+          { id: "decision-trace", grow: 1.4, minHeight: 180 },
+          { id: "debrief", grow: 1.6, minHeight: 220 },
+          { id: "call-inspector", title: "Call behind this decision", grow: 1, minHeight: 150 },
         ],
       },
     ],
@@ -68,66 +63,6 @@ export const TABS: TabDef[] = [
         panels: [
           { id: "lesson-impact", grow: 1.3 },
           { id: "activity", title: "Lesson activity", grow: 1, props: { kinds: ["lesson", "result"] } },
-        ],
-      },
-    ],
-  },
-  {
-    id: "calls", label: "Calls", hint: "Every Mubit and Sapling call, sent and returned",
-    columns: [
-      {
-        id: "services", label: "Mubit and Sapling", width: "minmax(0, 1fr)",
-        panels: [
-          { id: "mubit-tasks", grow: 0.9, minHeight: 250 },
-          { id: "sapling", grow: 1.1, minHeight: 170 },
-          { id: "mubit-latency", grow: 1 },
-        ],
-      },
-      { id: "list", label: "Calls", width: "minmax(380px, 33%)", panels: [{ id: "model-calls" }] },
-      { id: "inspect", label: "Inspector", width: "minmax(360px, 31%)", panels: [{ id: "call-inspector" }] },
-    ],
-  },
-  {
-    id: "log", label: "Log", hint: "Every Steward event",
-    columns: [
-      { id: "events", label: "Events", width: "minmax(0, 1fr)", panels: [{ id: "event-log" }] },
-      {
-        id: "detail", label: "Detail", width: "minmax(340px, 32%)",
-        panels: [
-          { id: "event-detail", grow: 1.4 },
-          { id: "takes", grow: 1 },
-        ],
-      },
-    ],
-  },
-  {
-    id: "services", label: "Services", hint: "Backend services, data sources and practice runs",
-    columns: [
-      { id: "backend", label: "Services", width: "minmax(0, 1fr)", panels: [{ id: "services" }] },
-      {
-        id: "run", label: "Run", width: "minmax(360px, 40%)",
-        panels: [
-          { id: "practice", grow: 1.1, minHeight: 220 },
-          { id: "takes", grow: 1.2 },
-        ],
-      },
-    ],
-  },
-  {
-    id: "system", label: "System", hint: "Design system and layout map",
-    columns: [
-      {
-        id: "foundations", label: "Foundations", width: "minmax(0, 1fr)",
-        panels: [
-          { id: "ds-principles", grow: 0.8 },
-          { id: "ds-tokens", grow: 1.2 },
-        ],
-      },
-      {
-        id: "parts", label: "Parts", width: "minmax(0, 1fr)",
-        panels: [
-          { id: "ds-components", grow: 1 },
-          { id: "ds-layout", grow: 1.2 },
         ],
       },
     ],

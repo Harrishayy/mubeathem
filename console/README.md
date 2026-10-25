@@ -25,12 +25,8 @@ and a collapsed panel shrinks to its header, which still shows a one-line summar
 | Replay | `/replay` | Scrub an attempt, step between decisions, read the trace and the call behind each decision, and debrief it. |
 | Failures | `/failures` | Every failed or stopped attempt, the lesson it wrote, what the next attempt changed, and what not to do. |
 | Lessons | `/lessons` | Fleet lessons from the lesson files: what each applies to, how often it was recalled, and whether recalls then succeeded. Retire or restore one. |
-| Calls | `/calls` | Every Mubit and Sapling call: counts, latency, Sapling's verdicts and confidence, and an inspector for what was sent and returned. |
-| Log | `/log` | Every event as JSONL rows: filter, inspect, copy, replay that moment, open a take file by hand. |
-| Services | `/services` | Backend health and settings, and practice runs through Mubit. |
-| System | `/system` | The design system: principles, tokens, components and the live layout map. |
 
-Keys `1`–`8` switch tabs. The engine lives in the root layout, so switching tabs keeps
+Keys `1`–`4` switch tabs. The engine lives in the root layout, so switching tabs keeps
 following the runs dir and keeps your place in a replay.
 
 ## Adding, removing and moving panels
@@ -137,11 +133,10 @@ Settings come from the environment, falling back to the repo's `.env`:
 
 ```bash
 STEWARD_RUNS_DIR=<real runs dir> pnpm start -p 3199
-python3 e2e/smoke.py http://127.0.0.1:3199 [screenshots dir] [--write] [--live]
+python3 e2e/smoke.py http://127.0.0.1:3199 [screenshots dir] [--write]
 ```
 
-`--write` adds a debrief fix to the lesson files and `--live` starts a one-episode practice
-run through Mubit; leave both off for a read-only pass.
+`--write` adds a debrief fix to the lesson files; leave it off for a read-only pass.
 
 ## Versions
 
