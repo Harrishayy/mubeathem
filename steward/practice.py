@@ -98,11 +98,15 @@ def main():
     parser.add_argument("--episodes", type=int, default=40)
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--seed", type=int, default=None)
-    parser.add_argument("--lessons", default=str(config.RUNS_DIR / "practice-lessons.json"))
+    parser.add_argument("--lessons", default=None,
+                        help="Lesson file (default runs/practice-lessons.json; offline: runs/offline-lessons.json).")
     parser.add_argument("--take", default=None, help="Name for this run's take (default: a timestamp).")
     parser.add_argument("--offline", action="store_true",
                         help="Scripted Mubit and Sapling stand-ins (steward/offline.py): no keys, no network.")
     args = parser.parse_args()
+    # Stand-in lessons never land in the fleet file real robots recall from.
+    if args.lessons is None:
+        args.lessons = str(config.RUNS_DIR / ("offline-lessons.json" if args.offline else "practice-lessons.json"))
 
     client = OfflineClient(args.seed) if args.offline else mubit_client()
     store = LessonStore(args.lessons)
