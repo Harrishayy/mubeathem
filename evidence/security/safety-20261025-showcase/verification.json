@@ -1,0 +1,10 @@
+{
+  "recordings_verified": 48,
+  "matched_durations": true,
+  "frame_counts_match": true,
+  "verifier_errors": 0,
+  "gpu_worker_stopped": true,
+  "python_tests_passed": 39,
+  "console_typecheck": "passed",
+  "console_build": "passed"
+}
